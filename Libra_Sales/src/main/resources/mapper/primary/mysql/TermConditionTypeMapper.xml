@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TermConditionTypeMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    term_condition_types.id AS id,
+    term_condition_types.name AS `name`,
+    CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM term_conditions
+        WHERE term_condition_type_id = term_condition_types.id
+    ) OR EXISTS (
+        SELECT 1
+        FROM term_condition_applies
+        WHERE term_condition_type_id = term_condition_types.id
+    ) THEN 1
+    ELSE NULL
+    END AS allowDelete
+  </sql>
+
+  <sql id="BASE_FROM">
+      FROM term_condition_types
+  </sql>
+
+  <sql id="BASE_WHERE">
+      WHERE term_condition_types.is_active = 1
+    <if test="filter.searchText != null"> AND term_condition_types.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+  </sql>
+
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="TermConditionTypeResponse">
+    SELECT
+     <include refid="BASE_COLUMN_LIST"/>
+     <include refid="BASE_FROM"/>
+     <include refid="BASE_WHERE"/>
+     ORDER BY
+     <choose>
+          <when test="filter.orderBy != null">
+            ${filter.orderBy}
+          </when>
+          <otherwise>
+              term_condition_types.id DESC
+          </otherwise>
+     </choose>
+     <if test="filter.page != null and filter.rowsPerPage != null">
+         LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(term_condition_types.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TermConditionTypeResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+    WHERE term_condition_types.is_active = 1 AND term_condition_types.id = #{id}
+  </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.TermCondition.TermCondition" useGeneratedKeys="true" keyProperty="termConditionType.id">
+        INSERT INTO term_condition_types (
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{termConditionType.name},
+                     NOW(),
+                     #{termConditionType.createdBy},
+                     #{termConditionType.isActive}
+                 )
+    </insert>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM term_condition_types
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.TermCondition.TermCondition">
+        UPDATE term_condition_types SET
+        <trim suffixOverrides=",">
+            <if test="termConditionType.name != null">
+            name = #{termConditionType.name},
+            </if>
+            modified = NOW(),
+            <if test="termConditionType.modifiedBy != null">
+            modified_by = #{termConditionType.modifiedBy}
+            </if>
+        </trim>
+        WHERE id = #{termConditionType.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+            UPDATE term_condition_types SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by =#{userId}
+            WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

@@ -1,0 +1,2633 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.freedom.FreedomMapper">
+
+    <resultMap id="User" type="com.ut.nlSystemAPi.model.Users.User">
+
+    </resultMap>
+
+    <resultMap id="UserGroupList" type="com.ut.nlSystemAPi.model.Users.UserGroupList">
+
+    </resultMap>
+
+    <resultMap id="UserResponse" type="com.ut.nlSystemAPi.model.response.User.UserResponse">
+
+    </resultMap>
+
+    <select id="countRecords" resultType="long">
+        SELECT COUNT(${field})
+        FROM ${table}
+        WHERE ${field}
+        LIKE #{pattern}
+        ${status}
+    </select>
+
+    <select id="checkTableExists" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = #{tableName}
+    </select>
+
+    <!-- Generate Table -->
+    <insert id="createGroupTotals" parameterType="java.lang.Long">
+        CREATE TABLE `${customerId}_group_totals` (
+        `product_id` int(11) NOT NULL DEFAULT '0',
+        `lots_number` varchar(50) COLLATE utf8_unicode_ci NOT NULL DEFAULT '0',
+        `expired_date` date NOT NULL,
+        `location_id` int(11) NOT NULL DEFAULT '0',
+        `location_group_id` int(11) NOT NULL DEFAULT '0',
+        `total_qty` decimal(15,3) NOT NULL DEFAULT '0.000',
+        `total_order` decimal(15,3) NOT NULL DEFAULT '0.000'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${customerId}_group_totals`
+        ADD PRIMARY KEY (`product_id`,`location_id`,`location_group_id`,`lots_number`,`expired_date`),
+        ADD KEY `index_keys` (`product_id`,`location_id`,`location_group_id`,`lots_number`,`expired_date`);
+    </insert>
+
+    <insert id="createGroupTotalDetails" parameterType="java.lang.Long">
+        CREATE TABLE `${customerId}_group_total_details` (
+        `product_id` int(11) NOT NULL DEFAULT '0',
+        `location_group_id` int(11) NOT NULL DEFAULT '0',
+        `total_cycle` decimal(15,3) DEFAULT '0.000',
+        `total_so` decimal(15,3) DEFAULT '0.000',
+        `total_so_free` decimal(15,3) DEFAULT '0.000',
+        `total_pos` decimal(15,3) DEFAULT '0.000',
+        `total_pos_free` decimal(15,3) DEFAULT '0.000',
+        `total_pb` decimal(15,3) DEFAULT '0.000',
+        `total_pbc` decimal(15,3) DEFAULT '0.000',
+        `total_cm` decimal(15,3) DEFAULT '0.000',
+        `total_cm_free` decimal(15,3) DEFAULT '0.000',
+        `total_to_in` decimal(15,3) DEFAULT '0.000',
+        `total_to_out` decimal(15,3) DEFAULT '0.000',
+        `total_order` decimal(15,3) DEFAULT '0.000',
+        `date` date NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${customerId}_group_total_details`
+        ADD PRIMARY KEY (`product_id`,`location_group_id`,`date`),
+        ADD KEY `index_key` (`product_id`,`location_group_id`,`date`);
+    </insert>
+
+    <insert id="createInventories" parameterType="java.lang.Long">
+        CREATE TABLE `${customerId}_inventories` (
+                                                     `id` bigint(20) NOT NULL,
+                                                     `cycle_product_id` bigint(20) DEFAULT NULL,
+                                                     `cycle_product_detail_id` bigint(20) DEFAULT NULL,
+                                                     `sales_order_id` bigint(20) DEFAULT NULL,
+                                                     `point_of_sales_id` bigint(20) DEFAULT NULL,
+                                                     `credit_memo_id` bigint(20) DEFAULT NULL,
+                                                     `purchase_order_id` bigint(20) DEFAULT NULL,
+                                                     `purchase_return_id` bigint(20) DEFAULT NULL,
+                                                     `transfer_order_id` bigint(20) DEFAULT NULL,
+                                                     `type` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+                                                     `customer_id` int(11) DEFAULT NULL,
+                                                     `vendor_id` int(11) DEFAULT NULL,
+                                                     `product_id` int(11) NOT NULL,
+                                                     `location_id` int(11) NOT NULL,
+                                                     `location_group_id` int(11) NOT NULL,
+                                                     `qty` int(11) NOT NULL,
+                                                     `unit_cost` decimal(15,3) NOT NULL,
+                                                     `date` date NOT NULL,
+                                                     `lots_number` varchar(50) COLLATE utf8_unicode_ci DEFAULT NULL,
+                                                     `date_expired` date NOT NULL,
+                                                     `created` datetime NOT NULL,
+                                                     `created_by` bigint(11) NOT NULL,
+                                                     `modified` datetime NOT NULL,
+                                                     `modified_by` bigint(11) NOT NULL,
+                                                     `is_active` tinyint(4) NOT NULL DEFAULT '1'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${customerId}_inventories`
+            ADD PRIMARY KEY (`id`),
+    ADD KEY `product_id` (`product_id`),
+    ADD KEY `location_id` (`location_id`),
+    ADD KEY `lots_number` (`lots_number`),
+    ADD KEY `location_group_id` (`location_group_id`);
+
+        ALTER TABLE `${customerId}_inventories` CHANGE `id` `id` BIGINT(20) NOT NULL AUTO_INCREMENT;
+    </insert>
+
+    <insert id="createInventoryTotals" parameterType="java.lang.Long">
+        CREATE TABLE `${customerId}_inventory_totals` (
+                                                          `product_id` int(11) NOT NULL DEFAULT '0',
+                                                          `location_id` int(11) NOT NULL DEFAULT '0',
+                                                          `lots_number` varchar(50) COLLATE utf8_unicode_ci NOT NULL DEFAULT '0',
+                                                          `expired_date` date NOT NULL,
+                                                          `total_qty` decimal(15,3) DEFAULT '0.000',
+                                                          `total_order` decimal(15,3) DEFAULT '0.000'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${customerId}_inventory_totals`
+            ADD PRIMARY KEY (`product_id`,`location_id`,`lots_number`,`expired_date`),
+  ADD KEY `index_keys` (`product_id`,`location_id`,`lots_number`,`expired_date`);
+    </insert>
+
+    <insert id="createInventoryTotalDetails" parameterType="java.lang.Long">
+        CREATE TABLE `${customerId}_inventory_total_details` (
+                                                                 `product_id` int(11) NOT NULL DEFAULT '0',
+                                                                 `location_id` int(11) NOT NULL DEFAULT '0',
+                                                                 `lots_number` varchar(50) COLLATE utf8_unicode_ci NOT NULL DEFAULT '0',
+                                                                 `expired_date` date NOT NULL,
+                                                                 `total_cycle` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_so` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_pos` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_pb` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_pbc` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_cm` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_to_in` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_to_out` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_order` decimal(15,3) DEFAULT '0.000',
+                                                                 `date` date NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${customerId}_inventory_total_details`
+        ADD PRIMARY KEY (`product_id`,`location_id`,`lots_number`,`expired_date`,`date`),
+        ADD KEY `index_keys` (`product_id`,`location_id`,`lots_number`,`expired_date`,`date`);
+    </insert>
+
+    <insert id="upsertCustomerWarehouse" parameterType="map">
+        INSERT INTO location_groups (
+            id,
+            `name`,
+            shop_name,
+            stock_level_id,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{w.id},
+            #{w.name},
+            #{w.shopName},
+            #{w.stockLevelId},
+            #{w.description},
+            NOW(),
+            #{w.createdBy},
+            1
+        )
+        ON DUPLICATE KEY UPDATE
+            `name` = VALUES(`name`),
+            shop_name = VALUES(shop_name),
+            stock_level_id = VALUES(stock_level_id),
+            description = VALUES(description),
+            modified = NOW(),
+            modified_by = COALESCE(#{w.modifiedBy}, #{w.createdBy}),
+            is_active = 1
+    </insert>
+
+    <insert id="upsertCustomerLocation" parameterType="map">
+        INSERT INTO locations (
+            id,
+            `name`,
+            location_group_id,
+            created,
+            created_by,
+            is_for_sale,
+            is_active
+        ) VALUES (
+            #{l.id},
+            #{l.name},
+            #{l.locationGroupId},
+            NOW(),
+            #{l.createdBy},
+            #{l.isForSale},
+            1
+        )
+        ON DUPLICATE KEY UPDATE
+            `name` = VALUES(`name`),
+            location_group_id = VALUES(location_group_id),
+            is_for_sale = VALUES(is_for_sale),
+            modified = NOW(),
+            modified_by = COALESCE(#{l.modifiedBy}, #{l.createdBy}),
+            is_active = 1
+    </insert>
+
+    <insert id="upsertCustomerBranch" parameterType="map">
+        INSERT INTO branches (
+            id,
+            company_id,
+            branch_type_id,
+            code,
+            abbr,
+            `name`,
+            name_kh,
+            photo_url,
+            photo_name,
+            telephone,
+            fax,
+            email,
+            start_working_hour,
+            end_working_hour,
+            country_id,
+            lats,
+            longs,
+            address,
+            adress_kh,
+            adj_code,
+            request_code,
+            to_code,
+            tr_code,
+            quote_code,
+            so_code,
+            inv_code,
+            pos_code,
+            inv_rep_code,
+            dn_code,
+            receive_pay_code,
+            cm_code,
+            cm_rep_code,
+            pr_code,
+            po_code,
+            pb_code,
+            pb_rep_code,
+            br_code,
+            br_rep_code,
+            pay_bill_code,
+            landed_cost_code,
+            bom_code,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{b.id},
+                     #{b.companyId},
+                     #{b.branchTypeId},
+                     #{b.code},
+                     #{b.abbr},
+                     #{b.name},
+                     #{b.nameKh},
+                     #{b.photoUrl},
+                     #{b.photoName},
+                     #{b.telephone},
+                     #{b.fax},
+                     #{b.email},
+                     #{b.startWorkHour},
+                     #{b.endWorkHour},
+                     #{b.countryId},
+                     #{b.lats},
+                     #{b.longs},
+                     #{b.address},
+                     #{b.addressKh},
+                     #{b.adjCode},
+                     #{b.priceRequestNoCode},
+                     #{b.transferCode},
+                     #{b.transferReceiveCode},
+                     #{b.quotationCode},
+                     #{b.saleOrderCode},
+                     #{b.invoiceCode},
+                     #{b.posCode},
+                     #{b.invoiceReceiptCode},
+                     #{b.dnCode},
+                     #{b.receivePaymentCode},
+                     #{b.creditMemoCode},
+                     #{b.creditReceiptCode},
+                     #{b.purchaseOrderCode},
+                     #{b.purchaseOrderReceiptCode},
+                     #{b.purchaseBillCode},
+                     #{b.purchaseBillReceiptCode},
+                     #{b.billReturnCode},
+                     #{b.billReceiptCode},
+                     #{b.payBillCode},
+                     #{b.landedCostCode},
+                     #{b.bomCode},
+                     NOW(),
+                     #{b.createdBy},
+                     1
+                 )
+            ON DUPLICATE KEY UPDATE
+            <trim suffixOverrides=",">
+                <if test="b.companyId != null">company_id = VALUES(company_id),</if>
+                <if test="b.branchTypeId != null">branch_type_id = VALUES(branch_type_id),</if>
+                <if test="b.code != null">code = VALUES(code),</if>
+                <if test="b.abbr != null">abbr = VALUES(abbr),</if>
+                <if test="b.name != null">`name` = VALUES(`name`),</if>
+                <if test="b.nameKh != null">name_kh = VALUES(name_kh),</if>
+                <if test="b.photoUrl != null">photo_url = VALUES(photo_url),</if>
+                <if test="b.photoName != null">photo_name = VALUES(photo_name),</if>
+                <if test="b.telephone != null">telephone = VALUES(telephone),</if>
+                <if test="b.fax != null">fax = VALUES(fax),</if>
+                <if test="b.email != null">email = VALUES(email),</if>
+                <if test="b.startWorkHour != null">start_working_hour = VALUES(start_working_hour),</if>
+                <if test="b.endWorkHour != null">end_working_hour = VALUES(end_working_hour),</if>
+                <if test="b.countryId != null">country_id = VALUES(country_id),</if>
+                <if test="b.lats != null">lats = VALUES(lats),</if>
+                <if test="b.longs != null">longs = VALUES(longs),</if>
+                <if test="b.address != null">address = VALUES(address),</if>
+                <if test="b.addressKh != null">adress_kh = VALUES(adress_kh),</if>
+                <if test="b.adjCode != null">adj_code = VALUES(adj_code),</if>
+                <if test="b.priceRequestNoCode != null">request_code = VALUES(request_code),</if>
+                <if test="b.transferCode != null">to_code = VALUES(to_code),</if>
+                <if test="b.transferReceiveCode != null">tr_code = VALUES(tr_code),</if>
+                <if test="b.quotationCode != null">quote_code = VALUES(quote_code),</if>
+                <if test="b.saleOrderCode != null">so_code = VALUES(so_code),</if>
+                <if test="b.invoiceCode != null">inv_code = VALUES(inv_code),</if>
+                <if test="b.invoiceReceiptCode != null">inv_rep_code = VALUES(inv_rep_code),</if>
+                <if test="b.dnCode != null">dn_code = VALUES(dn_code),</if>
+                <if test="b.receivePaymentCode != null">receive_pay_code = VALUES(receive_pay_code),</if>
+                <if test="b.creditMemoCode != null">cm_code = VALUES(cm_code),</if>
+                <if test="b.creditReceiptCode != null">cm_rep_code = VALUES(cm_rep_code),</if>
+                <if test="b.purchaseOrderCode != null">pr_code = VALUES(pr_code),</if>
+                <if test="b.purchaseOrderReceiptCode != null">po_code = VALUES(po_code),</if>
+                <if test="b.purchaseBillCode != null">pb_code = VALUES(pb_code),</if>
+                <if test="b.purchaseBillReceiptCode != null">pb_rep_code = VALUES(pb_rep_code),</if>
+                <if test="b.billReturnCode != null">br_code = VALUES(br_code),</if>
+                <if test="b.billReceiptCode != null">br_rep_code = VALUES(br_rep_code),</if>
+                <if test="b.payBillCode != null">pay_bill_code = VALUES(pay_bill_code),</if>
+                <if test="b.landedCostCode != null">landed_cost_code = VALUES(landed_cost_code),</if>
+                <if test="b.bomCode != null">bom_code = VALUES(bom_code),</if>
+                modified = NOW(),
+                modified_by = COALESCE(#{b.modifiedBy}, #{b.createdBy}),
+                is_active = 1
+            </trim>
+    </insert>
+
+    <update id="deleteCustomerWarehouse">
+        UPDATE location_groups SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteCustomerLocation">
+        UPDATE locations SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteCustomerBranch">
+        UPDATE branches SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <select id="getCustomerBranchModuleCodes" resultType="map">
+        SELECT
+            adj_code AS adjCode,
+            NULL AS productPriceListCode,
+            request_code AS priceRequestNoCode,
+            NULL AS requestStockCode,
+            to_code AS transferCode,
+            tr_code AS transferReceiveCode,
+            pr_code AS purchaseOrderCode,
+            po_code AS purchaseOrderReceiptCode,
+            so_code AS saleOrderCode,
+            NULL AS expenseRequestCode,
+            quote_code AS quotationCode,
+            inv_code AS invoiceCode,
+            pos_code AS posCode,
+            inv_rep_code AS invoiceReceiptCode,
+            dn_code AS dnCode,
+            cm_code AS creditMemoCode,
+            cm_rep_code AS creditReceiptCode,
+            pb_code AS purchaseBillCode,
+            pb_rep_code AS purchaseBillReceiptCode,
+            br_code AS billReturnCode,
+            br_rep_code AS billReceiptCode,
+            bom_code AS bomCode,
+            NULL AS goodReceiptNoteCode,
+            landed_cost_code AS landedCostCode,
+            NULL AS journalEntryCode,
+            receive_pay_code AS receivePaymentCode,
+            NULL AS receivePaymentOrgCode,
+            NULL AS receivePaymentEmpCode,
+            pay_bill_code AS paybillsCode,
+            NULL AS paybillsJournalCode
+        FROM branches
+        WHERE id = #{id}
+          AND is_active = 1
+    </select>
+
+    <!-- Customer -->
+    <insert id="insertCustomer" parameterType="map">
+        INSERT INTO customers (
+            id, sys_code, photo, customer_code, lead_code, customer_type_id, customer_activity_id, type, is_freedom, freedom_type_id,
+            `name`, name_kh, sex, country_id, house_no, street_id, province_id, district_id,
+            commune_id, village_id, address, latitude, longitude, zone_id, market_id, price_type_id,
+            inactive_period, main_number, mobile_number,
+            other_number, email, fax, vat, payment_term_id, payment_every, limit_balance,
+            limit_total_invoice, payment_from, payment_to, recurrence, display_term_invoice,
+            customer_name_in, note, created, created_by, is_active
+        ) VALUES (
+            #{c.id}, #{c.sysCode}, #{c.photo}, #{c.organizationCode}, #{c.leadCode}, #{c.businessTypeId}, #{c.businessActivityId}, #{c.customerType}, #{c.isFreedom}, #{c.freedomType},
+            #{c.name}, #{c.nameKh}, #{c.sex}, #{c.countryId}, #{c.houseNo}, #{c.streetId}, #{c.provinceId}, #{c.districtId},
+            #{c.communeId}, #{c.villageId}, #{c.address}, #{c.lats}, #{c.longs}, #{c.zoneId}, #{c.marketId}, #{c.priceTypeId},
+            #{c.inactivePeriod}, #{c.telephone}, #{c.mobile},
+            #{c.alternateMobile}, #{c.email}, #{c.fax}, #{c.vat}, #{c.paymentTermId}, #{c.paymentMonthly}, #{c.limitCredit},
+            #{c.limitNumberInvoice}, #{c.periodFrom}, #{c.periodTo}, #{c.recurrence}, #{c.displayOnInvoice},
+            #{c.settingInvoiceTax}, #{c.note}, NOW(), #{c.createdBy}, 1
+        )
+        ON DUPLICATE KEY UPDATE
+            sys_code = VALUES(sys_code),
+            photo = VALUES(photo),
+            customer_code = VALUES(customer_code),
+            lead_code = VALUES(lead_code),
+            customer_type_id = VALUES(customer_type_id),
+            customer_activity_id = VALUES(customer_activity_id),
+            type = VALUES(type),
+            is_freedom = VALUES(is_freedom),
+            freedom_type_id = VALUES(freedom_type_id),
+            `name` = VALUES(`name`),
+            name_kh = VALUES(name_kh),
+            sex = VALUES(sex),
+            country_id = VALUES(country_id),
+            house_no = VALUES(house_no),
+            street_id = VALUES(street_id),
+            province_id = VALUES(province_id),
+            district_id = VALUES(district_id),
+            commune_id = VALUES(commune_id),
+            village_id = VALUES(village_id),
+            address = VALUES(address),
+            latitude = VALUES(latitude),
+            longitude = VALUES(longitude),
+            zone_id = VALUES(zone_id),
+            market_id = VALUES(market_id),
+            price_type_id = VALUES(price_type_id),
+            inactive_period = VALUES(inactive_period),
+            main_number = VALUES(main_number),
+            mobile_number = VALUES(mobile_number),
+            other_number = VALUES(other_number),
+            email = VALUES(email),
+            fax = VALUES(fax),
+            vat = VALUES(vat),
+            payment_term_id = VALUES(payment_term_id),
+            payment_every = VALUES(payment_every),
+            limit_balance = VALUES(limit_balance),
+            limit_total_invoice = VALUES(limit_total_invoice),
+            payment_from = VALUES(payment_from),
+            payment_to = VALUES(payment_to),
+            recurrence = VALUES(recurrence),
+            display_term_invoice = VALUES(display_term_invoice),
+            customer_name_in = VALUES(customer_name_in),
+            note = VALUES(note),
+            modified = NOW(),
+            modified_by = VALUES(created_by),
+            is_active = 1
+    </insert>
+
+    <update id="updateCustomer" parameterType="map">
+        UPDATE customers SET
+            <if test="c.sysCode != null">sys_code = #{c.sysCode},</if>
+            <if test="c.photo != null">photo = #{c.photo},</if>
+            <if test="c.organizationCode != null">customer_code = #{c.organizationCode},</if>
+            <if test="c.leadCode != null">lead_code = #{c.leadCode},</if>
+            <if test="c.businessTypeId != null">customer_type_id = #{c.businessTypeId},</if>
+            <if test="c.businessActivityId != null">customer_activity_id = #{c.businessActivityId},</if>
+            <if test="c.customerType != null">type = #{c.customerType},</if>
+            <if test="c.isFreedom != null">is_freedom = #{c.isFreedom},</if>
+            <if test="c.freedomType != null">freedom_type_id = #{c.freedomType},</if>
+            <if test="c.name != null">`name` = #{c.name},</if>
+            <if test="c.nameKh != null">name_kh = #{c.nameKh},</if>
+            <if test="c.sex != null">sex = #{c.sex},</if>
+            <if test="c.countryId != null">country_id = #{c.countryId},</if>
+            <if test="c.houseNo != null">house_no = #{c.houseNo},</if>
+            <if test="c.streetId != null">street_id = #{c.streetId},</if>
+            <if test="c.provinceId != null">province_id = #{c.provinceId},</if>
+            <if test="c.districtId != null">district_id = #{c.districtId},</if>
+            <if test="c.communeId != null">commune_id = #{c.communeId},</if>
+            <if test="c.villageId != null">village_id = #{c.villageId},</if>
+            <if test="c.address != null">address = #{c.address},</if>
+            <if test="c.lats != null">latitude = #{c.lats},</if>
+            <if test="c.longs != null">longitude = #{c.longs},</if>
+            <if test="c.zoneId != null">zone_id = #{c.zoneId},</if>
+            <if test="c.marketId != null">market_id = #{c.marketId},</if>
+            <if test="c.priceTypeId != null">price_type_id = #{c.priceTypeId},</if>
+            <if test="c.inactivePeriod != null">inactive_period = #{c.inactivePeriod},</if>
+            <if test="c.telephone != null">main_number = #{c.telephone},</if>
+            <if test="c.mobile != null">mobile_number = #{c.mobile},</if>
+            <if test="c.alternateMobile != null">other_number = #{c.alternateMobile},</if>
+            <if test="c.email != null">email = #{c.email},</if>
+            <if test="c.fax != null">fax = #{c.fax},</if>
+            <if test="c.vat != null">vat = #{c.vat},</if>
+            <if test="c.paymentTermId != null">payment_term_id = #{c.paymentTermId},</if>
+            <if test="c.paymentMonthly != null">payment_every = #{c.paymentMonthly},</if>
+            <if test="c.limitCredit != null">limit_balance = #{c.limitCredit},</if>
+            <if test="c.limitNumberInvoice != null">limit_total_invoice = #{c.limitNumberInvoice},</if>
+            <if test="c.periodFrom != null">payment_from = #{c.periodFrom},</if>
+            <if test="c.periodTo != null">payment_to = #{c.periodTo},</if>
+            <if test="c.recurrence != null">recurrence = #{c.recurrence},</if>
+            <if test="c.displayOnInvoice != null">display_term_invoice = #{c.displayOnInvoice},</if>
+            <if test="c.settingInvoiceTax != null">customer_name_in = #{c.settingInvoiceTax},</if>
+            <if test="c.note != null">note = #{c.note},</if>
+            modified = NOW(),
+            <if test="c.modifiedBy != null">modified_by = #{c.modifiedBy}</if>
+        WHERE id = #{c.id}
+    </update>
+
+    <update id="deleteCustomer">
+        UPDATE customers SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteCustomerLocationGroups">
+        DELETE FROM customer_location_groups
+        WHERE location_group_id = #{locationGroupId}
+    </delete>
+
+    <insert id="insertCustomerLocationGroup" parameterType="map">
+        INSERT INTO customer_location_groups (
+            customer_id,
+            location_group_id
+        ) VALUES (
+            #{clg.customerId},
+            #{clg.locationGroupId}
+        )
+        ON DUPLICATE KEY UPDATE
+            customer_id = VALUES(customer_id),
+            location_group_id = VALUES(location_group_id)
+    </insert>
+
+    <insert id="insertCustomerCompanies" parameterType="map">
+        INSERT INTO customer_companies(customer_id, company_id)
+        VALUES (#{org.id}, #{org.companyId})
+    </insert>
+
+    <insert id="insertCustomerCgroups" parameterType="map">
+        INSERT INTO customer_cgroups(customer_id, cgroup_id)
+        VALUES (#{org.id}, #{org.organizationGroupId})
+    </insert>
+
+    <insert id="insertCustomerContact" parameterType="map">
+        UPDATE customer_contacts SET customer_id = #{org.id} WHERE id = #{org.organizationContactId}
+    </insert>
+
+    <insert id="insertCustomerContracts" parameterType="map">
+        INSERT INTO customer_contracts(customer_id, contract_name, contract_url, created)
+        VALUES (#{org.id}, #{org.customerContract}, #{org.customerContractUrl}, NOW())
+    </insert>
+
+    <insert id="insertCustomerTerminates" parameterType="map">
+        INSERT INTO customer_terminates(customer_id, terminate_name, terminate_url, created)
+        VALUES (#{org.id}, #{org.customerTerminate}, #{org.customerTerminateUrl}, NOW())
+    </insert>
+
+    <insert id="insertCustomerSurveys" parameterType="map">
+        INSERT INTO customer_surveys(customer_id, survey_name, survey_url, created)
+        VALUES (#{org.id}, #{org.customerSurvey}, #{org.customerSurveyUrl}, NOW())
+    </insert>
+
+    <insert id="insertDivisionInformation" parameterType="map">
+        INSERT INTO customer_lead_divisions(id, customer_id, title, making_process)
+        VALUES (#{div.id}, #{div.organizationId}, #{div.title}, #{div.makingProcess})
+    </insert>
+
+    <insert id="insertDivisionInformationDetail" parameterType="map">
+        INSERT INTO customer_lead_devision_negotiations(customer_lead_division_id, customer_lead_negotiation_id)
+        VALUES (#{div.id}, #{div.negotiationId})
+    </insert>
+
+    <delete id="deleteCustomerCompanies">
+        DELETE FROM customer_companies WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteCustomerCgroups">
+        DELETE FROM customer_cgroups WHERE customer_id = #{organizationId}
+    </delete>
+
+    <update id="deleteCustomerContacts">
+        UPDATE customer_contacts SET customer_id = NULL WHERE customer_id = #{organizationId}
+    </update>
+
+    <delete id="deleteCustomerContracts">
+        DELETE FROM customer_contracts WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteCustomerTerminates">
+        DELETE FROM customer_terminates WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteCustomerSurveys">
+        DELETE FROM customer_surveys WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteDivisionInformation">
+        DELETE FROM customer_lead_divisions WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteDivisionInformationDetail">
+        DELETE FROM customer_lead_devision_negotiations
+        WHERE customer_lead_division_id IN (SELECT id FROM customer_lead_divisions WHERE customer_id = #{organizationId})
+    </delete>
+
+    <!-- Customer Contact -->
+    <insert id="insertCustomerContactData" parameterType="map">
+        INSERT INTO customer_contacts (
+            id,
+            photo,
+            customer_id,
+            contact_name,
+            sex,
+            contact_telephone,
+            contact_email,
+            position,
+            note,
+            family_id,
+            age,
+            dob,
+            location_id,
+            character_id,
+            created,
+            created_by
+        ) VALUES (
+            #{cc.id},
+            #{cc.photo},
+            #{cc.organizationId},
+            #{cc.contactName},
+            #{cc.gender},
+            #{cc.contactTelephone},
+            #{cc.contactEmail},
+            #{cc.position},
+            #{cc.note},
+            #{cc.familyId},
+            #{cc.age},
+            #{cc.dob},
+            #{cc.locationId},
+            #{cc.characterId},
+            NOW(),
+            #{cc.createdBy}
+        )
+    </insert>
+
+    <update id="updateCustomerContactData" parameterType="map">
+        UPDATE customer_contacts
+        <set>
+            <if test="cc.photo != null">photo = #{cc.photo},</if>
+            <if test="cc.organizationId != null">customer_id = #{cc.organizationId},</if>
+            <if test="cc.contactName != null">contact_name = #{cc.contactName},</if>
+            <if test="cc.gender != null">sex = #{cc.gender},</if>
+            <if test="cc.contactTelephone != null">contact_telephone = #{cc.contactTelephone},</if>
+            <if test="cc.contactEmail != null">contact_email = #{cc.contactEmail},</if>
+            <if test="cc.position != null">position = #{cc.position},</if>
+            <if test="cc.note != null">note = #{cc.note},</if>
+            <if test="cc.familyId != null">family_id = #{cc.familyId},</if>
+            <if test="cc.age != null">age = #{cc.age},</if>
+            <if test="cc.dob != null">dob = #{cc.dob},</if>
+            <if test="cc.locationId != null">location_id = #{cc.locationId},</if>
+            <if test="cc.characterId != null">character_id = #{cc.characterId},</if>
+            <if test="cc.isApply != null">is_apply = #{cc.isApply},</if>
+            modified = NOW(),
+            <if test="cc.modifiedBy != null">modified_by = #{cc.modifiedBy}</if>
+        </set>
+        WHERE id = #{cc.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteCustomerContactData">
+        UPDATE customer_contacts SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <insert id="insertCustomerContactDescription" parameterType="map">
+        INSERT INTO customer_contact_descriptions (
+            customer_contact_id,
+            customer_description_type_id,
+            description
+        ) VALUES (
+            #{ccd.customerContactId},
+            #{ccd.typeId},
+            #{ccd.description}
+        )
+    </insert>
+
+    <delete id="deleteCustomerContactDescriptions">
+        DELETE FROM customer_contact_descriptions
+        WHERE customer_contact_id = #{customerContactId}
+    </delete>
+
+    <insert id="insertCustomerContactProgress" parameterType="map">
+        INSERT INTO customer_contact_pregress (
+            customer_contact_id,
+            customer_progress_detail_id,
+            percent
+        ) VALUES (
+            #{ccp.customerContactId},
+            #{ccp.id},
+            #{ccp.percent}
+        )
+    </insert>
+
+    <delete id="deleteCustomerContactProgress">
+        DELETE FROM customer_contact_pregress
+        WHERE customer_contact_id = #{customerContactId}
+    </delete>
+
+    <insert id="insertCustomerContactList" parameterType="map">
+        INSERT INTO customer_contact_lists (
+            customer_contact_id,
+            customer_list_detail_id
+        ) VALUES (
+            #{ccl.customerContactId},
+            #{ccl.id}
+        )
+    </insert>
+
+    <delete id="deleteCustomerContactLists">
+        DELETE FROM customer_contact_lists
+        WHERE customer_contact_id = #{customerContactId}
+    </delete>
+
+    <insert id="insertCustomerContactNps" parameterType="map">
+        INSERT INTO customer_contact_nps (
+            company_id,
+            customer_id,
+            customer_contact_id,
+            score,
+            created,
+            created_by
+        ) VALUES (
+            (SELECT company_id
+             FROM customer_companies
+             WHERE customer_id IN (SELECT customer_id FROM customer_contacts WHERE id = #{nps.customerContactId})
+             LIMIT 1),
+            (SELECT customer_id FROM customer_contacts WHERE id = #{nps.customerContactId}),
+            #{nps.customerContactId},
+            #{nps.score},
+            NOW(),
+            #{nps.userId}
+        )
+    </insert>
+
+    <update id="applyCustomerContact">
+        UPDATE customer_contacts
+        SET is_apply = 1
+        WHERE is_active = 1
+          AND id = #{id}
+    </update>
+
+    <!-- Customer Group -->
+    <insert id="insertCustomerGroup" parameterType="map">
+        INSERT INTO cgroups (
+            id,
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{cg.id},
+            #{cg.name},
+            NOW(),
+            #{cg.createdBy},
+            #{cg.isActive}
+        )
+    </insert>
+
+    <update id="updateCustomerGroup" parameterType="map">
+        UPDATE cgroups
+        <set>
+            <if test="cg.name != null">name = #{cg.name},</if>
+            modified = NOW(),
+            <if test="cg.modifiedBy != null">modified_by = #{cg.modifiedBy}</if>
+        </set>
+        WHERE id = #{cg.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteCustomerGroup">
+        UPDATE cgroups
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <insert id="insertCgroupCompany" parameterType="map">
+        INSERT INTO cgroup_companies (
+            company_id,
+            cgroup_id
+        ) VALUES (
+            #{cgc.companyId},
+            #{cgc.organizationGroupId}
+        )
+    </insert>
+
+    <delete id="deleteCgroupCompanies">
+        DELETE FROM cgroup_companies
+        WHERE cgroup_id = #{cgroupId}
+    </delete>
+
+    <insert id="insertCgroupEgroup" parameterType="map">
+        INSERT INTO cgroup_egroups (
+            egroup_id,
+            cgroup_id
+        ) VALUES (
+            #{cge.employeeGroupId},
+            #{cge.organizationGroupId}
+        )
+    </insert>
+
+    <delete id="deleteCgroupEgroups">
+        DELETE FROM cgroup_egroups
+        WHERE cgroup_id = #{cgroupId}
+    </delete>
+
+    <insert id="insertCgroupPriceType" parameterType="map">
+        INSERT INTO cgroup_price_types (
+            price_type_id,
+            cgroup_id
+        ) VALUES (
+            #{cgp.priceTypeId},
+            #{cgp.organizationGroupId}
+        )
+    </insert>
+
+    <delete id="deleteCgroupPriceTypes">
+        DELETE FROM cgroup_price_types
+        WHERE cgroup_id = #{cgroupId}
+    </delete>
+
+    <insert id="insertCustomerCgroup" parameterType="map">
+        INSERT INTO customer_cgroups (
+            customer_id,
+            cgroup_id
+        ) VALUES (
+            #{ccg.organizationId},
+            #{ccg.organizationGroupId}
+        )
+    </insert>
+
+    <delete id="deleteCustomerCgroupsByCgroup">
+        DELETE FROM customer_cgroups
+        WHERE cgroup_id = #{cgroupId}
+    </delete>
+
+    <!-- Customer Zone -->
+    <insert id="insertCustomerZone" parameterType="map">
+        INSERT INTO customer_zones (
+            id,
+            name,
+            lats,
+            `longs`,
+            radius,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{cz.id},
+            #{cz.name},
+            #{cz.lats},
+            #{cz.longs},
+            #{cz.radius},
+            NOW(),
+            #{cz.createdBy},
+            #{cz.isActive}
+        )
+    </insert>
+
+    <update id="updateCustomerZone" parameterType="map">
+        UPDATE customer_zones
+        <set>
+            <if test="cz.name != null">name = #{cz.name},</if>
+            <if test="cz.lats != null">lats = #{cz.lats},</if>
+            <if test="cz.longs != null">`longs` = #{cz.longs},</if>
+            <if test="cz.radius != null">radius = #{cz.radius},</if>
+            modified = NOW(),
+            <if test="cz.modifiedBy != null">modified_by = #{cz.modifiedBy}</if>
+        </set>
+        WHERE id = #{cz.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteCustomerZone">
+        UPDATE customer_zones
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <insert id="insertCustomerZoneDetail" parameterType="map">
+        INSERT INTO customer_zone_details (
+            customer_zone_id,
+            lats,
+            `longs`
+        ) VALUES (
+            #{czd.zoneId},
+            #{czd.lats},
+            #{czd.longs}
+        )
+    </insert>
+
+    <delete id="deleteCustomerZoneDetails">
+        DELETE FROM customer_zone_details
+        WHERE customer_zone_id = #{zoneId}
+    </delete>
+
+    <!-- Customer Market -->
+    <insert id="insertCustomerMarket" parameterType="map">
+        INSERT INTO customer_markets (
+            id,
+            name,
+            zone_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{cm.id},
+            #{cm.name},
+            #{cm.zoneId},
+            NOW(),
+            #{cm.createdBy},
+            #{cm.isActive}
+        )
+    </insert>
+
+    <update id="updateCustomerMarket" parameterType="map">
+        UPDATE customer_markets
+        <set>
+            <if test="cm.name != null">name = #{cm.name},</if>
+            <if test="cm.zoneId != null">zone_id = #{cm.zoneId},</if>
+            modified = NOW(),
+            <if test="cm.modifiedBy != null">modified_by = #{cm.modifiedBy}</if>
+        </set>
+        WHERE id = #{cm.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteCustomerMarket">
+        UPDATE customer_markets
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <!-- Business Type -->
+    <insert id="insertBusinessType" parameterType="map">
+        INSERT INTO customer_types (
+            id,
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{bt.id},
+            #{bt.name},
+            NOW(),
+            #{bt.createdBy},
+            #{bt.isActive}
+        )
+    </insert>
+
+    <update id="updateBusinessType" parameterType="map">
+        UPDATE customer_types
+        <set>
+            <if test="bt.name != null">name = #{bt.name},</if>
+            modified = NOW(),
+            <if test="bt.modifiedBy != null">modified_by = #{bt.modifiedBy}</if>
+        </set>
+        WHERE id = #{bt.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteBusinessType">
+        UPDATE customer_types
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <!-- Freedom Type -->
+    <insert id="insertFreedomType" parameterType="map">
+        INSERT INTO freedom_types (
+            id,
+            name,
+            price_type_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{ft.id},
+            #{ft.name},
+            #{ft.priceTypeId},
+            NOW(),
+            #{ft.createdBy},
+            #{ft.isActive}
+        )
+    </insert>
+
+    <update id="updateFreedomType" parameterType="map">
+        UPDATE freedom_types
+        <set>
+            <if test="ft.name != null">name = #{ft.name},</if>
+            <if test="ft.priceTypeId != null">price_type_id = #{ft.priceTypeId},</if>
+            modified = NOW(),
+            <if test="ft.modifiedBy != null">modified_by = #{ft.modifiedBy}</if>
+        </set>
+        WHERE id = #{ft.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteFreedomType">
+        UPDATE freedom_types
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <!-- Business Activity -->
+    <insert id="insertBusinessActivity" parameterType="map">
+        INSERT INTO customer_activities (
+            id,
+            name,
+            abbr,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{ba.id},
+            #{ba.name},
+            #{ba.abbr},
+            NOW(),
+            #{ba.createdBy},
+            #{ba.isActive}
+        )
+    </insert>
+
+    <update id="updateBusinessActivity" parameterType="map">
+        UPDATE customer_activities
+        <set>
+            <if test="ba.name != null">name = #{ba.name},</if>
+            <if test="ba.abbr != null">abbr = #{ba.abbr},</if>
+            modified = NOW(),
+            <if test="ba.modifiedBy != null">modified_by = #{ba.modifiedBy}</if>
+        </set>
+        WHERE id = #{ba.id}
+          AND is_active = 1
+    </update>
+
+    <update id="deleteBusinessActivity">
+        UPDATE customer_activities
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <!-- Uoms -->
+    <insert id="insertUom" parameterType="map">
+        INSERT INTO uoms (
+            id,
+            type,
+            sys_code,
+            name,
+            abbr,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{u.id},
+            #{u.type},
+            UUID(),
+            #{u.name},
+            #{u.abbr},
+            #{u.description},
+            NOW(),
+            #{u.createdBy},
+            #{u.isActive}
+        )
+    </insert>
+
+    <update id="updateUom" parameterType="map">
+        UPDATE uoms
+        <set>
+            <if test="u.type != null">type = #{u.type},</if>
+            <if test="u.name != null">name = #{u.name},</if>
+            <if test="u.abbr != null">abbr = #{u.abbr},</if>
+            <if test="u.description != null">description = #{u.description},</if>
+            modified = NOW(),
+            <if test="u.modifiedBy != null">modified_by = #{u.modifiedBy}</if>
+        </set>
+        WHERE id = #{u.id}
+    </update>
+
+    <update id="deleteUom">
+        UPDATE uoms SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <!-- Uom Conversion -->
+    <insert id="insertUomConversion" parameterType="map">
+        INSERT INTO uom_conversions (
+            id,
+            from_uom_id,
+            to_uom_id,
+            `value`,
+            created,
+            created_by,
+            is_small_uom,
+            is_active
+        ) VALUES (
+            #{uc.id},
+            #{uc.mainUom},
+            #{uc.toUom},
+            #{uc.value},
+            NOW(),
+            #{uc.createdBy},
+            #{uc.isSmallUom},
+            #{uc.isActive}
+        )
+    </insert>
+
+    <update id="updateUomConversion" parameterType="map">
+        UPDATE uom_conversions
+        <set>
+            <if test="uc.mainUom != null">from_uom_id = #{uc.mainUom},</if>
+            <if test="uc.toUom != null">to_uom_id = #{uc.toUom},</if>
+            <if test="uc.value != null">`value` = #{uc.value},</if>
+            modified = NOW(),
+            <if test="uc.modifiedBy != null">modified_by = #{uc.modifiedBy}</if>
+        </set>
+        WHERE id = #{uc.id}
+    </update>
+
+    <update id="archiveOtherUomConversions">
+        UPDATE uom_conversions SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE is_active = 1
+          AND is_small_uom = 0
+          AND from_uom_id IN (SELECT from_uom_id FROM uom_conversions WHERE id = #{id})
+    </update>
+
+    <update id="archiveUomConversion">
+        UPDATE uom_conversions SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <!-- Price Type -->
+    <insert id="insertPriceType" parameterType="map">
+        INSERT INTO price_types (
+            id,
+            name,
+            ordering,
+            is_show_catalogue,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{pt.id},
+            #{pt.name},
+            #{pt.ordering},
+            #{pt.isShowCatalogue},
+            NOW(),
+            #{pt.createdBy},
+            #{pt.isActive}
+        )
+    </insert>
+
+    <update id="updatePriceType" parameterType="map">
+        UPDATE price_types
+        <set>
+            <if test="pt.name != null">name = #{pt.name},</if>
+            <if test="pt.ordering != null">ordering = #{pt.ordering},</if>
+            <if test="pt.isShowCatalogue != null">is_show_catalogue = #{pt.isShowCatalogue},</if>
+            modified = NOW(),
+            <if test="pt.modifiedBy != null">modified_by = #{pt.modifiedBy}</if>
+        </set>
+        WHERE id = #{pt.id}
+    </update>
+
+    <update id="deletePriceType">
+        UPDATE price_types SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deletePriceTypeCompany">
+        DELETE FROM price_type_companies
+        WHERE price_type_id = #{priceTypeId}
+    </delete>
+
+    <insert id="insertPriceTypeCompany" parameterType="map">
+        INSERT INTO price_type_companies (
+            company_id,
+            price_type_id
+        ) VALUES (
+            #{ptc.companyId},
+            #{ptc.priceTypeId}
+        )
+    </insert>
+
+    <update id="archivePriceTypePos">
+        UPDATE pos_price_types
+        SET is_active = 2
+        WHERE company_id = #{companyId}
+    </update>
+
+    <insert id="insertPriceTypePos" parameterType="map">
+        INSERT INTO pos_price_types (
+            company_id,
+            price_type_id,
+            created,
+            created_by
+        ) VALUES (
+            #{ptp.companyId},
+            #{ptp.priceTypeId},
+            NOW(),
+            #{ptp.createdBy}
+        )
+    </insert>
+
+    <update id="orderingPriceType">
+        UPDATE price_types
+        SET ordering = #{ordering}
+        WHERE id = #{id}
+    </update>
+
+    <!-- Payment Term -->
+    <insert id="insertPaymentTerm" parameterType="map">
+        INSERT INTO payment_terms (
+            id,
+            payment_type_id,
+            name,
+            net_days,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{pt.id},
+            #{pt.typeId},
+            #{pt.name},
+            #{pt.netDay},
+            NOW(),
+            #{pt.createdBy},
+            #{pt.isActive}
+        )
+    </insert>
+
+    <update id="updatePaymentTerm" parameterType="map">
+        UPDATE payment_terms
+        <set>
+            <if test="pt.typeId != null">payment_type_id = #{pt.typeId},</if>
+            <if test="pt.name != null">name = #{pt.name},</if>
+            <if test="pt.netDay != null">net_days = #{pt.netDay},</if>
+            modified = NOW(),
+            <if test="pt.modifiedBy != null">modified_by = #{pt.modifiedBy}</if>
+        </set>
+        WHERE id = #{pt.id}
+    </update>
+
+    <update id="deletePaymentTerm">
+        UPDATE payment_terms SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <!-- Product Group -->
+    <insert id="insertProductGroup" parameterType="map">
+        INSERT INTO pgroups (
+            id,
+            sys_code,
+            parent_id,
+            name,
+            user_apply,
+            ics_apply_sub,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{pg.id},
+            UUID(),
+            #{pg.parentId},
+            #{pg.name},
+            #{pg.userApply},
+            #{pg.icsApplySub},
+            #{pg.description},
+            NOW(),
+            #{pg.createdBy},
+            #{pg.isActive}
+        )
+    </insert>
+
+    <update id="updateProductGroup" parameterType="map">
+        UPDATE pgroups
+        <set>
+            <if test="pg.parentId != null">parent_id = #{pg.parentId},</if>
+            <if test="pg.name != null">name = #{pg.name},</if>
+            <if test="pg.description != null">description = #{pg.description},</if>
+            modified = NOW(),
+            <if test="pg.modifiedBy != null">modified_by = #{pg.modifiedBy}</if>
+        </set>
+        WHERE id = #{pg.id}
+    </update>
+
+    <update id="deleteProductGroup">
+        UPDATE pgroups SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertPgroupCompany" parameterType="map">
+        INSERT INTO pgroup_companies (
+            pgroup_id,
+            company_id
+        ) VALUES (
+            #{pc.pgroupId},
+            #{pc.companyId}
+        )
+    </insert>
+
+    <delete id="deletePgroupCompany">
+        DELETE FROM pgroup_companies WHERE pgroup_id = #{pgroupId}
+    </delete>
+
+    <insert id="insertUserPgroup" parameterType="map">
+        INSERT INTO user_pgroups (
+            user_id,
+            pgroup_id
+        ) VALUES (
+            #{up.userId},
+            #{up.pgroupId}
+        )
+    </insert>
+
+    <delete id="deleteUserPgroup">
+        DELETE FROM user_pgroups WHERE pgroup_id = #{pgroupId}
+    </delete>
+
+    <insert id="insertPgroupAccount" parameterType="map">
+        INSERT INTO pgroup_accounts (
+            pgroup_id,
+            account_type_id,
+            chart_account_id
+        ) VALUES (
+            #{pa.pgroupId},
+            #{pa.accountTypeId},
+            #{pa.chartAccountId}
+        )
+    </insert>
+
+    <delete id="deletePgroupAccount">
+        DELETE FROM pgroup_accounts WHERE pgroup_id = #{pgroupId}
+    </delete>
+
+    <delete id="deleteProductPgroupByPgroup">
+        DELETE FROM product_pgroups WHERE pgroup_id = #{pgroupId}
+    </delete>
+
+    <!-- Product Brand -->
+    <insert id="insertProductBrand" parameterType="map">
+        INSERT INTO brands (
+            id,
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{pb.id},
+            #{pb.name},
+            NOW(),
+            #{pb.createdBy},
+            #{pb.isActive}
+        )
+    </insert>
+
+    <update id="updateProductBrand" parameterType="map">
+        UPDATE brands
+        <set>
+            <if test="pb.name != null">name = #{pb.name},</if>
+            modified = NOW(),
+            <if test="pb.modifiedBy != null">modified_by = #{pb.modifiedBy}</if>
+        </set>
+        WHERE id = #{pb.id}
+    </update>
+
+    <update id="deleteProductBrand">
+        UPDATE brands SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <!-- Product Group Price Setting -->
+    <insert id="insertPgroupPriceSetting" parameterType="map">
+        INSERT INTO pgroup_price_settings (
+            id,
+            `date`,
+            pgroup_id,
+            price_type_id,
+            set_type,
+            cost_method,
+            cond_update_pro,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{pps.id},
+            DATE(NOW()),
+            #{pps.pgroupId},
+            #{pps.priceTypeId},
+            #{pps.setType},
+            #{pps.costMethod},
+            #{pps.applyToAllProduct},
+            NOW(),
+            #{pps.createdBy},
+            #{pps.isActive}
+        )
+    </insert>
+
+    <update id="updatePgroupPriceSetting" parameterType="map">
+        UPDATE pgroup_price_settings
+        <set>
+            <if test="pps.pgroupId != null">pgroup_id = #{pps.pgroupId},</if>
+            <if test="pps.priceTypeId != null">price_type_id = #{pps.priceTypeId},</if>
+            <if test="pps.setType != null">set_type = #{pps.setType},</if>
+            <if test="pps.costMethod != null">cost_method = #{pps.costMethod},</if>
+            <if test="pps.applyToAllProduct != null">cond_update_pro = #{pps.applyToAllProduct},</if>
+            modified = NOW(),
+            <if test="pps.modifiedBy != null">modified_by = #{pps.modifiedBy}</if>
+        </set>
+        WHERE id = #{pps.id}
+    </update>
+
+    <update id="logPgroupPriceSetting">
+        UPDATE pgroup_price_settings SET
+            is_active = 3,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE pgroup_id = #{pgroupId}
+    </update>
+
+    <update id="deletePgroupPriceSetting">
+        UPDATE pgroup_price_settings SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertPgroupPrice" parameterType="map">
+        INSERT INTO pgroup_prices (
+            pgroup_id,
+            price_type_id,
+            pgroup_price_setting_id,
+            from_cost,
+            to_cost,
+            percent,
+            add_on,
+            set_type,
+            cost_method,
+            created,
+            created_by
+        ) VALUES (
+            #{pp.pgroupId},
+            #{pp.priceTypeId},
+            #{pp.pgroupPriceSettingId},
+            #{pp.fromCost},
+            #{pp.toCost},
+            #{pp.percent},
+            #{pp.addOn},
+            #{pp.setType},
+            #{pp.costMethod},
+            NOW(),
+            #{pp.createdBy}
+        )
+    </insert>
+
+    <update id="archivePgroupPriceBySetting">
+        UPDATE pgroup_prices SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE pgroup_price_setting_id = #{pgroupPriceSettingId}
+    </update>
+
+    <delete id="deleteProductPriceByType">
+        DELETE FROM product_prices
+        WHERE product_id = #{productId}
+          AND price_type_id = #{priceTypeId}
+    </delete>
+
+    <!-- Product -->
+    <insert id="insertProduct" parameterType="map">
+        INSERT INTO products (
+            id, sys_code, photo, photo_name, company_id, brand_id, price_request_id, parent_id,
+            `name`, name_kh, color, url, period_from, period_to, barcode, default_cost, unit_cost,
+            estimate_cost, reorder_level, is_expired_date, is_end_of_life, code, price_uom_id, small_val_uom, spec,
+            description, file_catalog, file_catalog_name, width, height, `length`, size_uom_id,
+            cubic_meter, weight, weight_uom_id, note, lucky_code, is_packet, created_by, created, is_active
+        ) VALUES (
+            #{p.id}, UUID(), #{p.photo}, #{p.photoName}, #{p.companyId}, #{p.brandId}, #{p.priceRequestId}, #{p.parentId},
+            #{p.name}, #{p.nameKh}, #{p.color}, #{p.url}, #{p.periodFrom}, #{p.periodTo}, #{p.barcode},
+            #{p.unitCost}, #{p.unitCost}, #{p.unitCost}, #{p.productRecorderLevel}, COALESCE(#{p.isExpiredDate},0), COALESCE(#{p.isEndOfLife},0),
+            #{p.code}, #{p.priceUomId}, COALESCE((SELECT value FROM uom_conversions WHERE from_uom_id = #{p.priceUomId} AND is_small_uom = 1 LIMIT 1),1),
+            #{p.spec}, #{p.description}, #{p.fileCatalog}, #{p.fileCatalogName}, #{p.width}, #{p.height}, #{p.length},
+            #{p.sizeUomId}, #{p.cubicMeter}, #{p.weight}, #{p.weightUomId}, #{p.note}, #{p.luckyCode},
+            #{p.isPacket}, #{p.createdBy}, NOW(), #{p.isActive}
+        )
+    </insert>
+
+    <update id="updateProduct" parameterType="map">
+        UPDATE products
+        <set>
+            <if test="p.photo != null">photo = #{p.photo},</if>
+            <if test="p.photoName != null">photo_name = #{p.photoName},</if>
+            <if test="p.companyId != null">company_id = #{p.companyId},</if>
+            <if test="p.brandId != null">brand_id = #{p.brandId},</if>
+            <if test="p.parentId != null">parent_id = #{p.parentId},</if>
+            <if test="p.name != null">`name` = #{p.name},</if>
+            <if test="p.nameKh != null">name_kh = #{p.nameKh},</if>
+            <if test="p.color != null">color = #{p.color},</if>
+            <if test="p.url != null">url = #{p.url},</if>
+            <if test="p.periodFrom != null">period_from = #{p.periodFrom},</if>
+            <if test="p.periodTo != null">period_to = #{p.periodTo},</if>
+            <if test="p.barcode != null">barcode = #{p.barcode},</if>
+            <if test="p.unitCost != null">default_cost = #{p.unitCost},</if>
+            <if test="p.unitCost != null">unit_cost = #{p.unitCost},</if>
+            <if test="p.productRecorderLevel != null">reorder_level = #{p.productRecorderLevel},</if>
+            <if test="p.isExpiredDate != null">is_expired_date = #{p.isExpiredDate},</if>
+            <if test="p.isEndOfLife != null">is_end_of_life = #{p.isEndOfLife},</if>
+            <if test="p.code != null">code = #{p.code},</if>
+            <if test="p.priceUomId != null">price_uom_id = #{p.priceUomId},</if>
+            <if test="p.spec != null">spec = #{p.spec},</if>
+            <if test="p.description != null">description = #{p.description},</if>
+            <if test="p.fileCatalog != null">file_catalog = #{p.fileCatalog},</if>
+            <if test="p.fileCatalogName != null">file_catalog_name = #{p.fileCatalogName},</if>
+            <if test="p.width != null">width = #{p.width},</if>
+            <if test="p.height != null">height = #{p.height},</if>
+            <if test="p.length != null">`length` = #{p.length},</if>
+            <if test="p.sizeUomId != null">size_uom_id = #{p.sizeUomId},</if>
+            <if test="p.cubicMeter != null">cubic_meter = #{p.cubicMeter},</if>
+            <if test="p.weight != null">weight = #{p.weight},</if>
+            <if test="p.weightUomId != null">weight_uom_id = #{p.weightUomId},</if>
+            <if test="p.note != null">note = #{p.note},</if>
+            <if test="p.luckyCode != null">lucky_code = #{p.luckyCode},</if>
+            <if test="p.isPacket != null">is_packet = #{p.isPacket},</if>
+            modified = NOW(),
+            <if test="p.modifiedBy != null">modified_by = #{p.modifiedBy},</if>
+        </set>
+        WHERE id = #{p.id}
+    </update>
+
+    <update id="updateProductCost" parameterType="map">
+        UPDATE products SET
+        unit_cost = #{p.estimatedCost}
+        WHERE id = #{p.id}
+    </update>
+
+    <update id="deleteProduct">
+        UPDATE products SET
+            is_active = -1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateProductActiveStatus">
+        UPDATE products SET
+            is_active = #{isActive},
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertProductPgroup" parameterType="map">
+        INSERT INTO product_pgroups(product_id, pgroup_id)
+        VALUES (#{pp.productId}, #{pp.pgroupId})
+    </insert>
+
+    <delete id="deleteProductPgroup">
+        DELETE FROM product_pgroups WHERE product_id = #{productId}
+    </delete>
+
+    <insert id="insertICSAccount" parameterType="map">
+        INSERT INTO accounts(product_id, account_type_id, chart_account_id)
+        VALUES (#{ics.productId}, #{ics.accountType}, #{ics.chartAccountId})
+    </insert>
+
+    <delete id="deleteICSAccount">
+        DELETE FROM accounts WHERE product_id = #{productId}
+    </delete>
+
+    <insert id="insertProductCategory" parameterType="map">
+        INSERT INTO product_categories(product_id, crm_category_id)
+        VALUES (#{pc.productId}, #{pc.categoryId})
+    </insert>
+
+    <delete id="deleteProductCategory">
+        DELETE FROM product_categories WHERE product_id = #{productId}
+    </delete>
+
+    <insert id="insertProductSku" parameterType="map">
+        INSERT INTO product_with_skus(product_id, sku, uom_id)
+        VALUES (#{ps.productId}, #{ps.code}, #{ps.uomId})
+    </insert>
+
+    <delete id="deleteProductSku">
+        DELETE FROM product_with_skus WHERE product_id = #{productId}
+    </delete>
+
+    <insert id="insertProductPacket" parameterType="map">
+        INSERT INTO product_with_packets(main_product_id, packet_product_id, qty, qty_uom_id, conversion)
+        VALUES (#{pp.productId}, #{pp.packetId}, #{pp.qty}, #{pp.qtyUomId}, #{pp.conversion})
+    </insert>
+
+    <delete id="deleteProductPacket">
+        DELETE FROM product_with_packets WHERE main_product_id = #{productId}
+    </delete>
+
+    <insert id="insertProductStockLevel" parameterType="map">
+        INSERT INTO product_stock_levels(product_id, stock_level_id, qty, created, created_by, is_active)
+        VALUES (#{psl.productId}, #{psl.stockLevelId}, #{psl.qty}, NOW(), #{psl.createdBy}, 1)
+    </insert>
+
+    <update id="archiveProductStockLevel">
+        UPDATE product_stock_levels
+        SET is_active = 2, modified = NOW(), modified_by = #{userId}
+        WHERE product_id = #{productId}
+    </update>
+
+    <delete id="deletePrice">
+        DELETE FROM product_prices WHERE product_id = #{productId}
+    </delete>
+
+    <insert id="addPrice" parameterType="map">
+        INSERT INTO product_prices (
+            product_id,
+            price_type_id,
+            uom_id,
+            amount,
+            amount_before,
+            `percent`,
+            add_on,
+            set_type,
+            created,
+            created_by
+        ) VALUES (
+                     #{productPrice.productId},
+                     #{productPrice.priceTypeId},
+                     #{productPrice.uomId},
+                     #{productPrice.amount},
+                     #{productPrice.amountBefore},
+                     #{productPrice.percentage},
+                     #{productPrice.addOn},
+                     #{productPrice.setType},
+                     NOW(),
+                     #{productPrice.createdBy}
+                 )
+    </insert>
+
+    <insert id="addPriceHistory" parameterType="map">
+        INSERT INTO product_price_histories (
+            product_id,
+            price_type_id,
+            uom_id,
+            unit_cost,
+            new_amount,
+            new_percent,
+            new_add_on,
+            new_set_type,
+            created,
+            created_by
+        ) VALUES (
+                     #{productPriceHistory.productId},
+                     #{productPriceHistory.priceTypeId},
+                     #{productPriceHistory.uomId},
+                     (SELECT unit_cost FROM products WHERE id = #{productPriceHistory.productId}),
+                     #{productPriceHistory.amount},
+                     #{productPriceHistory.percentage},
+                     #{productPriceHistory.addOn},
+                     #{productPriceHistory.setType},
+                     NOW(),
+                     #{productPriceHistory.createdBy}
+                 )
+    </insert>
+
+    <!-- Purchase Bill (Sales Invoice -> Freedom) -->
+    <insert id="insertPurchaseBill" parameterType="map" useGeneratedKeys="true" keyProperty="pb.id">
+        INSERT INTO purchase_orders (
+            po_type,
+            purchase_request_id,
+            exchange_rate_id,
+            currency_center_id,
+            vat_chart_account_id,
+            vat_calculate,
+            pv_request_id,
+            company_id,
+            vendor_id,
+            location_group_id,
+            payment_term_id,
+            location_id,
+            invoice_code,
+            note,
+            po_code,
+            ap_id,
+            shipment_id,
+            order_date,
+            invoice_date,
+            total_amount,
+            discount_percent,
+            discount_amount,
+            vat_setting_id,
+            total_deposit,
+            balance,
+            total_vat,
+            vat_percent,
+            is_approve,
+            status,
+            created,
+            created_by
+        ) VALUES (
+                     #{pb.poType},
+                     #{pb.purchaseRequestId},
+                     #{pb.exchangeRateId},
+                     #{pb.currencyCenterId},
+                     #{pb.vatChartAccountId},
+                     #{pb.vatCalculate},
+                     #{pb.pvRequestId},
+                     #{pb.companyId},
+                     #{pb.vendorId},
+                     #{pb.locationGroupId},
+                     #{pb.paymentTermId},
+                     (SELECT id FROM locations WHERE location_group_id = #{pb.locationGroupId} LIMIT 1),
+                     #{pb.invoiceCode},
+                     #{pb.note},
+                     #{pb.poCode},
+                     #{pb.apId},
+                     #{pb.shipmentId},
+                     #{pb.orderDate},
+                     #{pb.invoiceDate},
+                     #{pb.totalAmount},
+                     #{pb.discountPercent},
+                     #{pb.discountAmount},
+                     #{pb.vatSettingId},
+                     #{pb.totalDeposit},
+                     #{pb.balance},
+                     #{pb.totalVat},
+                     #{pb.vatPercent},
+                     1,
+                     #{pb.status},
+                     NOW(),
+                     #{pb.createdBy}
+                 )
+        ON DUPLICATE KEY UPDATE
+            po_type             = VALUES(po_type),
+            exchange_rate_id    = VALUES(exchange_rate_id),
+            currency_center_id  = VALUES(currency_center_id),
+            vat_chart_account_id= VALUES(vat_chart_account_id),
+            vat_calculate       = VALUES(vat_calculate),
+            company_id          = VALUES(company_id),
+            vendor_id           = VALUES(vendor_id),
+            location_group_id   = VALUES(location_group_id),
+            payment_term_id     = VALUES(payment_term_id),
+            location_id         = VALUES(location_id),
+            invoice_code        = VALUES(invoice_code),
+            note                = VALUES(note),
+            po_code             = VALUES(po_code),
+            ap_id               = VALUES(ap_id),
+            shipment_id         = VALUES(shipment_id),
+            order_date          = VALUES(order_date),
+            invoice_date        = VALUES(invoice_date),
+            total_amount        = VALUES(total_amount),
+            discount_percent    = VALUES(discount_percent),
+            discount_amount     = VALUES(discount_amount),
+            vat_setting_id      = VALUES(vat_setting_id),
+            total_deposit       = VALUES(total_deposit),
+            balance             = VALUES(balance),
+            total_vat           = VALUES(total_vat),
+            vat_percent         = VALUES(vat_percent),
+            status              = VALUES(status),
+            modified            = NOW(),
+            modified_by         = VALUES(created_by)
+    </insert>
+
+    <select id="getPurchaseBillIdByInvoiceCode" resultType="java.lang.Long">
+        SELECT id
+        FROM purchase_orders
+        WHERE invoice_code = #{invoiceCode}
+          AND status >= 0
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <update id="archivePurchaseBillById">
+        UPDATE purchase_orders
+        SET status = -1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertPurchaseBillDetail" parameterType="map">
+        INSERT INTO purchase_order_details (
+            purchase_order_id,
+            product_id,
+            note,
+            date_expired,
+            qty,
+            qty_free,
+            qty_uom_id,
+            conversion,
+            unit_cost,
+            new_unit_cost,
+            default_cost,
+            total_cost,
+            discount_id,
+            discount_amount,
+            discount_percent
+        ) VALUES (
+                     #{pbd.purchaseOrderId},
+                     #{pbd.productId},
+                     #{pbd.note},
+                     #{pbd.expiredDate},
+                     #{pbd.qty},
+                     #{pbd.qtyFree},
+                     #{pbd.uomId},
+                     #{pbd.conversion},
+                     #{pbd.unitCost},
+                     #{pbd.unitCost},
+                     #{pbd.unitCost},
+                     #{pbd.totalCost},
+                     #{pbd.discountId},
+                     #{pbd.discountAmount},
+                     #{pbd.discountPercent}
+                 )
+    </insert>
+
+    <insert id="insertPurchaseBillService" parameterType="map">
+        INSERT INTO purchase_order_services (
+            purchase_order_id,
+            service_id,
+            note,
+            qty,
+            qty_free,
+            total_cost,
+            unit_cost,
+            discount_id,
+            discount_amount,
+            discount_percent
+        ) VALUES (
+                     #{pbs.purchaseOrderId},
+                     #{pbs.serviceId},
+                     #{pbs.note},
+                     #{pbs.qty},
+                     #{pbs.qtyFree},
+                     #{pbs.totalCost},
+                     #{pbs.unitCost},
+                     #{pbs.discountId},
+                     #{pbs.discountAmount},
+                     #{pbs.discountPercent}
+                 )
+    </insert>
+
+    <insert id="insertPurchaseBillMisc" parameterType="map">
+        INSERT INTO purchase_order_miscs (
+            purchase_order_id,
+            discount_id,
+            discount_percent,
+            discount_amount,
+            description,
+            qty,
+            qty_uom_id,
+            qty_free,
+            unit_cost,
+            total_cost
+        ) VALUES (
+                     #{pbm.purchaseOrderId},
+                     #{pbm.discountId},
+                     #{pbm.discountPercent},
+                     #{pbm.discountAmount},
+                     #{pbm.description},
+                     #{pbm.qty},
+                     #{pbm.uomId},
+                     #{pbm.qtyFree},
+                     #{pbm.unitCost},
+                     #{pbm.totalCost}
+                 )
+    </insert>
+
+    <!-- Bill Return (Credit Memo -> Freedom) -->
+    <insert id="insertBillReturn" parameterType="map" useGeneratedKeys="true" keyProperty="br.id">
+        INSERT INTO purchase_returns (
+            company_id,
+            purchase_order_id,
+            vendor_id,
+            location_group_id,
+            location_id,
+            currency_center_id,
+            note,
+            pr_code,
+            ap_id,
+            order_date,
+            total_amount,
+            vat_setting_id,
+            vat_percent,
+            total_amount_po,
+            vat_chart_account_id,
+            total_vat,
+            vat_calculate,
+            balance,
+            created,
+            created_by
+        ) VALUES (
+                     #{br.companyId},
+                     #{br.purchaseOrderId},
+                     #{br.vendorId},
+                     #{br.locationGroupId},
+                     (SELECT id FROM locations WHERE location_group_id = #{br.locationGroupId} LIMIT 1),
+                     #{br.currencyCenterId},
+                     #{br.note},
+                     #{br.prCode},
+                     #{br.apId},
+                     #{br.orderDate},
+                     #{br.totalAmount},
+                     #{br.vatSettingId},
+                     #{br.vatPercent},
+                     #{br.totalAmountPo},
+                     #{br.vatChartAccountId},
+                     #{br.totalVat},
+                     #{br.vatCalculate},
+                     #{br.balance},
+                     NOW(),
+                     #{br.createdBy}
+                 )
+    </insert>
+
+    <select id="getBillReturnIdByPrCode" resultType="java.lang.Long">
+        SELECT id
+        FROM purchase_returns
+        WHERE pr_code = #{prCode}
+          AND status >= 0
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <update id="archiveBillReturnById">
+        UPDATE purchase_returns
+        SET status = -1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertBillReturnDetail" parameterType="map">
+        INSERT INTO purchase_return_details (
+            purchase_return_id,
+            product_id,
+            note,
+            expired_date,
+            qty,
+            qty_uom_id,
+            conversion,
+            unit_price,
+            total_price
+        ) VALUES (
+                     #{brd.purchaseReturnId},
+                     #{brd.productId},
+                     #{brd.note},
+                     #{brd.expiredDate},
+                     #{brd.qty},
+                     #{brd.uomId},
+                     #{brd.conversion},
+                     #{brd.unitPrice},
+                     #{brd.totalPrice}
+                 )
+    </insert>
+
+    <insert id="insertBillReturnService" parameterType="map">
+        INSERT INTO purchase_return_services (
+            purchase_return_id,
+            service_id,
+            note,
+            qty,
+            total_price,
+            unit_price
+        ) VALUES (
+                     #{brs.purchaseReturnId},
+                     #{brs.serviceId},
+                     #{brs.note},
+                     #{brs.qty},
+                     #{brs.totalPrice},
+                     #{brs.unitPrice}
+                 )
+    </insert>
+
+    <insert id="insertBillReturnMisc" parameterType="map">
+        INSERT INTO purchase_return_miscs (
+            purchase_return_id,
+            description,
+            qty,
+            qty_uom_id,
+            unit_price,
+            total_price,
+            note
+        ) VALUES (
+                     #{brm.purchaseReturnId},
+                     #{brm.description},
+                     #{brm.qty},
+                     #{brm.uomId},
+                     #{brm.unitPrice},
+                     #{brm.totalPrice},
+                     #{brm.note}
+                 )
+    </insert>
+
+    <!-- General Ledger & Inventory Valuation -->
+    <insert id="insertGeneralLedger" parameterType="map" useGeneratedKeys="true" keyProperty="gl.id">
+        INSERT INTO general_ledgers (
+            purchase_order_id,
+            `date`,
+            reference,
+            is_sys,
+            created,
+            created_by
+        ) VALUES (
+                     #{gl.purchaseOrderId},
+                     #{gl.date},
+                     #{gl.reference},
+                     1,
+                     NOW(),
+                     #{gl.createdBy}
+                 )
+    </insert>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="map" useGeneratedKeys="true" keyProperty="gld.id">
+        INSERT INTO general_ledger_details (
+            general_ledger_id,
+            chart_account_id,
+            company_id,
+            location_id,
+            type,
+            debit,
+            credit,
+            memo,
+            product_id,
+            service_id,
+            class_id,
+            vendor_id
+        ) VALUES (
+                     #{gld.generalLedgerId},
+                     #{gld.chartAccountId},
+                     #{gld.companyId},
+                     #{gld.locationId},
+                     #{gld.type},
+                     #{gld.debit},
+                     #{gld.credit},
+                     #{gld.memo},
+                     #{gld.productId},
+                     #{gld.serviceId},
+                     #{gld.classId},
+                     #{gld.vendorId}
+                 )
+    </insert>
+
+    <insert id="insertInventoryValuation" parameterType="map" useGeneratedKeys="true" keyProperty="iv.id">
+        INSERT INTO inventory_valuations (
+            purchase_order_id,
+            purchase_return_id,
+            `date`,
+            `type`,
+            company_id,
+            pid,
+            small_qty,
+            qty,
+            reference,
+            cost,
+            is_var_cost,
+            is_active,
+            created
+        ) VALUES (
+                     #{iv.purchaseOrderId},
+                     #{iv.purchaseReturnId},
+                     #{iv.date},
+                     #{iv.type},
+                     #{iv.companyId},
+                     #{iv.productId},
+                     #{iv.smallQty},
+                     #{iv.qty},
+                     #{iv.reference},
+                     #{iv.cost},
+                     1,
+                     1,
+                     NOW()
+                 )
+    </insert>
+
+    <select id="getListFreedomCustomer" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.Dropdown.VendorDropdownResponse">
+        SELECT
+            id AS id,
+            customer_code AS code,
+            CONCAT(name_kh, ' (', `name`, ')') AS name
+        FROM customers
+        WHERE is_active = 1
+          AND `type` = 1
+        <if test="filter.searchText != null">
+            AND (
+                `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListFreedomWarehouse" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.Dropdown.VendorDropdownResponse">
+        SELECT
+            id AS id,
+            NULL AS code,
+            `name` AS name
+        FROM location_groups
+        WHERE is_active = 1
+        <if test="filter.searchText != null">
+            AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListFreedomGroupApi" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.Dropdown.GroupApiDropdownResponse">
+        SELECT
+            id AS id,
+            `name` AS name
+        FROM `groups`
+        WHERE is_active = 1
+        <if test="filter.searchText != null">
+            AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListFreedomModuleType" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.Dropdown.ModuleTypeDropdownResponse">
+        SELECT
+            id AS id,
+            `name` AS name
+        FROM module_types
+        WHERE status = 1
+        <if test="filter.searchText != null">
+            AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getRoleFreedomList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.Role.RoleResponse">
+        SELECT
+            role_groups.id AS id,
+            role_groups.`name` AS `name`,
+            DATE_FORMAT(role_groups.created, '%d-%b-%y %h:%i') AS createdDate,
+            DATE_FORMAT(role_groups.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+            CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+            CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+        FROM `groups` AS role_groups
+                 LEFT JOIN users AS users1 ON users1.id = role_groups.created_by
+                 LEFT JOIN users AS users2 ON users2.id = role_groups.modified_by
+        WHERE role_groups.is_active = 1
+        <if test="filter.searchText != null"> AND role_groups.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                role_groups.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countRoleFreedomList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(role_groups.id)
+        FROM `groups` AS role_groups
+                 LEFT JOIN users AS users1 ON users1.id = role_groups.created_by
+                 LEFT JOIN users AS users2 ON users2.id = role_groups.modified_by
+        WHERE role_groups.is_active = 1
+        <if test="filter.searchText != null"> AND role_groups.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+    </select>
+
+    <select id="getRoleFreedomOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Role.RoleResponse">
+        SELECT
+            role_groups.id AS id,
+            role_groups.`name` AS `name`,
+            DATE_FORMAT(role_groups.created, '%d-%b-%y %h:%i') AS createdDate,
+            DATE_FORMAT(role_groups.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+            CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+            CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+        FROM `groups` AS role_groups
+                 LEFT JOIN users AS users1 ON users1.id = role_groups.created_by
+                 LEFT JOIN users AS users2 ON users2.id = role_groups.modified_by
+        WHERE role_groups.is_active = 1 AND role_groups.id = #{id}
+    </select>
+
+    <select id="getRoleFreedomUsers" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.RoleUser">
+        SELECT users.id AS id,
+               users.username AS username,
+               1 AS checked
+        FROM users
+                 INNER JOIN user_groups ON user_groups.user_id = users.id
+        WHERE users.is_active = 1 AND user_groups.group_id = #{id}
+    </select>
+
+    <select id="checkRoleFreedomDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM `groups`
+        WHERE is_active = 1 AND `name` = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insertRoleFreedom" parameterType="com.ut.nlSystemAPi.model.Role" useGeneratedKeys="true" keyProperty="role.id">
+        INSERT INTO `groups` (
+            sys_code,
+            `name`,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            MD5(NOW()),
+            #{role.name},
+            NOW(),
+            #{role.createdBy},
+            #{role.isActive}
+        )
+    </insert>
+
+    <update id="updateRoleFreedom" parameterType="com.ut.nlSystemAPi.model.Role">
+        UPDATE `groups` SET
+            <if test="role.name != null">`name` = #{role.name},</if>
+            <if test="role.isActive != null">`is_active` = #{role.isActive},</if>
+            modified = NOW(),
+            modified_by = 1
+        WHERE id = #{role.id}
+    </update>
+
+    <update id="deleteRoleFreedom" parameterType="java.lang.Long">
+        UPDATE `groups` SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = 1
+        WHERE id = #{id};
+
+        DELETE FROM permissions WHERE group_id = #{id};
+    </update>
+
+    <select id="getRoleFreedomModule" resultType="com.ut.nlSystemAPi.model.ModuleType">
+        SELECT
+            *,
+            `name` AS nameOther
+        FROM module_types
+        WHERE status = 1
+          AND id IN (
+            SELECT
+                (SELECT module_type_id FROM modules WHERE id = module_id)
+            FROM permissions
+            WHERE group_id IN (SELECT group_id FROM user_groups WHERE user_id = #{userId})
+        )
+    </select>
+
+    <select id="getRoleFreedomModuleTypes" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.ModuleType">
+        SELECT
+            *,
+            `name` AS nameOther
+        FROM module_types
+        WHERE status = 1
+        <if test="filter.searchText != null">AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                ordering ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getRoleFreedomModuleByModuleTypeId" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.Module">
+        SELECT
+            *,
+            0 AS checked
+        FROM modules
+        WHERE status = 1 AND module_type_id = #{id}
+        ORDER BY ordering ASC
+    </select>
+
+    <select id="getRoleFreedomModuleByRoleId" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.Module">
+        SELECT
+            *,
+            TRIM(TRAILING ')' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(`name`, '(', -1), ')', 1)) AS type,
+            (SELECT COUNT(id) FROM permissions WHERE module_id = modules.id AND group_id = #{roleId} LIMIT 01) AS checked
+        FROM modules
+        WHERE status = 1 AND module_type_id = #{id}
+        ORDER BY ordering ASC
+    </select>
+
+    <select id="getRoleFreedomModuleByUserId" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.Module">
+        SELECT
+            *,
+            TRIM(TRAILING ')' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(`name`, '(', -1), ')', 1)) AS type,
+            (SELECT COUNT(id) FROM permissions WHERE module_id = modules.id AND group_id IN (SELECT group_id FROM user_groups WHERE user_id = #{userId}) LIMIT 01) AS checked
+        FROM modules
+        WHERE status = 1 AND module_type_id = #{id}
+        ORDER BY ordering ASC
+    </select>
+
+    <insert id="insertRoleFreedomUser">
+        INSERT INTO user_groups (user_id, group_id) VALUES (#{userId}, #{roleId});
+    </insert>
+
+    <delete id="deleteRoleFreedomUser">
+        DELETE FROM user_groups WHERE group_id = #{roleId}
+    </delete>
+
+    <insert id="insertRoleFreedomPermission">
+        INSERT INTO permissions (
+            group_id,
+            module_id
+        ) VALUES (
+            #{roleId},
+            #{moduleId}
+        )
+    </insert>
+
+    <delete id="deleteRoleFreedomPermission">
+        DELETE FROM permissions WHERE group_id = #{roleId}
+    </delete>
+
+    <select id="getCustomerLocationGroupCustomers" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Dropdown.VendorDropdownResponse">
+        SELECT
+            customers.id AS id,
+            customers.customer_code AS code,
+            customers.name AS name
+        FROM customer_location_groups
+        INNER JOIN customers ON customers.id = customer_location_groups.customer_id
+        WHERE customer_location_groups.location_group_id = #{locationGroupId}
+          AND customers.is_active = 1
+          AND customers.type = 1
+        ORDER BY customers.name ASC
+    </select>
+
+
+    <sql id="BASE_COLUMN_LIST">
+        users.id AS id,
+    CONCAT(users.first_name, ' ', users.last_name ) AS fullName,
+    users.first_name AS firstName,
+    users.last_name AS lastName,
+    users.username AS username,
+    DATE_FORMAT(users.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(users.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM users
+    LEFT JOIN users AS users1 ON users1.id = users.created_by
+    LEFT JOIN users AS users2 ON users2.id = users.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE users.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+            users.username LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR users.first_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR users.last_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        <if test="filter.groupId != null">
+            AND users.id IN (SELECT user_id FROM user_groups WHERE group_id = #{filter.groupId})
+        </if>
+    </sql>
+
+    <select id="getListUser" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="UserResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                users.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countListUser" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(users.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOneUser" parameterType="java.lang.Long" resultMap="User">
+        SELECT  users.id AS id,
+                CONCAT(users.first_name, ' ', users.last_name) AS fullName,
+                users.first_name AS firstName,
+                users.last_name AS lastName,
+                users.username AS username,
+                expired AS expireDate,
+                sex AS sex,
+                dob AS dob,
+                address AS address,
+                telephone AS telephone,
+                email AS email,
+                nationality AS nationalityId,
+                (SELECT `name` FROM nationalities WHERE id = users.nationality ) AS nationalityName,
+                password AS password
+        FROM users WHERE is_active = 1 AND id = #{id} LIMIT 01
+    </select>
+
+    <select id="getOneByUsername" parameterType="java.lang.String" resultMap="User">
+        SELECT *
+        FROM users
+        WHERE is_active = 1 AND username = #{username} LIMIT 01
+    </select>
+
+    <select id="getOneByUserId" resultMap="UserResponse">
+        SELECT users.*
+        FROM users
+        WHERE is_active = 1 AND id = #{userId}
+    </select>
+
+    <select id="getOneByGroup" parameterType="java.lang.Long" resultMap="User">
+        SELECT *
+        FROM users
+        WHERE is_active = 1 AND id IN (SELECT user_id FROM user_groups WHERE group_id = #{groupId})
+    </select>
+
+    <select id="getOneUserGroupList" parameterType="java.lang.Long" resultMap="UserGroupList">
+        SELECT * FROM `groups` WHERE is_active = 1 AND id IN (SELECT group_id FROM user_groups WHERE user_id = #{id});
+    </select>
+
+    <insert id="insertUser" parameterType="com.ut.nlSystemAPi.model.Users.User" useGeneratedKeys="true" keyProperty="user.id">
+        INSERT INTO users (
+        <if test="user.firstName != null">first_name,</if>
+        <if test="user.lastName != null">last_name,</if>
+        <if test="user.expireDate != null">expired,</if>
+        <if test="user.sex != null">sex,</if>
+        <if test="user.dob != null">dob,</if>
+        <if test="user.address != null">address,</if>
+        <if test="user.telephone != null">telephone,</if>
+        <if test="user.email != null">email,</if>
+        <if test="user.nationalityId != null">nationality,</if>
+        <if test="user.username != null">username,</if>
+        <if test="user.password != null">password,</if>
+        created,
+        created_by,
+        modified,
+        modified_by,
+        is_active
+        ) VALUES (
+        <if test="user.firstName != null">#{user.firstName},</if>
+        <if test="user.lastName != null">#{user.lastName},</if>
+        <if test="user.expireDate != null">#{user.expireDate},</if>
+        <if test="user.sex != null">#{user.sex},</if>
+        <if test="user.dob != null">#{user.dob},</if>
+        <if test="user.address != null">#{user.address},</if>
+        <if test="user.telephone != null">#{user.telephone},</if>
+        <if test="user.email != null">#{user.email},</if>
+        <if test="user.nationalityId != null">#{user.nationalityId},</if>
+        <if test="user.username != null">#{user.username},</if>
+        <if test="user.password != null">#{user.password},</if>
+        NOW(),
+        #{user.createdBy},
+        NOW(),
+        #{user.createdBy},
+        1
+        );
+    </insert>
+
+    <update id="updateUser" parameterType="com.ut.nlSystemAPi.model.Users.User">
+        UPDATE users SET
+        <if test="user.firstName != null">first_name = #{user.firstName},</if>
+        <if test="user.lastName != null">last_name = #{user.lastName},</if>
+        <if test="user.expireDate != null">expired = #{user.expireDate},</if>
+        <if test="user.sex != null">sex = #{user.sex},</if>
+        <if test="user.dob != null">dob = #{user.dob},</if>
+        <if test="user.address != null">address = #{user.address},</if>
+        <if test="user.telephone != null">telephone = #{user.telephone},</if>
+        <if test="user.email != null">email = #{user.email},</if>
+        <if test="user.nationalityId != null">nationality = #{user.nationalityId},</if>
+        <if test="user.username != null">username = #{user.username},</if>
+        <if test="user.password != null">password = #{user.password},</if>
+        <if test="user.signature != null">signature = #{user.signature},</if>
+        modified = NOW(),
+        modified_by = #{user.modifiedBy}
+        WHERE id = #{user.id}
+    </update>
+
+    <update id="editProfileUser" parameterType="com.ut.nlSystemAPi.model.Users.User">
+        UPDATE employees SET
+        <if test="user.photo != null">photo = #{user.photo},</if>
+        <if test="user.photoType != null">photo_type = #{user.photoType},</if>
+        <if test="user.employeeName != null">name = #{user.employeeName},</if>
+        <if test="user.employeeGender != null">sex = #{user.employeeGender},</if>
+        <if test="user.employeeDob != null">dob = #{user.employeeDob},</if>
+        <if test="user.employeePhoneNumber != null">personal_number = #{user.employeePhoneNumber},</if>
+        <if test="user.employeeEmail != null">email = #{user.employeeEmail},</if>
+        <if test="user.provinceId != null">province_id = #{user.provinceId},</if>
+        <if test="user.districtId != null">district_id = #{user.districtId},</if>
+        <if test="user.communeId != null">commune_id = #{user.communeId},</if>
+        <if test="user.villageId != null">village_id = #{user.villageId},</if>
+
+        modified = NOW(),
+        modified_by = #{user.modifiedBy}
+        WHERE id = #{user.employeeId};
+    </update>
+
+    <delete id="deleteUser" parameterType="java.lang.Long">
+        UPDATE users SET
+                         modified = NOW(),
+                         modified_by = 1,
+                         is_active = 2
+        WHERE id = #{id}
+    </delete>
+
+    <insert id="insertSystemRoleUser">
+        INSERT INTO user_groups (user_id, group_id) VALUES (#{userId}, #{groupId});
+    </insert>
+
+    <insert id="deleteSystemRoleUser">
+        DELETE FROM user_groups WHERE user_id = #{userId}
+    </insert>
+
+    <select id="getUserLocationGroupIds" resultType="java.lang.Long">
+        SELECT location_group_id
+        FROM user_location_groups
+        WHERE user_id = #{userId}
+        ORDER BY location_group_id ASC
+    </select>
+
+    <select id="getUserLocationGroups" resultType="com.ut.nlSystemAPi.model.response.Dropdown.WarehouseDropDownResponse">
+        SELECT user_location_groups.location_group_id AS id,
+               location_groups.`name` AS name
+        FROM user_location_groups
+                 LEFT JOIN location_groups ON location_groups.id = user_location_groups.location_group_id
+        WHERE user_location_groups.user_id = #{userId}
+        ORDER BY user_location_groups.location_group_id ASC
+    </select>
+
+    <select id="getUserCompanyIds" resultType="java.lang.Long">
+        SELECT company_id
+        FROM user_companies
+        WHERE user_id = #{userId}
+        ORDER BY company_id ASC
+    </select>
+
+    <select id="getActiveCompanyIds" resultType="java.lang.Long">
+        SELECT id
+        FROM companies
+        WHERE is_active = 1
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insertUserCompany">
+        INSERT INTO user_companies (user_id, company_id)
+        VALUES (#{userId}, #{companyId})
+    </insert>
+
+    <insert id="insertUserLocationGroup">
+        INSERT INTO user_location_groups (user_id, location_group_id)
+        VALUES (#{userId}, #{locationGroupId});
+
+        INSERT INTO user_branches (user_id, branch_id)
+        VALUES (#{userId}, #{locationGroupId});
+    </insert>
+
+    <delete id="deleteUserLocationGroup">
+        DELETE FROM user_location_groups WHERE user_id = #{userId};
+
+        DELETE FROM user_branches WHERE user_id = #{userId};
+    </delete>
+
+</mapper>

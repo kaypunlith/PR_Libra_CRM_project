@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BranchMapper">
+
+  <resultMap id="branchResponse" type="com.ut.nlSystemAPi.model.response.Branch.BranchResponse">
+
+  </resultMap>
+
+  <resultMap id="BankAccountResponse" type="com.ut.nlSystemAPi.model.response.Branch.BankAccountResponse">
+
+  </resultMap>
+
+
+  <resultMap id="AvailableUserResponse" type="com.ut.nlSystemAPi.model.response.Branch.AvailableUserResponse">
+
+  </resultMap>
+
+  <resultMap id="AvailableWareHoseResponse" type="com.ut.nlSystemAPi.model.response.Branch.WarehouseResponse">
+
+  </resultMap>
+
+
+
+</mapper>

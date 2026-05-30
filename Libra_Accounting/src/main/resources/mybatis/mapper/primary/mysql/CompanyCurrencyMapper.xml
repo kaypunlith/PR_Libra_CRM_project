@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CompanyCurrencyMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    company_currencies.id AS id,
+    company_currencies.company_id AS companyId,
+     branches.id AS branchId,
+     branches.name AS branchName,
+    companies.name AS companyName,
+    (SELECT CONCAT(currency_centers.name, "(", currency_centers.symbol, ")") FROM currency_centers WHERE id = 1) AS currencyFrom,
+    company_currencies.currency_center_id AS currencyToId,
+    CONCAT(currency_centers.name,"(", currency_centers.symbol, ")") AS currencyTo,
+    is_pos_default AS isPosDefault,
+    DATE_FORMAT(currency_centers.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(currency_centers.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM company_currencies
+    LEFT JOIN users AS users1 ON users1.id = company_currencies.created_by
+    LEFT JOIN users AS users2 ON users2.id = company_currencies.modified_by
+    LEFT JOIN companies ON companies.id = company_currencies.company_id
+    LEFT JOIN currency_centers ON currency_centers.id = company_currencies.currency_center_id
+    LEFT JOIN branches ON branches.id=company_currencies.branch_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE company_currencies.is_active = 1
+    <if test="filter.searchText != null">
+      AND currency_centers.`name` LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    <if test="filter.branchId != null">
+      AND currency_centers.`branch_id`= #{filter.branchId}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CompanyCurrencyResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        company_currencies.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(company_currencies.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" resultMap="CompanyCurrencyResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE company_currencies.id = #{id} AND company_currencies.is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM company_currencies
+    WHERE is_active = 1 AND company_id = #{companyId} AND currency_center_id = #{currencyId}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.CompanyCurrency">
+    INSERT INTO company_currencies(
+      `company_id`,
+      branch_id,
+      currency_center_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+         #{companyCurrency.companyId},
+        #{companyCurrency.branchId},
+         #{companyCurrency.currencyFromId},
+         NOW(),
+         #{companyCurrency.createdBy},
+         #{companyCurrency.isActive}
+       );
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.CompanyCurrency">
+    UPDATE company_currencies SET
+      <if test="companyCurrency.companyId != null"> `company_id` = #{companyCurrency.companyId},</if>
+      <if test="companyCurrency.branchId != null"> `branch_id` = #{companyCurrency.branchId},</if>
+      <if test="companyCurrency.currencyFromId != null"> `currency_center_id` = #{companyCurrency.currencyFromId},</if>
+      modified = NOW(),
+      modified_by = #{companyCurrency.modifiedBy}
+    WHERE id = #{companyCurrency.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE company_currencies SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <select id="getCompanyIdByCompanyCurrencyId" resultType="java.lang.Long">
+    SELECT company_id FROM company_currencies WHERE id = #{companyCurrencyId};
+  </select>
+
+  <update id="resetPos">
+    UPDATE company_currencies SET
+      is_pos_default = 0
+    WHERE 1;
+  </update>
+
+  <update id="applyPos" parameterType="java.lang.Long">
+    UPDATE company_currencies SET
+      is_pos_default = 1,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="updateCompanyPos" parameterType="java.lang.Long">
+    UPDATE companies SET
+      pos_company_currency_id = #{id},
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{companyId};
+  </update>
+
+</mapper>

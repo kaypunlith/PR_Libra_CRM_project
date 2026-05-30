@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PayBillsMapper">
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PayBillsFilter" resultMap="PayBillsResponse">
+        (
+        SELECT
+          pr.id AS moduleId,
+          'Bill' AS type,
+          pr.id AS id,
+          COALESCE(pr.order_date, '') AS `date`,
+          COALESCE((SELECT pr_code FROM purchase_requests WHERE id = pr.purchase_request_id), '') AS prCode,
+          pr.po_code AS pvCode,
+          CASE
+            WHEN (pr.pv_request_id IS NOT NULL) THEN COALESCE((SELECT code FROM pv_requests WHERE id = pr.pv_request_id LIMIT 1), '')
+            ELSE COALESCE((SELECT code FROM pv_requests WHERE id IN (SELECT pv_request_id FROM pv_request_orders WHERE order_id = pr.id AND status = 3) LIMIT 1), '')
+          END AS erNumber,
+          CASE
+            WHEN (pr.pv_request_id IS NULL AND (SELECT total_amount_approved FROM pv_requests WHERE id IN (SELECT pv_request_id FROM pv_request_orders WHERE order_id = 1 AND status = 3)) IS NOT NULL) THEN (SELECT total_amount_approved FROM pv_requests WHERE id IN (SELECT pv_request_id FROM pv_request_orders WHERE order_id = pr.id AND status = 3))
+            WHEN (pr.pv_request_id IS NOT NULL) THEN (SELECT total_amount_approved FROM pv_requests WHERE id = pr.pv_request_id)
+            WHEN (pr.pv_request_id IS NULL) THEN (SELECT SUM(deposit_amount) FROM pv_request_apply_deposits WHERE pv_request_id = pr.pv_request_id AND is_approved = 1 AND pay_bill_apply = 0)
+            ELSE (SELECT SUM(deposit_amount) FROM pv_request_apply_deposits WHERE is_approved = 1 AND pay_bill_apply = 0 AND pv_request_id IN (SELECT pv_request_id FROM pv_request_orders WHERE order_id = pr.id AND status = 3))
+          END AS erAmount,
+          pr.po_code AS reference,
+          pr.branch_id AS branchId,
+          (SELECT name FROM branches WHERE id = pr.branch_id) AS branchName,
+          loc.id AS locationId,
+          COALESCE(loc.name, '') AS locationName,
+          v.name AS vendorName,
+          v.id AS vendorId,
+          '' AS chartAccountId,
+          pr.total_amount AS totalAmount,
+          pr. balance AS amountDue,
+          pr.balance AS balance,
+          COALESCE(pr.due_date, '') AS aging,
+          pr.pv_request_id AS pvId,
+          '' AS pvAppAmt,
+          '' AS pvAmt,
+          '' AS pvRequestId,
+          '' AS landedCostId,
+          COALESCE(pr.note, '') AS memo
+        FROM purchase_orders pr
+        INNER JOIN locations loc ON pr.location_id = loc.id
+        INNER JOIN vendors v ON pr.vendor_id = v.id
+        WHERE pr.status > 0
+        AND pr.balance > 0
+        <if test="filter.companyId != null">
+            AND pr.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.vendorId != null">
+            AND pr.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.locationId != null">
+            AND pr.location_id = #{filter.locationId}
+        </if>
+        )
+        UNION ALL
+        (
+        SELECT
+          gl.id AS moduleId,
+          'Journal' AS type,
+          gld.id AS id,
+          COALESCE(gl.date, '') AS `date`,
+          (SELECT pr_code FROM purchase_requests WHERE id IN (SELECT purchase_request_id FROM purchase_orders WHERE id = gl.purchase_order_id) LIMIT 1) AS prCode,
+          COALESCE((SELECT po_code FROM purchase_orders WHERE id = gl.purchase_order_id), '') AS pvCode,
+          COALESCE((SELECT code FROM pv_requests WHERE id = gl.pv_id), '') AS erNumber,
+          null AS erAmount,
+          gl.reference AS reference,
+          (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = gl.id LIMIT 1) AS branchId,
+          (SELECT name FROM branches WHERE id = (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = gl.id LIMIT 1)) AS branchName,
+          COALESCE(gld.location_id, '') AS locationId,
+          '' AS locationName,
+          v.name AS vendorName,
+          gld.vendor_id AS vendorId,
+          gld.chart_account_id AS chartAccountId,
+          IFNULL(gld.credit, 0) - IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND vendor_id = gld.vendor_id), 0) AS totalAmount,
+          IFNULL(gld.credit, 0) - IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND vendor_id = gld.vendor_id), 0) AS amountDue,
+          IFNULL(gld.credit, 0) - IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND vendor_id = gld.vendor_id), 0) AS balance,
+          '' AS aging,
+          gl.pv_id AS pvId,
+          '' AS pvAppAmt,
+          '' AS pvAmt,
+          '' AS pvRequestId,
+          gl.landed_cost_id AS landedCostId,
+          COALESCE(gl.note, '') AS memo
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        INNER JOIN  vendors AS v ON gld.vendor_id = v.id
+        WHERE gl.is_approve = 1
+        AND gl.is_active = 1
+        <if test="filter.companyId != null">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.vendorId != null">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.branchId != null">
+            AND (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = gl.id LIMIT 1) = #{filter.branchId}
+        </if>
+        AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active = 1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable'))
+        AND gl.sales_order_id IS NULL
+        AND gl.credit_memo_id IS NULL
+        AND gl.purchase_order_id IS NULL
+        AND gl.purchase_return_id IS NULL
+        AND gld.credit > 0
+        AND (IFNULL(gld.credit, 0) - (IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND vendor_id = gld.vendor_id), 0))) > 0
+        )
+        ORDER BY `date` ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+
+    </select>
+
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.PayBillsFilter" resultType="java.lang.Long">
+
+  </select>
+
+  <select id="getReLastPayBillCode" resultType="java.lang.String">
+    SELECT reference
+      FROM pay_bills
+    WHERE is_active = 1 AND YEAR(date) = YEAR(NOW()) AND `reference` LIKE '%PV%' ORDER BY id DESC LIMIT 1
+  </select>
+
+  <insert id="insertPayBill" parameterType="com.ut.nlSystemAPi.model.PayBills" useGeneratedKeys="true" keyProperty="payBills.id">
+    INSERT INTO pay_bills(
+      `date`,
+      `company_id`,
+       branch_id,
+      location_id,
+      exchange_rate,
+      vendor_id,
+      deposit_to,
+      account_codes,
+      account_description,
+      reference,
+      cheque_number,
+      bank_number,
+      note,
+      created,
+      created_by,
+      is_approved,
+      is_active
+    ) VALUES (
+               #{payBills.date},
+               #{payBills.companyId},
+               #{payBills.branchId},
+               #{payBills.locationId},
+               #{payBills.exchangeRate},
+               #{payBills.vendorId},
+               #{payBills.depositTo},
+               #{payBills.accountCode},
+               #{payBills.accountDescription},
+               #{payBills.reference},
+               #{payBills.chequeNumber},
+               #{payBills.bankNo},
+               #{payBills.note},
+               NOW(),
+               #{payBills.createdBy},
+               1,
+               #{payBills.isActive}
+             );
+  </insert>
+
+  <insert id="insertPayBillDetail" parameterType="com.ut.nlSystemAPi.model.PayBillsDetail">
+    INSERT INTO pay_bill_details(
+      `pay_bill_id`,
+      `purchase_order_id`,
+      general_ledger_detail_id,
+      amount_due,
+      paid,
+      description,
+      balance,
+      due_date
+    ) VALUES (
+         #{payBillsDetail.payBillId},
+         #{payBillsDetail.purchaseOrderId},
+         #{payBillsDetail.glDetailId},
+         #{payBillsDetail.amountDue},
+         #{payBillsDetail.amountPaid},
+         #{payBillsDetail.memo},
+         #{payBillsDetail.balance},
+         #{payBillsDetail.dueDate}
+       );
+  </insert>
+
+    <insert id="insertLandedCost" parameterType="com.ut.nlSystemAPi.model.PayBillsDetail">
+        INSERT INTO landed_costs(
+            modified,
+            modified_by,
+            balance
+        ) VALUES (
+                     NOW(),
+                     #{payBillsDetail.userId},
+                     #{payBillsDetail.balance}
+                 );
+    </insert>
+
+    <insert id="insertLandedCostReceipt" parameterType="com.ut.nlSystemAPi.model.PayBillsDetail">
+        INSERT INTO landed_cost_receipts(
+            `landed_cost_id`,
+            `chart_account_id`,
+            code,
+            amount_us,
+            total_amount,
+            balance,
+            pay_date,
+            created_by
+        ) VALUES (
+                     #{payBillsDetail.payBillId},
+                     #{payBillsDetail.purchaseOrderId},
+                     '',
+                     #{payBillsDetail.amountPaid},
+                     #{payBillsDetail.amountDue},
+                     #{payBillsDetail.balance},
+                     #{payBillsDetail.payDate},
+                     #{payBillsDetail.userId}
+                 );
+    </insert>
+  
+  <insert id="insertPv" parameterType="com.ut.nlSystemAPi.model.PayBillsDetail" useGeneratedKeys="true" keyProperty="payBillsDetail.pvId">
+    INSERT INTO pvs(
+      `purchase_order_id`,
+      chart_account_id,
+      pv_code,
+      amount_us,
+      total_amount,
+      balance,
+      pay_date,
+      due_date,
+      created_by
+    ) VALUES (
+         #{payBillsDetail.purchaseOrderId},
+         #{payBillsDetail.chartAccountId},
+         #{payBillsDetail.pvCode},
+         #{payBillsDetail.amountPaid},
+         #{payBillsDetail.amountDue},
+         #{payBillsDetail.balance},
+         #{payBillsDetail.payDate},
+         #{payBillsDetail.dueDate},
+         #{payBillsDetail.createdBy}
+       );
+  </insert>
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.JournalEntry" useGeneratedKeys="true" keyProperty="journalEntry.id">
+    INSERT INTO general_ledgers(
+        sys_code,
+      purchase_order_id,
+      `pv_id`,
+      `pay_bill_id`,
+      `ap_aging_id`,
+      date,
+      reference,
+      created,
+      created_by,
+      is_sys,
+      is_adj,
+      is_active
+    ) VALUES (
+              UUID(),
+               #{journalEntry.purchaseOrderId},
+               #{journalEntry.pvId},
+               #{journalEntry.payBillId},
+               #{journalEntry.apAgingId},
+               #{journalEntry.date},
+               #{journalEntry.reference},
+               NOW(),
+               #{journalEntry.createdBy},
+               #{journalEntry.isSys},
+               #{journalEntry.adj},
+               #{journalEntry.isActive}
+             );
+  </insert>
+
+<insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+    INSERT INTO general_ledger_details(
+        general_ledger_id,
+        main_gl_id,
+        branch_id,
+        `chart_account_id`,
+        `company_id`,
+        `type`,
+        debit,
+        credit,
+        vendor_id,
+        memo,
+        class_id
+    ) VALUES (
+                 #{journalEntryDetail.generalLedgerId},
+                 #{journalEntryDetail.mainGlId},
+                 #{journalEntryDetail.branchId},
+                 #{journalEntryDetail.chartAccountId},
+                 #{journalEntryDetail.companyId},
+                 #{journalEntryDetail.type},
+                 #{journalEntryDetail.debit},
+                 #{journalEntryDetail.credit},
+                 #{journalEntryDetail.vendorId},
+                 #{journalEntryDetail.memo},
+                 #{journalEntryDetail.classId}
+             );
+</insert>
+
+
+    <sql id="BASE_COLUMN_LIST_PRINT">
+        pay_bills.id AS id,
+      pay_bills.date AS date,
+      pay_bills.id AS branchId,
+      branches.name AS branchName,
+      pay_bills.reference AS reference,
+        CASE
+            WHEN (pay_bills.type_id = 1) THEN (SELECT SUM(credit) FROM general_ledger_details WHERE general_ledger_id = pay_bills.gl_id)
+            ELSE (SELECT SUM(paid) FROM pay_bill_details WHERE pay_bill_id = pay_bills.id)
+        END AS totalAmount,
+      COALESCE((SELECT name FROM vendors WHERE id = pay_bills.vendor_id), '') AS venderName,
+      (SELECT CONCAT(account_codes, '-',account_description) FROM chart_accounts WHERE id = pay_bills.deposit_to) AS chartAccountName,
+      IFNULL((SELECT SUM(paid) FROM pay_bill_details WHERE pay_bill_id = pay_bills.id), 0) AS totalAmount,
+      COALESCE(pay_bills.note, '') AS note,
+      pay_bills.gl_id AS glId,
+      IFNULL(pay_bills.exchange_rate, 0) AS exchangeRate,
+      pay_bills.cheque_number AS chequeNumber,
+      (SELECT name FROM companies WHERE id = pay_bills.company_id) AS `companyName`,
+      pay_bills.account_codes AS accountCode,
+      pay_bills.type_id AS `type`
+  </sql>
+
+  <sql id="BASE_FROM_PRINT">
+    FROM pay_bills
+      LEFT JOIN branches ON branches.id = pay_bills.branch_id
+  </sql>
+
+  <sql id="BASE_WHERE_PRINT">
+    WHERE pay_bills.is_active = 1
+    <if test="filter.reference != null and filter.reference != ''">
+      AND (pay_bills.reference LIKE CONCAT("%", #{filter.reference}, "%"))
+    </if>
+    <if test="filter.vendorId != null and filter.vendorId != ''">
+      AND pay_bills.vendor_id = #{filter.vendorId}
+    </if>
+    <if test="filter.dateFrom != null and filter.dateTo != null">
+      AND DATE(pay_bills.date) >= DATE(#{filter.dateFrom}) AND DATE(pay_bills.date) &lt;= DATE(#{filter.dateTo})
+    </if>
+  </sql>
+
+  <select id="getListPrint" parameterType="com.ut.nlSystemAPi.model.filter.PayBillPrintFilter" resultMap="PayBillsPrintResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_PRINT"/>
+    <include refid="BASE_FROM_PRINT"/>
+    <include refid="BASE_WHERE_PRINT"/>
+    ORDER BY pay_bills.id DESC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countListPrint" parameterType="com.ut.nlSystemAPi.model.filter.PayBillPrintFilter" resultType="java.lang.Long">
+    SELECT COUNT(pay_bills.id)
+    <include refid="BASE_FROM_PRINT"/>
+    <include refid="BASE_WHERE_PRINT"/>
+  </select>
+
+  <select id="find" parameterType="java.lang.Long" resultMap="PayBillsPrintResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_PRINT"/>
+    <include refid="BASE_FROM_PRINT"/>
+    WHERE pay_bills.id = #{id}
+    AND pay_bills.is_active = 1
+  </select>
+
+  <select id="gePayBillNormalDetail" parameterType="java.lang.Long" resultMap="PayBillsPrintDetailResponse">
+    SELECT
+      CASE
+        WHEN (SELECT pr_code FROM purchase_requests WHERE id = po.purchase_request_id LIMIT 01) IS NULL THEN ''
+        ELSE COALESCE(po.po_code, '')
+      END AS poCode,
+      CASE
+        WHEN (pbd.purchase_order_id IS NOT NULL) THEN
+            COALESCE(
+                (SELECT pr_code
+                     FROM purchase_requests
+                     WHERE id = po.purchase_request_id
+                    LIMIT 1),
+                po.po_code,
+                ''
+            )
+        ELSE general_ledgers.reference
+      END AS invoiceCode,
+      IFNULL(pbd.paid, 0) AS totalAmount,
+      COALESCE(pbd.description, '') AS description
+    FROM pay_bill_details AS pbd
+      LEFT JOIN purchase_orders AS po ON pbd.purchase_order_id = po.id
+      LEFT JOIN general_ledger_details ON general_ledger_details.id = pbd.general_ledger_detail_id
+      LEFT JOIN general_ledgers ON general_ledgers.id = general_ledger_details.general_ledger_id
+    WHERE pbd.pay_bill_id = #{payBillId}
+  </select>
+
+  <select id="getPayBillCheckDetail" parameterType="java.lang.Long" resultMap="PayBillsPrintDetailResponse">
+    SELECT
+      '' AS poCode,
+      '' AS invoiceCode,
+      IFNULL(gld.debit, 0) AS totalAmount,
+      COALESCE(gld.memo, '') AS description,
+      '' AS reference
+    FROM general_ledger_details AS gld
+    WHERE debit > 0 AND gld.general_ledger_id = #{glId}
+  </select>
+
+
+  <select id="getGlFile" parameterType="java.lang.Long" resultMap="ReceivePaymentFileResponse">
+    SELECT file_name AS fileName, file_url AS fileUrl
+    FROM general_ledger_files
+    WHERE general_ledger_id IN (
+        SELECT id FROM general_ledgers WHERE pay_bill_id = #{glId}
+    );
+  </select>
+
+  <update id="updatePurchaseOrder">
+    UPDATE purchase_orders SET balance = #{balance}, modified = NOW(), modified_by = #{userId} WHERE id = #{id};
+  </update>
+
+    <update id="updateERDepositAmount">
+        UPDATE pv_request_apply_deposits SET pay_bill_apply = 1 WHERE pv_request_id = (SELECT pv_request_id FROM purchase_orders WHERE id = #{payBillId}) AND is_approved = 1 AND pay_bill_apply = 0;
+    </update>
+
+    <select id="createTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        CREATE TABLE IF NOT EXISTS ${tableName} (
+            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+            `main_gl_id` int(11) DEFAULT NULL,
+            `chart_account_id` int(11) DEFAULT NULL,
+            `company_id` int(11) DEFAULT NULL,
+            `debit` double DEFAULT NULL,
+            `vendor_id` bigint(20) DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `main_gl_id` (`main_gl_id`),
+            KEY `chart_account_id` (`chart_account_id`),
+            KEY `company_id` (`company_id`),
+            KEY `vendor_id` (`vendor_id`)
+            ) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+    </select>
+
+    <select id="dropTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        DROP TABLE ${tableName};
+    </select>
+
+    <select id="getDebitData" parameterType="com.ut.nlSystemAPi.model.filter.PayBillsFilter" resultMap="PayBillsDebitDataResponse">
+        SELECT
+            IFNULL(SUM(debit),0) AS debit,
+            `main_gl_id` AS mainGlId,
+            `chart_account_id` AS chartAccountId,
+            `company_id` AS companyId,
+            `vendor_id` AS vendorId
+        FROM general_ledgers gl2
+        INNER JOIN general_ledger_details gld2 ON gl2.id=gld2.general_ledger_id
+        WHERE gl2.is_approve=1
+          AND gl2.is_active=1
+          <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+          </if>
+            <if test="filter.vendorId != null">
+                AND vendor_id = #{filter.vendorId}
+            </if>
+          AND chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name='Accounts Payable'))
+          AND sales_order_id IS NULL
+          AND credit_memo_id IS NULL
+          AND purchase_order_id IS NULL
+          AND purchase_return_id IS NULL
+          AND debit>0
+        GROUP BY `main_gl_id`, `chart_account_id`, `company_id`, `vendor_id`
+    </select>
+
+    <insert id="insertDebitData" parameterType="com.ut.nlSystemAPi.model.response.PayBills.PayBillsDebitDataResponse">
+        INSERT INTO ${tableName} (
+            main_gl_id,
+            chart_account_id,
+            company_id,
+            debit,
+            vendor_id
+        ) VALUES (
+             #{payBillsDebitDataResponse.mainGlId},
+             #{payBillsDebitDataResponse.chartAccountId},
+             #{payBillsDebitDataResponse.companyId},
+             #{payBillsDebitDataResponse.debit},
+             #{payBillsDebitDataResponse.vendorId}
+         )
+    </insert>
+
+    <select id="getGlId" resultType="java.lang.Long">
+        SELECT main_gl_id FROM general_ledger_details WHERE id=#{gldId};
+    </select>
+
+    <update id="updateMainGlByDedailtId" parameterType="java.lang.Long">
+        UPDATE general_ledger_details SET main_gl_id= #{gldId} WHERE main_gl_id=#{mainGlId};
+    </update>
+
+    <update id="updateMainGl" parameterType="java.lang.Long">
+        UPDATE general_ledger_details SET main_gl_id=#{gldId} WHERE id=#{gldId};
+    </update>
+
+    <select id="getLocationGroupClassId" resultType="java.lang.Long">
+        SELECT class_id FROM location_group_classese WHERE company_id= #{companyId} AND location_group_id IN (SELECT location_group_id FROM locations WHERE id = #{locationId});
+    </select>
+
+    <select id="getJournalClassId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT class_id FROM general_ledger_details WHERE id=#{glId};
+    </select>
+
+    <select id="getChartAccountReceived" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT chart_account_id FROM account_types WHERE id = #{accountTypeId};
+    </select>
+
+</mapper>

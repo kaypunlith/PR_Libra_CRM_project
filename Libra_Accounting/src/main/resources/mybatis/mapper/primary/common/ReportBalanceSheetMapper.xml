@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportBalanceSheetMapper">
+
+
+  <resultMap id="ProfitLossReportResponse" type="com.ut.nlSystemAPi.model.response.Report.ProfitLossReportResponse">
+
+  </resultMap>
+
+  <resultMap id="accountGroupDetail" type="com.ut.nlSystemAPi.model.response.Report.accountGroupDetail">
+
+  </resultMap>
+
+  <resultMap id="chartAccountDetail" type="com.ut.nlSystemAPi.model.response.Report.chartAccountDetail">
+
+  </resultMap>
+
+  <resultMap id="ChartAccountSubDetail" type="com.ut.nlSystemAPi.model.response.Report.ChartAccountSubDetail">
+
+  </resultMap>
+
+</mapper>

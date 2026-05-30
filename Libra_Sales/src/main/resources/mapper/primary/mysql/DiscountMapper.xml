@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DiscountMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        discounts.id AS id,
+        discounts.company_id AS companyId,
+        companies.name AS companyName,
+        discounts.name AS `name`,
+        discounts.description AS description,
+        discounts.percent AS `percent`,
+        discounts.amount AS amount
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM discounts
+        INNER JOIN companies ON discounts.company_id = companies.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE discounts.is_active = 1
+        <if test="filter.searchText != null">
+            AND discounts.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DiscountResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                discounts.name ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(discounts.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Discount.Discount" useGeneratedKeys="true" keyProperty="discount.id">
+        INSERT INTO discounts (
+            company_id,
+            `name`,
+            description,
+            percent,
+            amount,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{discount.companyId},
+            #{discount.name},
+            #{discount.description},
+            #{discount.percent},
+            #{discount.amount},
+            NOW(),
+            #{discount.createdBy},
+            #{discount.isActive}
+        )
+    </insert>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE discounts SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

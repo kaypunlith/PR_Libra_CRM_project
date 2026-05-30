@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TypeNetworkPartnerManagementMapper">
+
+    <resultMap id="TypeNetworkPartnerManagementResponse" type="com.ut.nlSystemAPi.model.response.TypeNetworkPartnerManagement.TypeNetworkPartnerManagementResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="created" column="created"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+        <result property="modified" column="modified"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        type_network_partner_managements.id AS id,
+        type_network_partner_managements.name AS name,
+        IF(type_network_partner_managements.created_by IS NULL, "", (SELECT CONCAT(first_name, " ", last_name) FROM users WHERE id = type_network_partner_managements.created_by AND is_active = 1 LIMIT 1)) AS createdBy,
+        DATE_FORMAT(type_network_partner_managements.created, "%d-%b-%Y %H:%i") AS created,
+        IF(type_network_partner_managements.modified_by IS NULL, "", (SELECT CONCAT(first_name, " ", last_name) FROM users WHERE id = type_network_partner_managements.modified_by AND is_active = 1 LIMIT 1)) AS modifiedBy,
+        DATE_FORMAT(type_network_partner_managements.modified, "%d-%b-%Y %H:%i") AS modified
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM type_network_partner_managements
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE type_network_partner_managements.is_active = 1
+        <if test="filter.searchText != null">
+            AND type_network_partner_managements.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="TypeNetworkPartnerManagementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>type_network_partner_managements.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(type_network_partner_managements.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="TypeNetworkPartnerManagementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE type_network_partner_managements.is_active = 1 AND type_network_partner_managements.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM type_network_partner_managements
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="typeNetworkPartnerManagement.id">
+        INSERT INTO type_network_partner_managements (
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{typeNetworkPartnerManagement.name},
+            NOW(),
+            #{typeNetworkPartnerManagement.createdBy},
+            #{typeNetworkPartnerManagement.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE type_network_partner_managements SET
+        <trim suffixOverrides=",">
+            <if test="typeNetworkPartnerManagement.name != null">name = #{typeNetworkPartnerManagement.name},</if>
+            modified = NOW(),
+            modified_by = #{typeNetworkPartnerManagement.modifiedBy},
+        </trim>
+        WHERE id = #{typeNetworkPartnerManagement.id} AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE type_network_partner_managements SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

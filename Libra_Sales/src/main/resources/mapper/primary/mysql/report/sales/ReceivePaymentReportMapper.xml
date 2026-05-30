@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_RECEIVE_PAYMENT">
+        WHERE gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_type_id = 2)
+        AND gld.type = 'Payment' AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.searchText != null">
+            AND (
+                reference LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR gl.note LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND gl.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.adjustEntry != null">
+            AND gl.is_adj = #{filter.adjustEntry}
+        </if>
+        <if test="filter.companyId != null">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND gld.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+    </sql>
+
+    <select id="getListReceivePayment" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.ReceivePaymentReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.ReceivePaymentReportResponse">
+        SELECT
+        customers.id AS organizationId,
+        IFNULL(customers.name, 'General Customer') AS organizationName,
+        gld.type AS `type`,
+        date AS `date`,
+        (SELECT name FROM companies WHERE id = gld.company_id) AS companyName,
+        reference AS reference,
+        (SELECT CONCAT(account_codes," · ",account_description) FROM chart_accounts WHERE id=gld.chart_account_id) AS accountName,
+        IF(debit > 0, debit * -1, credit) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        LEFT JOIN customers ON customers.id = gld.customer_id
+        <include refid="BASE_WHERE_RECEIVE_PAYMENT"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListReceivePayment" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.DeliveryNoteReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(gl.id)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        LEFT JOIN customers ON customers.id = gld.customer_id
+        <include refid="BASE_WHERE_RECEIVE_PAYMENT"/>
+    </select>
+
+</mapper>

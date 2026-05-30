@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_OPEN_INVOICE_BY_REP">
+        WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <choose>
+            <when test="filter.status != null">
+                AND status = #{filter.status}
+            </when>
+            <otherwise>
+                AND status > 0
+            </otherwise>
+        </choose>
+        AND balance > 0
+        AND location_group_id IN (SELECT location_group_id FROM user_location_groups WHERE user_id = #{userId})
+        <if test="filter.searchText != null">
+            AND (
+                so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.date != null">
+            AND order_date &lt;= #{filter.date}
+        </if>
+        <if test="filter.createdBy != null">
+            AND created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+    </sql>
+
+    <select id="getListOpenInvoiceByRep" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.OpenInvoiceByRepReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.InvoiceByRepReportResponse">
+        SELECT
+        (SELECT id FROM cgroups WHERE id=(SELECT cgroup_id FROM customer_cgroups WHERE customer_id=sales_orders.customer_id AND cgroup_id IN (SELECT id FROM cgroups WHERE is_active=1) LIMIT 1)) AS organizationGroupId,
+        (SELECT name FROM cgroups WHERE id=(SELECT cgroup_id FROM customer_cgroups WHERE customer_id=sales_orders.customer_id AND cgroup_id IN (SELECT id FROM cgroups WHERE is_active=1) LIMIT 1)) AS organizationGroupName,
+        sales_orders.id AS id,
+        sales_orders.order_date AS orderDate,
+        IF(is_pos=1,(SELECT sales_order_id FROM sales_order_receipts WHERE sales_order_id=sales_orders.id),sales_orders.id) AS invoiceId,
+        IF(is_pos=1,(SELECT receipt_code FROM sales_order_receipts WHERE sales_order_id=sales_orders.id),sales_orders.so_code) AS invoiceCode,
+        memo AS memo,
+        CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+        (SELECT name FROM location_groups WHERE id=location_group_id) AS warehouseName,
+        sales_orders.total_amount-IFNULL(sales_orders.discount,0)+IFNULL(sales_orders.total_vat,0)-IFNULL(sales_orders.total_deposit,0) AS totalAmount,
+        sales_orders.balance AS balance,
+        IF(balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),due_date),'.') AS aging,
+        sales_orders.status AS status
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        <include refid="BASE_WHERE_OPEN_INVOICE_BY_REP"/>
+
+        UNION
+
+        SELECT
+        (SELECT id FROM cgroups WHERE id=(SELECT cgroup_id FROM customer_cgroups WHERE customer_id=credit_memos.customer_id AND cgroup_id IN (SELECT id FROM cgroups WHERE is_active=1) LIMIT 1)) AS organizationGroupId,
+        (SELECT name FROM cgroups WHERE id=(SELECT cgroup_id FROM customer_cgroups WHERE customer_id=credit_memos.customer_id AND cgroup_id IN (SELECT id FROM cgroups WHERE is_active=1) LIMIT 1)) AS organizationGroupName,
+        credit_memos.id AS id,
+        credit_memos.order_date AS orderDate,
+        credit_memos.id AS invoiceId,
+        credit_memos.cm_code AS invoiceCode,
+        credit_memos.note AS memo,
+        CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+        (SELECT name FROM location_groups WHERE id=location_group_id) AS warehouseName,
+        (credit_memos.total_amount-IFNULL(credit_memos.discount,0)+IFNULL(credit_memos.mark_up,0)+IFNULL(credit_memos.total_vat,0))*-1 AS totalAmount,
+        (credit_memos.balance)*-1 AS balance,
+        IF(balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),due_date),'.') AS aging,
+        credit_memos.status AS status
+        FROM credit_memos
+        LEFT JOIN customers ON customers.id = credit_memos.customer_id
+        <include refid="BASE_WHERE_OPEN_INVOICE_BY_REP"/>
+        ORDER BY organizationGroupName, orderDate ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListOpenInvoiceByRep" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.OpenInvoiceByRepReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+            SELECT sales_orders.id
+            FROM sales_orders
+            LEFT JOIN customers ON customers.id = sales_orders.customer_id
+            <include refid="BASE_WHERE_OPEN_INVOICE_BY_REP"/>
+
+            UNION
+
+            SELECT credit_memos.id
+            FROM credit_memos
+            LEFT JOIN customers ON customers.id = credit_memos.customer_id
+            <include refid="BASE_WHERE_OPEN_INVOICE_BY_REP"/>
+        ) AS result
+    </select>
+
+</mapper>

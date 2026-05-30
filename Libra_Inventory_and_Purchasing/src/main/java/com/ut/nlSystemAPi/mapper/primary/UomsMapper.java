@@ -1,0 +1,27 @@
+package com.ut.nlSystemAPi.mapper.primary;
+
+import com.ut.nlSystemAPi.model.Uoms;
+import com.ut.nlSystemAPi.model.base.Filter;
+import com.ut.nlSystemAPi.model.response.Uoms.UomsResponse;
+import org.apache.ibatis.annotations.Param;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+
+@Repository
+public interface UomsMapper {
+
+  List<UomsResponse> getList(@Param("filter") Filter filter);
+
+  Long countList(@Param("filter") Filter filter);
+
+  List<UomsResponse> getOne(@Param("id") Long id);
+
+  Boolean insert(@Param("uoms") Uoms uoms);
+
+  Boolean update(@Param("uoms") Uoms uoms);
+
+  Boolean delete(@Param("id")  Long id,@Param("userId") Long userId);
+
+  Long checkDuplicate(@Param("name") String name, @Param("id") Long id);
+
+}

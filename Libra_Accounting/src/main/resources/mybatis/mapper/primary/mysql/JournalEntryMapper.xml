@@ -1,0 +1,960 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.JournalEntryMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        general_ledgers.id AS id,
+      general_ledgers.date AS `date`,
+      (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = general_ledgers.id LIMIT 1) AS branchId,
+      (SELECT name FROM branches WHERE id = (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = general_ledgers.id LIMIT 1)) AS branchName,
+      general_ledgers.apply_to_id AS applyToId,
+      general_ledgers.reference AS reference,
+      general_ledgers.is_adj AS adj,
+      COALESCE(general_ledgers.deposit_type, (SELECT `type` FROM general_ledger_details WHERE general_ledger_id = general_ledgers.id LIMIT 1), 0) AS `type`,
+      general_ledgers.is_approve AS status,
+      IFNULL(general_ledgers.recurrence, 0) AS isRecurrence,
+      general_ledgers.note AS note,
+      IFNULL(4000, 0) AS exchangeRate,
+      general_ledgers.deposit_type AS depositType,
+      (SELECT account_codes FROM chart_accounts WHERE id = (SELECT chart_account_id FROM general_ledger_details WHERE general_ledger_id = general_ledgers.id LIMIT 1)) AS COA,
+      DATE_FORMAT(general_ledgers.created, '%d-%b-%y %h:%i') AS createdDate,
+      DATE_FORMAT(general_ledgers.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+      CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+      CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM general_ledgers
+    LEFT JOIN users AS users1 ON users1.id = general_ledgers.created_by
+    LEFT JOIN users AS users2 ON users2.id = general_ledgers.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE general_ledgers.is_active = 1
+        <if test="filter.reference != null and filter.reference != ''">
+            AND (
+            general_ledgers.`reference` LIKE CONCAT('%', #{filter.reference}, '%')
+            OR general_ledgers.`note` LIKE CONCAT('%', #{filter.reference}, '%')
+            OR general_ledgers.id IN (
+            SELECT gld.general_ledger_id
+            FROM general_ledger_details gld
+            LEFT JOIN chart_accounts ca ON ca.id = gld.chart_account_id
+            WHERE (
+            ca.account_description LIKE CONCAT('%', #{filter.reference}, '%')
+            OR ca.account_codes LIKE CONCAT('%', #{filter.reference}, '%')
+            OR gld.memo LIKE CONCAT('%', #{filter.reference}, '%')
+            OR CAST(gld.debit AS CHAR) LIKE CONCAT('%', #{filter.reference}, '%')
+            OR CAST(gld.credit AS CHAR) LIKE CONCAT('%', #{filter.reference}, '%')
+            )
+            )
+            OR general_ledgers.id IN (
+            SELECT gld2.general_ledger_id
+            FROM general_ledger_details gld2
+            LEFT JOIN classes c ON c.id = gld2.class_id
+            WHERE c.name LIKE CONCAT('%', #{filter.reference}, '%')
+            )
+            )
+        </if>
+        <if test="filter.status != null">
+            AND general_ledgers.`is_approve` = #{filter.status}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateTo != null">
+            AND DATE(general_ledgers.date) >= #{filter.dateFrom} AND DATE(general_ledgers.date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE company_id = #{filter.companyId})
+        </if>
+        <if test="filter.companyId == null and filter.userId != null">
+            AND general_ledgers.id IN (
+            SELECT general_ledger_id
+            FROM general_ledger_details
+            WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            )
+        </if>
+        <if test="filter.customerId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE customer_id = #{filter.customerId})
+        </if>
+        <if test="filter.vendorId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE vendor_id = #{filter.vendorId})
+        </if>
+        <if test="filter.otherId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE other_id = #{filter.otherId})
+        </if>
+        <if test="filter.classId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE class_id = #{filter.classId})
+        </if>
+        <if test="filter.chartAccountId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE chart_account_id = #{filter.chartAccountId})
+        </if>
+        <if test="filter.chartAccountGroupId != null">
+            AND general_ledgers.id IN (SELECT general_ledger_id FROM general_ledger_details WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = #{filter.chartAccountGroupId}))
+        </if>
+        <if test="filter.branchId != null">
+            AND (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id=general_ledgers.id LIMIT 1) = #{filter.branchId}
+        </if>
+        <if test="filter.createBy != null">
+            AND general_ledgers.created_by = #{filter.createBy}
+        </if>
+        <if test="filter.status != null">
+            <choose>
+                <when test="filter.status != 3">
+                    AND general_ledgers.`is_approve` = #{filter.status}
+                </when>
+                <otherwise>
+                    AND general_ledgers.recurrence = 1
+                </otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.JournalEntryFilter" resultMap="JournalEntryResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                general_ledgers.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+        SELECT COUNT(general_ledgers.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getListReportByGroup" parameterType="com.ut.nlSystemAPi.model.filter.JournalEntryFilter" resultMap="JournalEntryDetailResponse">
+        SELECT
+        gld.id AS id,
+        gl.id AS journalEntryId,
+        gl.date AS `date`,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        gl.reference AS reference,
+        gl.is_adj AS adj,
+        gld.type AS `type`,
+        vendors.name AS vendorName,
+        customers.name AS customerName,
+        (SELECT CONCAT(account_codes, ' · ', account_description) FROM chart_accounts WHERE id = gld.chart_account_id) AS chartAccountName,
+        gld.memo AS description,
+        classes.name AS className,
+        gld.debit AS debit,
+        gld.credit AS credit,
+        IF(gld.debit > 0, gld.debit, gld.credit * -1) AS signedAmount,
+        gl.is_sys AS isSys,
+        gld.company_id AS companyId,
+        gld.chart_account_id AS chartAccountId,
+        gld.customer_id AS customerId,
+        gld.vendor_id AS vendorId,
+        gld.employee_id AS employeeId,
+        gld.class_id AS classId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        LEFT JOIN users AS users1 ON users1.id = gl.created_by
+        LEFT JOIN vendors ON vendors.id = gld.vendor_id
+        LEFT JOIN customers ON customers.id = gld.customer_id
+        LEFT JOIN classes ON classes.id = gld.class_id
+        <where>
+            gl.is_active = 1
+            <choose>
+                <when test="filter.status != null">
+                    <choose>
+                        <when test="filter.status != '3'">
+                            AND gl.is_approve = #{filter.status}
+                        </when>
+                        <otherwise>
+                            AND gl.recurrence = 1
+                        </otherwise>
+                    </choose>
+                </when>
+                <otherwise>
+                    AND gl.is_approve = 1
+                </otherwise>
+            </choose>
+            <if test="filter.dateFrom != null and filter.dateFrom != ''">
+                AND DATE(gl.date) &gt;= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null and filter.dateTo != ''">
+                AND DATE(gl.date) &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.createBy != null">
+                AND gl.created_by = #{filter.createBy}
+            </if>
+            <if test="filter.chartAccountGroupId != null">
+                AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = #{filter.chartAccountGroupId})
+            </if>
+            <if test="filter.chartAccountId != null">
+                AND gld.chart_account_id = #{filter.chartAccountId}
+            </if>
+            <if test="filter.companyId != null">
+                AND gld.company_id = #{filter.companyId}
+            </if>
+            <if test="filter.companyId == null and filter.userId != null">
+                AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            </if>
+            <if test="filter.customerId != null">
+                AND gld.customer_id = #{filter.customerId}
+            </if>
+            <if test="filter.vendorId != null">
+                AND gld.vendor_id = #{filter.vendorId}
+            </if>
+            <if test="filter.otherId != null">
+                AND gld.other_id = #{filter.otherId}
+            </if>
+            <if test="filter.classId != null">
+                AND gld.class_id = #{filter.classId}
+            </if>
+        </where>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                gl.date ASC, gl.id ASC, gld.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countListReportByGroup" parameterType="com.ut.nlSystemAPi.model.filter.JournalEntryFilter" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <where>
+            gl.is_active = 1
+            <choose>
+                <when test="filter.status != null">
+                    <choose>
+                        <when test="filter.status != '3'">
+                            AND gl.is_approve = #{filter.status}
+                        </when>
+                        <otherwise>
+                            AND gl.recurrence = 1
+                        </otherwise>
+                    </choose>
+                </when>
+                <otherwise>
+                    AND gl.is_approve = 1
+                </otherwise>
+            </choose>
+            <if test="filter.dateFrom != null and filter.dateFrom != ''">
+                AND DATE(gl.date) &gt;= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null and filter.dateTo != ''">
+                AND DATE(gl.date) &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.createBy != null">
+                AND gl.created_by = #{filter.createBy}
+            </if>
+            <if test="filter.chartAccountGroupId != null">
+                AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = #{filter.chartAccountGroupId})
+            </if>
+            <if test="filter.chartAccountId != null">
+                AND gld.chart_account_id = #{filter.chartAccountId}
+            </if>
+            <if test="filter.companyId != null">
+                AND gld.company_id = #{filter.companyId}
+            </if>
+            <if test="filter.companyId == null and filter.userId != null">
+                AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            </if>
+            <if test="filter.customerId != null">
+                AND gld.customer_id = #{filter.customerId}
+            </if>
+            <if test="filter.vendorId != null">
+                AND gld.vendor_id = #{filter.vendorId}
+            </if>
+            <if test="filter.otherId != null">
+                AND gld.other_id = #{filter.otherId}
+            </if>
+            <if test="filter.classId != null">
+                AND gld.class_id = #{filter.classId}
+            </if>
+        </where>
+    </select>
+
+    <!--  Detail-->
+    <sql id="BASE_COLUMN_DETAIL_LIST">
+        general_ledger_details.id AS id,
+    general_ledger_details.general_ledger_id AS journalEntryId,
+    chart_accounts.chart_account_type_id AS chartAccountTypeId,
+    general_ledger_details.chart_account_id AS `chartAccountId`,
+    CONCAT(chart_accounts.account_codes, ' - ', chart_accounts.account_description) AS chartAccountName,
+    general_ledger_details.memo AS description,
+    general_ledger_details.class_id AS `classId`,
+    classes.name AS `className`,
+    general_ledger_details.type AS `type`,
+    general_ledger_details.debit AS `debit`,
+    general_ledger_details.credit AS `credit`,
+    general_ledger_details.customer_id AS customerId,
+    customers.name AS customerName,
+    general_ledger_details.vendor_id AS vendorId,
+    vendors.name AS vendorName,
+    general_ledger_details.employee_id AS employeeId,
+    employees.name AS employeeName,
+    general_ledger_details.company_id AS companyId,
+    companies.name AS companyName,
+    (SELECT SUM(debit) - SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND is_approve=1
+        AND chart_account_id = chart_accounts.id LIMIT 1
+    ) AS balance,
+    COALESCE((SELECT reference FROM pay_bills WHERE gl_id = general_ledger_details.general_ledger_id LIMIT 1), '') AS invoice,
+    general_ledger_details.type AS listType
+    </sql>
+
+    <sql id="BASE_DETAIL_FROM">
+        FROM general_ledger_details
+    LEFT JOIN chart_accounts ON chart_accounts.id = general_ledger_details.chart_account_id
+    LEFT JOIN classes ON classes.id = general_ledger_details.class_id
+    LEFT JOIN customers ON customers.id = general_ledger_details.customer_id
+    LEFT JOIN vendors ON vendors.id = general_ledger_details.vendor_id
+    LEFT JOIN employees ON employees.id = general_ledger_details.employee_id
+    LEFT JOIN companies ON companies.id = general_ledger_details.company_id
+    LEFT JOIN branches ON branches.id = general_ledger_details.branch_id
+    </sql>
+
+    <sql id="BASE_DETAIL_WHERE">
+        WHERE general_ledger_details.general_ledger_id = #{journalId}
+    </sql>
+
+    <select id="getJournalEntryDetail" parameterType="java.lang.Long" resultMap="JournalEntryDetailResponse">
+        SELECT
+        <include refid="BASE_COLUMN_DETAIL_LIST"/>
+        <include refid="BASE_DETAIL_FROM"/>
+        <include refid="BASE_DETAIL_WHERE"/>
+    </select>
+
+    <select id="getJournalEntryDetailByJournalIds" parameterType="map" resultMap="JournalEntryDetailResponse">
+        SELECT
+        <include refid="BASE_COLUMN_DETAIL_LIST"/>
+        <include refid="BASE_DETAIL_FROM"/>
+        WHERE general_ledger_details.general_ledger_id IN
+        <foreach collection="journalIds" item="journalId" open="(" separator="," close=")">
+            #{journalId}
+        </foreach>
+        <if test="chartAccountGroupId != null">
+            AND chart_accounts.chart_account_group_id = #{chartAccountGroupId}
+        </if>
+        <if test="chartAccountId != null">
+            AND general_ledger_details.chart_account_id = #{chartAccountId}
+        </if>
+        ORDER BY general_ledger_details.general_ledger_id ASC, general_ledger_details.id
+    </select>
+
+    <sql id="BASE_FILE_SELECT">
+        SELECT
+            general_ledger_id AS journalEntryId,
+            file_name AS name,
+            file_url AS url
+        FROM general_ledger_files
+        WHERE is_active = 1
+    </sql>
+
+    <select id="getJournalEntryFile" parameterType="java.lang.Long" resultMap="JournalEntryFileResponse">
+        <include refid="BASE_FILE_SELECT"/>
+        AND general_ledger_id = #{journalId}
+        ORDER BY general_ledger_id ASC, id
+    </select>
+
+    <select id="getJournalEntryFilesByJournalIds" parameterType="java.util.List" resultMap="JournalEntryFileResponse">
+        <include refid="BASE_FILE_SELECT"/>
+        AND general_ledger_id IN
+        <foreach collection="journalIds" item="journalId" open="(" separator="," close=")">
+            #{journalId}
+        </foreach>
+        ORDER BY general_ledger_id ASC, id
+    </select>
+
+    <select id="getChartAccountGroupType" resultType="java.lang.Long">
+        SELECT chart_account_type_id
+        FROM chart_account_groups
+        WHERE id = #{chartAccountGroupId}
+    </select>
+
+    <select id="getOne" resultMap="JournalEntryResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE general_ledgers.id = #{id} AND general_ledgers.is_active = 1
+    </select>
+
+    <select id="getReLastReceivePaymentCode" resultType="java.lang.String">
+        SELECT reference
+        FROM general_ledgers
+        WHERE is_active = 1 AND YEAR(date) = YEAR(NOW()) AND `reference` LIKE '%OR%'
+        ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="getReLastPayBillCode" resultType="java.lang.String">
+        SELECT reference
+        FROM pay_bills
+        WHERE is_active = 1
+            AND YEAR(date) = YEAR(NOW())
+          AND reference != ""
+        ORDER BY id
+                DESC LIMIT 1
+    </select>
+    <select id="getAccountChartNameById" resultMap="ChartAccountDropdownResponse">
+        SELECT account_description AS name,
+               account_codes AS code
+        FROM chart_accounts
+        WHERE id = #{id}
+    </select>
+
+    <select id="getReLastReceivePaymentByJournalId" resultMap="ReceivePaymentResponse">
+        SELECT exchange_rate AS exchangeRate,
+               cheque_number AS chequeNumber
+        FROM receive_payments
+        WHERE gl_id = #{id} AND is_active = 1
+    </select>
+
+    <select id="getReLastPayBillByJournalId" resultMap="ReceivePaymentResponse">
+        SELECT
+            exchange_rate AS exchangeRate,
+            cheque_number AS chequeNumber
+        FROM pay_bills
+        WHERE gl_id = #{id} AND is_active = 1;
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.JournalEntry" useGeneratedKeys="true" keyProperty="journalEntry.id">
+        INSERT INTO general_ledgers(
+        sys_code,
+        `date`,
+        reference,
+        <if test="journalEntry.totalDeposit != null">total_deposit,</if>
+        <if test="journalEntry.applyDepositToId != null">apply_to_id,</if>
+        <if test="journalEntry.applyReferenceCode != null">apply_reference,</if>
+        <if test="journalEntry.vendorId != null">receive_from_id,</if>
+        <if test="journalEntry.applyReferenceName != null">receive_from_name,</if>
+        note,
+        is_sys,
+        is_adj,
+        is_approve,
+        is_depreciated,
+        is_retained_earnings,
+        recurrence,
+        created,
+        created_by,
+        <if test="journalEntry.depositType != null">deposit_type,</if>
+        is_active
+        ) VALUES (
+        UUID(),
+        #{journalEntry.date},
+        #{journalEntry.reference},
+        <if test="journalEntry.totalDeposit != null">#{journalEntry.totalDeposit},</if>
+        <if test="journalEntry.applyDepositToId != null">#{journalEntry.applyDepositToId},</if>
+        <if test="journalEntry.applyReferenceCode != null">#{journalEntry.applyReferenceCode},</if>
+        <if test="journalEntry.vendorId != null">#{journalEntry.vendorId},</if>
+        <if test="journalEntry.applyReferenceName != null">#{journalEntry.applyReferenceName},</if>
+        #{journalEntry.note},
+        0,
+        #{journalEntry.adj},
+        #{journalEntry.isApprove},
+        0,
+        0,
+        #{journalEntry.isRecurrence},
+        NOW(),
+        #{journalEntry.createdBy},
+        <if test="journalEntry.depositType != null">#{journalEntry.depositType},</if>
+        #{journalEntry.isActive}
+        );
+    </insert>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+        INSERT INTO general_ledger_details(
+            general_ledger_id,
+            branch_id,
+            chart_account_id,
+            company_id,
+            location_group_id,
+            location_id,
+            type,
+            debit,
+            credit,
+            memo,
+            customer_id,
+            vendor_id,
+            employee_id,
+            class_id,
+            is_reconcile,
+            modified
+        ) VALUES (
+                     #{journalEntryDetail.generalLedgerId},
+                     #{journalEntryDetail.branchId},
+                     #{journalEntryDetail.chartAccountId},
+                     #{journalEntryDetail.companyId},
+                     null,
+                     null,
+                     #{journalEntryDetail.type},
+                     #{journalEntryDetail.debit},
+                     #{journalEntryDetail.credit},
+                     #{journalEntryDetail.memo},
+                     #{journalEntryDetail.customerId},
+                     #{journalEntryDetail.vendorId},
+                     #{journalEntryDetail.employeeId},
+                     #{journalEntryDetail.classId},
+                     0,
+                     NOW()
+                 );
+    </insert>
+
+    <insert id="insertReceivePayment" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+        INSERT INTO receive_payments(
+            sys_code,
+            `date`,
+            company_id,
+            branch_id,
+            customer_id,
+            gl_id,
+            type_id,
+            total_amount,
+            deposit_to,
+            account_codes,
+            account_description,
+            reference,
+            note,
+            exchange_rate,
+            cheque_number,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     UUID(),
+                     #{journalEntryDetail.date},
+                     #{journalEntryDetail.companyId},
+                     #{journalEntryDetail.branchId},
+                     #{journalEntryDetail.customerId},
+                     #{journalEntryDetail.generalLedgerId},
+                     1,
+                     #{journalEntryDetail.totalDebit},
+                     #{journalEntryDetail.chartAccountId},
+                     #{journalEntryDetail.chartAccountCode},
+                     #{journalEntryDetail.chartAccountName},
+                     #{journalEntryDetail.reference},
+                     #{journalEntryDetail.memo},
+                     #{journalEntryDetail.exchangeRate},
+                     #{journalEntryDetail.cheque},
+                     NOW(),
+                     #{journalEntryDetail.createdBy},
+                     1
+                 );
+    </insert>
+
+    <update id="deleteReceivePaymentByGLId" parameterType="java.lang.Long">
+        UPDATE receive_payments SET
+                                    is_active = 2,
+                                    modified = NOW(),
+                                    modified_by = #{userId}
+        WHERE gl_id = #{generalLedgerId}
+    </update>
+
+    <insert id="insertPayBill" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+        INSERT INTO pay_bills(
+            `date`,
+            type_id,
+            company_id,
+            branch_id,
+            vendor_id,
+            gl_id,
+            exchange_rate,
+            deposit_to,
+            account_codes,
+            account_description,
+            cheque_number,
+            reference,
+            note,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{journalEntryDetail.date},
+                     1,
+                     #{journalEntryDetail.companyId},
+                     #{journalEntryDetail.branchId},
+                     #{journalEntryDetail.vendorId},
+                     #{journalEntryDetail.generalLedgerId},
+                     #{journalEntryDetail.exchangeRate},
+                     #{journalEntryDetail.chartAccountId},
+                     #{journalEntryDetail.chartAccountCode},
+                     #{journalEntryDetail.chartAccountName},
+                     #{journalEntryDetail.cheque},
+                     #{journalEntryDetail.reference},
+                     #{journalEntryDetail.memo},
+                     NOW(),
+                     #{journalEntryDetail.createdBy},
+                     1
+                 );
+    </insert>
+
+    <update id="deletePayBillByGLId" parameterType="java.lang.Long">
+        UPDATE pay_bills SET
+                             is_active = 2,
+                             modified = NOW(),
+                             modified_by = #{userId}
+        WHERE gl_id = #{generalLedgerId};
+    </update>
+
+
+    <insert id="insertJournalEntryFile">
+        INSERT INTO general_ledger_files(
+            general_ledger_id,
+            `file_name`,
+            file_url,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{journalId},
+                     #{journalEntryFileRequest.name},
+                     #{journalEntryFileRequest.url},
+                     NOW(),
+                     1,
+                     1
+                 );
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.Currency">
+        UPDATE general_ledgers SET
+        <if test="journalEntry.date != null"> `date` = #{journalEntry.date},</if>
+        <if test="journalEntry.reference != null"> `reference` = #{journalEntry.reference},</if>
+        <if test="journalEntry.note != null"> `note` = #{journalEntry.note},</if>
+        <if test="journalEntry.adj != null"> `is_adj` = #{journalEntry.adj},</if>
+        <if test="journalEntry.isRecurrence != null"> `recurrence` = #{journalEntry.isRecurrence},</if>
+        modified = NOW(),
+        modified_by = #{journalEntry.modifiedBy}
+        WHERE id = #{journalEntry.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE general_ledgers SET
+                                   is_active = 2,
+                                   modified = NOW(),
+                                   modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="closeRecurrence" parameterType="java.lang.Long">
+        UPDATE general_ledgers SET
+                                   recurrence = 0,
+                                   modified = NOW(),
+                                   modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="addRecurrence" parameterType="java.lang.Long">
+        UPDATE general_ledgers SET
+                                   recurrence = 1,
+                                   modified = NOW(),
+                                   modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="updateStatus">
+        UPDATE general_ledgers SET
+                                   is_approve = #{request.status},
+                                   modified = NOW(),
+                                   modified_by = #{userId}
+        WHERE id = #{request.id}
+    </update>
+
+    <select id="getReceivePaymentId" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM receive_payments
+        WHERE is_active = 1 AND gl_id = #{glId}
+    </select>
+
+    <select id="getPayBillId" resultType="java.lang.String">
+        SELECT reference
+        FROM pay_bills
+        WHERE is_active = 1 AND gl_id = #{glId};
+    </select>
+
+    <update id="deleteJournalEntryFile" parameterType="java.lang.Long">
+        UPDATE general_ledger_files SET
+                                        is_active = 2,
+                                        modified = NOW(),
+                                        modified_by = #{userId}
+        WHERE general_ledger_id = #{glId};
+    </update>
+
+    <delete id="deleteGeneralLedgerDetail">
+        DELETE FROM general_ledger_details WHERE general_ledger_id = #{glId};
+    </delete>
+
+    <select id="checkReference" resultType="java.lang.Long" parameterType="java.lang.String">
+        SELECT COUNT(id)
+        FROM general_ledgers
+        WHERE is_active = 1 AND reference = #{reference}
+    </select>
+
+
+    <!--    Purchase Request-->
+    <sql id="BASE_PR_COLUMN_LIST">
+        purchase_requests.id AS id,
+        purchase_requests.pr_code AS code,
+        purchase_requests.vendor_id AS vendorId,
+        vendors.name AS `name`,
+        purchase_requests.order_date AS `date`,
+        IFNULL(purchase_requests.total_amount, 0) - IFNULL(purchase_requests.total_deposit, 0) AS totalAmount
+    </sql>
+
+    <sql id="BASE_PR_FROM">
+        FROM purchase_requests
+            INNER JOIN vendors ON vendors.id = purchase_requests.vendor_id
+    </sql>
+
+    <sql id="BASE_PR_WHERE">
+        WHERE purchase_requests.status = 1 AND purchase_requests.is_close = 0 AND IFNULL(purchase_requests.total_amount, 0) > IFNULL(purchase_requests.total_deposit, 0)
+        <if test="filter.searchText != null">
+            AND (purchase_requests.`pr_code` LIKE CONCAT("%", #{filter.searchText}, "%") OR vendors.`name` LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </sql>
+
+    <select id="getPurchaseRequestList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_PR_COLUMN_LIST"/>
+        <include refid="BASE_PR_FROM"/>
+        <include refid="BASE_PR_WHERE"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getOnePrDepositById" parameterType="java.lang.Long" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_PR_COLUMN_LIST"/>
+        <include refid="BASE_PR_FROM"/>
+        WHERE purchase_requests.id = #{id}
+    </select>
+
+    <select id="countPurchaseRequestList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultType="java.lang.Long">
+        SELECT COUNT(purchase_requests.id)
+        <include refid="BASE_PR_FROM"/>
+        <include refid="BASE_PR_WHERE"/>
+    </select>
+
+    <select id="getPrDepositAmountById" parameterType="java.lang.Long" resultType="java.lang.Double">
+        SELECT IFNULL(total_deposit, 0)
+        FROM purchase_requests WHERE id = #{id};
+    </select>
+
+    <update id="updatePrDepositAmount">
+        UPDATE purchase_requests SET
+            total_deposit = #{totalDeposit}
+        WHERE id = #{id};
+    </update>
+
+    <!--    Purchase Order-->
+    <sql id="BASE_PO_COLUMN_LIST">
+        purchase_orders.id AS id,
+        purchase_orders.po_code AS code,
+        purchase_orders.vendor_id AS vendorId,
+        vendors.name AS `name`,
+        purchase_orders.order_date AS `date`,
+        IFNULL(purchase_orders.total_amount, 0) - IFNULL(purchase_orders.total_deposit, 0) AS totalAmount
+    </sql>
+
+    <sql id="BASE_PO_FROM">
+        FROM purchase_orders
+            INNER JOIN vendors ON vendors.id = purchase_orders.vendor_id
+    </sql>
+
+    <sql id="BASE_PO_WHERE">
+        WHERE purchase_orders.status_pv = 1 AND IFNULL(purchase_orders.total_amount, 0) > IFNULL(purchase_orders.total_deposit, 0)
+        <if test="filter.searchText != null">
+            AND (purchase_orders.`po_code` LIKE CONCAT("%", #{filter.searchText}, "%") OR vendors.`name` LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </sql>
+
+    <select id="getPurchaseOrderList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_PO_COLUMN_LIST"/>
+        <include refid="BASE_PO_FROM"/>
+        <include refid="BASE_PO_WHERE"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countPurchaseOrderList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultType="java.lang.Long">
+        SELECT COUNT(purchase_orders.id)
+        <include refid="BASE_PO_FROM"/>
+        <include refid="BASE_PO_WHERE"/>
+    </select>
+
+    <select id="getOnePoDepositById" parameterType="java.lang.Long" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_PO_COLUMN_LIST"/>
+        <include refid="BASE_PO_FROM"/>
+        WHERE purchase_orders.id = #{id}
+    </select>
+
+    <select id="getPoDepositAmountById" parameterType="java.lang.Long" resultType="java.lang.Double">
+        SELECT IFNULL(total_deposit, 0)
+        FROM purchase_orders WHERE id = #{id};
+    </select>
+
+    <update id="updatePoDepositAmount">
+        UPDATE purchase_orders SET
+            total_deposit = #{totalDeposit}
+        WHERE id = #{id};
+    </update>
+
+    <!--    Quotations-->
+    <sql id="BASE_QT_COLUMN_LIST">
+        quotations.id AS id,
+        quotations.quotation_code AS code,
+        quotations.customer_id AS customerId,
+        CONCAT(customers.customer_code , ' - ', customers.name) AS `name`,
+        quotations.quotation_date AS `date`,
+        IFNULL(quotations.total_amount, 0) - IFNULL(quotations.total_deposit, 0) AS totalAmount
+    </sql>
+
+    <sql id="BASE_QT_FROM">
+        FROM quotations
+            INNER JOIN customers ON customers.id = quotations.customer_id
+    </sql>
+
+    <sql id="BASE_QT_WHERE">
+        WHERE quotations.status = 1 AND IFNULL(quotations.total_amount, 0) > IFNULL(quotations.total_deposit, 0)
+        <if test="filter.searchText != null">
+            AND (quotations.`quotation_code` LIKE CONCAT("%", #{filter.searchText}, "%") OR customers.`name` LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </sql>
+
+    <select id="getQuotationsList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_QT_COLUMN_LIST"/>
+        <include refid="BASE_QT_FROM"/>
+        <include refid="BASE_QT_WHERE"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countQuotationsList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultType="java.lang.Long">
+        SELECT COUNT(quotations.id)
+        <include refid="BASE_QT_FROM"/>
+        <include refid="BASE_QT_WHERE"/>
+    </select>
+
+    <select id="getOneQTDepositById" parameterType="java.lang.Long" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_QT_COLUMN_LIST"/>
+        <include refid="BASE_QT_FROM"/>
+        WHERE quotations.id = #{id}
+    </select>
+
+    <select id="getQTDepositAmountById" parameterType="java.lang.Long" resultType="java.lang.Double">
+        SELECT IFNULL(total_deposit, 0)
+        FROM quotations WHERE id = #{id};
+    </select>
+
+    <update id="updateQTDepositAmount">
+        UPDATE quotations SET
+            total_deposit = #{totalDeposit}
+        WHERE id = #{id};
+    </update>
+
+    <!--    Sale order-->
+    <sql id="BASE_SO_COLUMN_LIST">
+        sales_orders.id AS id,
+        sales_orders.so_code AS code,
+        sales_orders.customer_id AS customerId,
+        CONCAT(customers.customer_code , ' - ', customers.name) AS `name`,
+        sales_orders.order_date AS `date`,
+        IFNULL(sales_orders.total_amount, 0) - IFNULL(sales_orders.total_deposit, 0) AS totalAmount
+    </sql>
+
+    <sql id="BASE_SO_FROM">
+        FROM sales_orders
+            INNER JOIN customers ON customers.id = sales_orders.customer_id
+    </sql>
+
+    <sql id="BASE_SO_WHERE">
+        WHERE sales_orders.status = 2 AND IFNULL(sales_orders.total_amount, 0) > IFNULL(sales_orders.total_deposit, 0)
+        <if test="filter.searchText != null">
+            AND (sales_orders.`so_code` LIKE CONCAT("%", #{filter.searchText}, "%") OR customers.`name` LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </sql>
+
+    <select id="getSaleOrderList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_SO_COLUMN_LIST"/>
+        <include refid="BASE_SO_FROM"/>
+        <include refid="BASE_SO_WHERE"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countSaleOrderList" parameterType="com.ut.nlSystemAPi.model.filter.MakeDepositFilter" resultType="java.lang.Long">
+        SELECT COUNT(sales_orders.id)
+        <include refid="BASE_SO_FROM"/>
+        <include refid="BASE_SO_WHERE"/>
+    </select>
+
+    <select id="getOneSODepositById" parameterType="java.lang.Long" resultMap="MakeDepositApplyToResponse">
+        SELECT
+        <include refid="BASE_SO_COLUMN_LIST"/>
+        <include refid="BASE_SO_FROM"/>
+        WHERE sales_orders.id = #{id}
+    </select>
+
+    <select id="getSODepositAmountById" parameterType="java.lang.Long" resultType="java.lang.Double">
+        SELECT IFNULL(total_deposit, 0)
+        FROM sales_orders WHERE id = #{id};
+    </select>
+
+    <update id="updateSODepositAmount">
+        UPDATE sales_orders SET
+            total_deposit = #{totalDeposit}
+        WHERE id = #{id};
+    </update>
+
+    <select id="getDepositFromByGlId" parameterType="java.lang.Long" resultMap="MakeDepositApplyToResponse">
+        SELECT
+            receive_from_id AS id,
+            receive_from_name AS name
+        FROM general_ledgers WHERE id = #{id}
+    </select>
+
+    <select id="getCOA" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT
+            account_codes
+        FROM chart_accounts
+        WHERE id IN (
+            SELECT chart_account_id FROM general_ledger_details WHERE general_ledger_id = #{glId})
+            LIMIT 1
+    </select>
+
+    <select id="getJournalEntryType" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT
+            type
+        FROM general_ledger_details
+        WHERE general_ledger_details.general_ledger_id = #{glId} LIMIT 1
+    </select>
+
+    <select id="getPaidTo" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT
+            CASE
+                WHEN customer_id IS NOT NULL THEN (SELECT name FROM customers WHERE id = general_ledger_details.customer_id)
+                WHEN vendor_id IS NOT NULL THEN (SELECT name FROM vendors WHERE id = general_ledger_details.vendor_id)
+                WHEN employee_id IS NOT NULL THEN (SELECT name FROM employees WHERE id = general_ledger_details.employee_id)
+                WHEN other_id IS NOT NULL THEN (SELECT name FROM others WHERE id = general_ledger_details.employee_id)
+                ELSE ''
+                END AS paidTo
+        FROM general_ledger_details
+        WHERE general_ledger_id = #{glId} LIMIT 1
+    </select>
+
+    <update id="note">
+        UPDATE general_ledgers SET
+            note = #{request.note}
+        WHERE id = #{request.id};
+    </update>
+
+
+</mapper>

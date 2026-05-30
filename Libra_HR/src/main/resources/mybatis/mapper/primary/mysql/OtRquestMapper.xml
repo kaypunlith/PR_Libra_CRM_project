@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OtRequestMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        over_time_requests
+        .
+        id
+        AS id,
+        employees.id AS employeeId,
+        employees.name AS employeeNameEn,
+        employees.name_kh AS employeeNameKh,
+        over_time_requests.date_time_from AS dateForm,
+        over_time_requests.date_time_to AS dateTo,
+        over_time_requests.duration AS duration,
+        over_time_requests.reason AS reason,
+        over_time_requests.status AS status,
+        over_time_requests.created AS created,
+        over_time_requests.modified AS modified,
+        CONCAT(IFNULL(user1.first_name,''), ' ', IFNULL(user1.last_name,'')) AS createdBy,
+        CONCAT(IFNULL(user2.first_name,''), ' ', IFNULL(user2.last_name,'')) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM over_time_requests
+        LEFT JOIN employees ON over_time_requests.employee_id = employees.id
+        LEFT JOIN users AS user1 ON over_time_requests.created_by = user1.id
+        LEFT JOIN users AS user2 ON over_time_requests.modified_by = user2.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE over_time_requests.is_active = 1
+        <if test="filter.employeeId != null">AND over_time_requests.employee_id = #{filter.employeeId}</if>
+        <if test="filter.searchText != null">
+            AND ( employees.name LIKE CONCAT("%", #{filter.searchText}, "%") OR employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") )
+        </if>
+        <if test="filter.dateFrom != null and filter.dateTo != null">
+            AND DATE(over_time_requests.date_time_from) &gt;= #{filter.dateFrom} AND DATE(over_time_requests.date_time_to) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">AND over_time_requests.status = #{filter.status}</if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.OtRequestFilter" resultMap="OtRequestResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                over_time_requests.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="count" parameterType="com.ut.nlSystemAPi.model.filter.OtRequestFilter" resultType="int">
+        SELECT count(over_time_requests.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="OtRequestResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE over_time_requests.is_active = 1 AND over_time_requests.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.OtRequest" useGeneratedKeys="true" keyProperty="otRequest.id">
+        INSERT INTO over_time_requests ( employee_id, date_time_from, date_time_to, duration, reason, status, created, created_by, is_active, modified, modified_by ) VALUES ( #{otRequest.employeeId}, #{otRequest.dateForm}, #{otRequest.dateTo}, #{otRequest.duration}, #{otRequest.reason}, 1, NOW(), #{otRequest.createdBy}, 1,
+        <if test="otRequest.modifiedBy != null">NOW()</if>
+        <if test="otRequest.modifiedBy == null">NULL</if>, #{otRequest.modifiedBy} )
+    </insert>
+
+
+    <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.OtRequest">
+        UPDATE over_time_requests
+        SET status      = #{otRequest.status},
+            status_date = NOW(),
+            status_by   = #{otRequest.createdBy}
+        WHERE id = #{otRequest.id}
+    </update>
+
+    <delete id="delete" parameterType="java.lang.Long">
+        UPDATE over_time_requests
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

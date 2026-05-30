@@ -1,0 +1,963 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.HelperMapper">
+
+  <select id="countRecords" resultType="long">
+    SELECT COUNT(${field})
+    FROM ${table}
+    WHERE ${field}
+    LIKE #{pattern}
+    ${status}
+  </select>
+
+  <update id="updateCode">
+    UPDATE ${tableName} SET ${field} = #{code} WHERE id = #{id}
+  </update>
+
+  <select id="getCurrentCode" resultType="java.lang.String">
+    SELECT ${field} FROM ${tableName} WHERE id = #{id}
+  </select>
+
+  <select id="getCompanyModuleCode" resultType="java.lang.String">
+    SELECT ${field} FROM module_code_companies WHERE company_id = #{companyId}
+  </select>
+
+  <update id="archive" parameterType="java.lang.Long">
+    UPDATE ${tableName} SET
+    ${field} = #{value},
+    modified = NOW(),
+    modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <select id="getMessageId" resultType="java.lang.Long">
+    SELECT message_id FROM ${tableName} WHERE id = #{id};
+  </select>
+
+  <update id="updateMessageId" parameterType="java.lang.Long">
+    UPDATE ${tableName} SET message_id = #{messageId} WHERE id = #{id};
+  </update>
+
+  <select id="getCompanyCurrencyCenter" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT currency_center_id FROM companies WHERE id = #{companyId}
+  </select>
+
+  <select id="getVatCalculate" parameterType="java.lang.Long" resultType="java.lang.Integer">
+    SELECT vat_calculate FROM companies WHERE id = #{companyId}
+  </select>
+
+  <select id="checkDataExisting" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM ${tableName}
+    WHERE id = #{id} AND status > 0
+  </select>
+
+  <select id="checkLocationSetting" resultType="java.lang.Integer">
+    SELECT location_status
+    FROM location_settings
+    WHERE `id` = #{id}
+  </select>
+
+  <select id="checkSettingOption" resultType="java.lang.Integer">
+    SELECT calculate_cogs FROM setting_options
+  </select>
+
+  <update id="updateStatus" parameterType="java.lang.Long">
+    UPDATE ${tableName} SET
+      ${field} = #{status},
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <select id="getSmallValUom" resultType="java.lang.Long">
+    SELECT IFNULL(small_val_uom, 1) FROM products WHERE id = #{productId}
+  </select>
+
+  <select id="getUnitCost" resultType="java.lang.Double">
+    SELECT IFNULL(unit_cost, 0) FROM products WHERE id = #{productId}
+  </select>
+
+  <select id="getStockExisting" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.base.StockOrder">
+    SELECT
+    SUM(IFNULL(group_totals.total_qty,0)) AS qty,
+    group_totals.location_id AS locationId,
+    group_totals.lots_number AS lotsNumber,
+    group_totals.expired_date AS expiredDate
+    FROM ${warehouseId}_group_totals AS group_totals
+    WHERE product_id = #{productId}
+    AND location_group_id = #{warehouseId}
+    AND location_id IN (
+    SELECT id
+    FROM locations
+    WHERE location_group_id = #{warehouseId}
+    <if test="locationStatus == 1">
+      AND is_for_sale = 1
+    </if>
+    )
+    GROUP BY location_id, product_id, lots_number, expired_date
+    HAVING SUM(group_totals.total_qty) > 0
+    ORDER BY group_totals.expired_date, group_totals.lots_number, group_totals.total_qty ASC
+    LIMIT 1
+  </select>
+
+  <select id="getStockOrder" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.base.StockOrder">
+    SELECT
+    SUM(IFNULL(group_totals.qty,0)) AS qty,
+    group_totals.sales_order_id AS salesInvoiceId,
+    group_totals.product_id AS productId,
+    group_totals.location_group_id AS locationGroupId,
+    group_totals.location_id AS locationId,
+    group_totals.lots_number AS lotsNumber,
+    group_totals.expired_date AS expiredDate
+    FROM stock_orders AS group_totals
+    WHERE product_id = #{productId}
+    AND sales_order_id = #{salesInvoiceId}
+    AND location_group_id = #{warehouseId}
+    AND location_id IN (
+    SELECT id
+    FROM locations
+    WHERE location_group_id = #{warehouseId}
+    <if test="locationStatus == 1">
+      AND is_for_sale = 1
+    </if>
+    )
+    GROUP BY location_id, product_id, lots_number, expired_date
+    HAVING SUM(group_totals.qty) > 0
+    ORDER BY group_totals.expired_date, group_totals.lots_number, group_totals.qty ASC
+  </select>
+
+  <!--Global Stock-->
+  <insert id="insertGroupTotal">
+    INSERT INTO ${tblName} (
+    product_id,
+    lots_number,
+    expired_date,
+    location_id,
+    location_group_id,
+    total_qty,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.locationId},
+    #{stock.warehouseId},
+    #{stock.totalQty},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_qty =
+    <choose>
+      <when test="typeOperation == 1">
+        total_qty + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 2">
+        total_qty - #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 3">
+        total_qty - #{stock.totalQty}
+      </when>
+      <otherwise>
+        total_qty + #{stock.totalQty}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertGroupTotalDetail">
+    INSERT INTO ${tblName} (
+    product_id,
+    location_group_id,
+    date,
+    total_cycle,
+    total_so,
+    total_so_free,
+    total_pos,
+    total_pos_free,
+    total_pb,
+    total_pbc,
+    total_cm,
+    total_cm_free,
+    total_to_in,
+    total_to_out,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.warehouseId},
+    NOW(),
+    #{stock.totalCycle},
+    #{stock.totalSo},
+    #{stock.totalSoFree},
+    #{stock.totalPos},
+    #{stock.totalPosFree},
+    #{stock.totalPb},
+    #{stock.totalPbc},
+    #{stock.totalCm},
+    #{stock.totalCmFree},
+    #{stock.totalToIn},
+    #{stock.totalToOut},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    ${fieldName} =
+    <choose>
+      <when test="typeOperation == 4">
+        ${fieldName} + #{stock.totalCm}
+      </when>
+      <when test="typeOperation == 2">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <otherwise>
+        ${fieldName} - #{stock.totalQty}
+      </otherwise>
+    </choose>
+    <if test="fieldNameFoc != null and fieldNameFoc != ''">
+      , ${fieldNameFoc} =
+      <choose>
+        <when test="typeOperation == 4">
+          ${fieldNameFoc} + #{stock.totalCmFree}
+        </when>
+        <otherwise>
+          ${fieldNameFoc} + #{stock.totalSoFree}
+        </otherwise>
+      </choose>
+    </if>
+  </insert>
+
+  <insert id="insertInventoryTotal">
+    INSERT INTO ${tblName} (
+    product_id,
+    lots_number,
+    expired_date,
+    location_id,
+    total_qty,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.locationId},
+    #{stock.totalQty},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_qty =
+    <choose>
+      <when test="typeOperation == 1">
+        total_qty + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 2">
+        total_qty - #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 3">
+        total_qty - #{stock.totalQty}
+      </when>
+      <otherwise>
+        total_qty + #{stock.totalQty}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertInventoryTotalDetail">
+    INSERT INTO ${tblName} (
+    product_id,
+    lots_number,
+    expired_date,
+    location_id,
+    date,
+    total_cycle,
+    total_so,
+    total_pos,
+    total_pb,
+    total_pbc,
+    total_cm,
+    total_to_in,
+    total_to_out,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.locationId},
+    NOW(),
+    #{stock.totalCycle},
+    #{stock.totalSo},
+    #{stock.totalPos},
+    #{stock.totalPb},
+    #{stock.totalPbc},
+    #{stock.totalCm},
+    #{stock.totalToIn},
+    #{stock.totalToOut},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    ${fieldName} =
+    <choose>
+      <when test="typeOperation == 4">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 1">
+        ${fieldName} - #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 2">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 3">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <otherwise>
+        ${fieldName} - #{stock.totalQty}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertInventories">
+    INSERT INTO ${tblName} (
+    transfer_order_id,
+    purchase_return_id,
+    credit_memo_id,
+    purchase_order_id,
+    sales_order_id,
+    type,
+    customer_id,
+    vendor_id,
+    product_id,
+    location_group_id,
+    location_id,
+    qty,
+    unit_cost,
+    date,
+    lots_number,
+    date_expired,
+    created,
+    created_by,
+    modified,
+    modified_by
+    ) VALUES (
+    #{stock.transferOrderId},
+    #{stock.purchaseReturnId},
+    #{stock.creditMemoId},
+    #{stock.purchaseOrderId},
+    #{stock.salesInvoiceId},
+    #{stock.type},
+    #{stock.customerId},
+    #{stock.vendorId},
+    #{stock.productId},
+    #{stock.warehouseId},
+    #{stock.locationId},
+    <choose>
+      <when test="typeOperation == 4">
+        #{stock.totalQty}
+      </when>
+      <otherwise>
+        #{stock.totalQty} * -1
+      </otherwise>
+    </choose>,
+    #{stock.unitCost},
+    NOW(),
+    #{stock.lotsNumber},
+    #{stock.expiredDate},
+    NOW(),
+    #{stock.createdBy},
+    NOW(),
+    #{stock.createdBy}
+    )
+  </insert>
+
+  <insert id="insertInventoryTotalAll">
+    INSERT INTO inventory_totals (
+    product_id,
+    lots_number,
+    expired_date,
+    total_qty,
+    total_order,
+    total_pb,
+    total_cm,
+    total_cm_free,
+    total_cycle,
+    total_pbc
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.totalQty},
+    #{stock.totalOrder},
+    #{stock.totalPb},
+    #{stock.totalCm},
+    #{stock.totalCmFree},
+    #{stock.totalCycle},
+    #{stock.totalPbc}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_qty =
+    <choose>
+      <when test="typeOperation == 1">
+        total_qty + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 2">
+        total_qty - #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 3">
+        total_qty - #{stock.totalQty}
+      </when>
+      <otherwise>
+        total_qty + #{stock.totalQty}
+      </otherwise>
+    </choose>,
+    ${fieldName} =
+    <choose>
+      <when test="typeOperation == 4">
+        ${fieldName} + #{stock.totalCm}
+      </when>
+      <when test="typeOperation == 1">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 2">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 3">
+        ${fieldName} + #{stock.totalQty}
+      </when>
+      <otherwise>
+        ${fieldName} - #{stock.totalQty}
+      </otherwise>
+    </choose>
+    <if test="fieldNameFoc != null and fieldNameFoc != ''">
+      , ${fieldNameFoc} =
+      <choose>
+        <when test="typeOperation == 4">
+          ${fieldNameFoc} + #{stock.totalCmFree}
+        </when>
+        <otherwise>
+          ${fieldNameFoc} + #{stock.totalSoFree}
+        </otherwise>
+      </choose>
+    </if>
+  </insert>
+
+  <insert id="insertInventoriesAll">
+    INSERT INTO inventories (
+    cycle_product_id,
+    cycle_product_detail_id,
+    sales_order_id,
+    purchase_order_id,
+    credit_memo_id,
+    purchase_return_id,
+    purchase_receive_result_id,
+    transfer_order_id,
+    type,
+    customer_id,
+    vendor_id,
+    product_id,
+    location_group_id,
+    location_id,
+    qty,
+    unit_cost,
+    date,
+    lots_number,
+    date_expired,
+    created,
+    created_by,
+    modified,
+    modified_by
+    ) VALUES (
+    #{stock.cycleProductId},
+    #{stock.cycleProductDetailId},
+    #{stock.salesInvoiceId},
+    #{stock.purchaseOrderId},
+    #{stock.creditMemoId},
+    #{stock.purchaseReturnId},
+    #{stock.purchaseReceiveResultId},
+    #{stock.transferOrderId},
+    #{stock.type},
+    #{stock.customerId},
+    #{stock.vendorId},
+    #{stock.productId},
+    #{stock.warehouseId},
+    #{stock.locationId},
+    <choose>
+      <when test="typeOperation == 4">
+        #{stock.totalQty}
+      </when>
+      <otherwise>
+        #{stock.totalQty} * -1
+      </otherwise>
+    </choose>,
+    #{stock.unitCost},
+    NOW(),
+    #{stock.lotsNumber},
+    #{stock.expiredDate},
+    NOW(),
+    #{stock.createdBy},
+    NOW(),
+    #{stock.createdBy}
+    )
+    ON DUPLICATE KEY UPDATE
+    qty =
+    <choose>
+      <when test="typeOperation == 4">
+        qty + #{stock.totalQty}
+      </when>
+      <when test="typeOperation == 2">
+        qty - #{stock.totalQty}
+      </when>
+      <otherwise>
+        qty
+      </otherwise>
+    </choose>
+  </insert>
+  <!--Global Stock-->
+
+
+
+
+
+
+
+
+
+  <!--Global Order-->
+  <insert id="insertGroupTotalOrder">
+    INSERT INTO ${tblName} (
+    product_id,
+    lots_number,
+    expired_date,
+    location_id,
+    location_group_id,
+    total_qty,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.locationId},
+    #{stock.warehouseId},
+    #{stock.totalQty},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_order =
+    <choose>
+      <when test="typeOperation == 2">
+        total_order - #{stock.totalOrder}
+      </when>
+      <otherwise>
+        total_order + #{stock.totalOrder}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertGroupTotalDetailOrder">
+    INSERT INTO ${tblName} (
+    product_id,
+    location_group_id,
+    date,
+    total_cycle,
+    total_so,
+    total_so_free,
+    total_pos,
+    total_pos_free,
+    total_pb,
+    total_pbc,
+    total_cm,
+    total_cm_free,
+    total_to_in,
+    total_to_out,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.warehouseId},
+    NOW(),
+    #{stock.totalCycle},
+    #{stock.totalSo},
+    #{stock.totalSoFree},
+    #{stock.totalPos},
+    #{stock.totalPosFree},
+    #{stock.totalPb},
+    #{stock.totalPbc},
+    #{stock.totalCm},
+    #{stock.totalCmFree},
+    #{stock.totalToIn},
+    #{stock.totalToOut},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_order =
+    <choose>
+      <when test="typeOperation == 2">
+        total_order - #{stock.totalOrder}
+      </when>
+      <otherwise>
+        total_order + #{stock.totalOrder}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertInventoryTotalOrder">
+    INSERT INTO ${tblName} (
+    product_id,
+    lots_number,
+    expired_date,
+    location_id,
+    total_qty,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.locationId},
+    #{stock.totalQty},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_order =
+    <choose>
+      <when test="typeOperation == 2">
+        total_order - #{stock.totalOrder}
+      </when>
+      <otherwise>
+        total_order + #{stock.totalOrder}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertInventoryTotalDetailOrder">
+    INSERT INTO ${tblName} (
+    product_id,
+    lots_number,
+    expired_date,
+    location_id,
+    date,
+    total_cycle,
+    total_so,
+    total_pos,
+    total_pb,
+    total_pbc,
+    total_cm,
+    total_to_in,
+    total_to_out,
+    total_order
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.locationId},
+    NOW(),
+    #{stock.totalCycle},
+    #{stock.totalSo},
+    #{stock.totalPos},
+    #{stock.totalPb},
+    #{stock.totalPbc},
+    #{stock.totalCm},
+    #{stock.totalToIn},
+    #{stock.totalToOut},
+    #{stock.totalOrder}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_order =
+    <choose>
+      <when test="typeOperation == 2">
+        total_order - #{stock.totalOrder}
+      </when>
+      <otherwise>
+        total_order + #{stock.totalOrder}
+      </otherwise>
+    </choose>
+  </insert>
+
+  <insert id="insertInventoryTotalAllOrder">
+    INSERT INTO inventory_totals (
+    product_id,
+    lots_number,
+    expired_date,
+    total_qty,
+    total_order,
+    total_pb,
+    total_cm,
+    total_cm_free,
+    total_cycle,
+    total_pbc
+    ) VALUES (
+    #{stock.productId},
+    #{stock.lotsNumber},
+    DATE(#{stock.expiredDate}),
+    #{stock.totalQty},
+    #{stock.totalOrder},
+    #{stock.totalPb},
+    #{stock.totalCm},
+    #{stock.totalCmFree},
+    #{stock.totalCycle},
+    #{stock.totalPbc}
+    )
+    ON DUPLICATE KEY UPDATE
+    total_order =
+    <choose>
+      <when test="typeOperation == 2">
+        total_order - #{stock.totalOrder}
+      </when>
+      <otherwise>
+        total_order + #{stock.totalOrder}
+      </otherwise>
+    </choose>
+  </insert>
+  <!--Global Order-->
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.GeneralLedger" useGeneratedKeys="true" keyProperty="generalLedger.id">
+    INSERT INTO general_ledgers (
+      sales_order_id,
+      sales_order_receipt_id,
+      credit_memo_id,
+      credit_memo_receipt_id,
+      date,
+      reference,
+      is_sys,
+      is_adj,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{generalLedger.saleInvoiceId},
+               #{generalLedger.saleInvoiceReceiptId},
+               #{generalLedger.creditMemoId},
+               #{generalLedger.creditMemoReceiptId},
+               #{generalLedger.date},
+               #{generalLedger.reference},
+               #{generalLedger.isSys},
+               #{generalLedger.isAdj},
+               NOW(),
+               #{generalLedger.createdBy},
+               #{generalLedger.isActive}
+             )
+  </insert>
+
+  <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.GeneralLedgerDetail">
+    INSERT INTO general_ledger_details (
+      general_ledger_id,
+      chart_account_id,
+      company_id,
+      product_id,
+      service_id,
+      inventory_valuation_id,
+      inventory_valuation_is_debit,
+      type,
+      debit,
+      credit,
+      memo,
+      customer_id,
+      class_id
+    ) VALUES (
+               #{detail.generalLedgerId},
+               #{detail.chartAccountId},
+               #{detail.companyId},
+               #{detail.productId},
+               #{detail.serviceId},
+               #{detail.inventoryValuationId},
+               #{detail.inventoryValuationIsDebit},
+               #{detail.type},
+               #{detail.debit},
+               #{detail.credit},
+               #{detail.memo},
+               #{detail.customerId},
+               #{detail.classId}
+             )
+  </insert>
+
+  <insert id="insertInventoryValuation" parameterType="com.ut.nlSystemAPi.model.base.InventoryValuation" useGeneratedKeys="true" keyProperty="valuation.id">
+    INSERT INTO inventory_valuations (
+      sales_order_id,
+      credit_memo_id,
+      company_id,
+      type,
+      date,
+      pid,
+      small_qty,
+      qty,
+      cost,
+      is_var_cost,
+      created,
+      is_active
+    ) VALUES (
+               #{valuation.saleInvoiceId},
+               #{valuation.creditMemoId},
+               #{valuation.companyId},
+               #{valuation.type},
+               #{valuation.date},
+               #{valuation.productId},
+               #{valuation.smallQty},
+               #{valuation.qty},
+               #{valuation.cost},
+               #{valuation.isVarCost},
+               NOW(),
+               #{valuation.isActive}
+             )
+  </insert>
+
+  <select id="getCmChartAccountId" resultType="java.lang.Long">
+    SELECT chart_account_id FROM account_types WHERE id = 6
+  </select>
+
+  <select id="getClassId" resultType="java.lang.Long">
+    SELECT class_id
+    FROM location_group_classese
+    WHERE company_id = #{companyId} AND location_group_id = #{locationGroupId}
+  </select>
+
+  <select id="getProductCodeName" resultType="com.ut.nlSystemAPi.model.base.ProductCodeNameResponse">
+    SELECT
+      CONCAT(code,' - ',name) AS name,
+      unit_cost AS unitCost
+    FROM products
+    WHERE id = #{productId}
+  </select>
+
+  <select id="getServiceName" resultType="com.ut.nlSystemAPi.model.base.ProductCodeNameResponse">
+    SELECT
+      name AS name
+    FROM services
+    WHERE id = #{serviceId}
+  </select>
+
+  <select id="getProductIncomeChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+     SELECT IFNULL(
+                   (
+                     IFNULL(
+                             (
+                               SELECT chart_account_id
+                               FROM accounts
+                               WHERE product_id = #{id}
+                         AND account_type_id = 8
+                       LIMIT 1
+                   ),
+                   (
+                       SELECT chart_account_id
+                       FROM pgroup_accounts
+                       WHERE pgroup_id = (
+                           SELECT pgroup_id
+                           FROM product_pgroups
+                           WHERE product_id = #{id}
+                           ORDER BY id DESC
+                           LIMIT 1
+                       )
+                         AND account_type_id = 8
+                       LIMIT 1
+                   )
+               )
+                     ),
+                   (
+                     SELECT chart_account_id
+                     FROM account_types
+                     WHERE id = 8
+                     LIMIT 1
+             )
+       ) AS chart_account_id
+  </select>
+
+  <select id="getProductInventoryChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT IFNULL(
+                   (
+                     IFNULL(
+                             (
+                               SELECT chart_account_id
+                               FROM accounts
+                               WHERE product_id = #{id}
+                                 AND account_type_id = 1
+                               LIMIT 1
+                       ),
+                   (
+                       SELECT chart_account_id
+                       FROM pgroup_accounts
+                       WHERE pgroup_id = (
+                           SELECT pgroup_id
+                           FROM product_pgroups
+                           WHERE product_id = #{id}
+                           ORDER BY id DESC
+                           LIMIT 1
+                       )
+                         AND account_type_id = 1
+                       LIMIT 1
+                   )
+               )
+                     ),
+                   (
+                     SELECT chart_account_id
+                     FROM account_types
+                     WHERE id = 1
+                     LIMIT 1
+             )
+       ) AS chart_account_id
+  </select>
+
+  <select id="getProductCOGSChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT COALESCE(
+                   (SELECT chart_account_id
+                    FROM accounts
+                    WHERE product_id = #{id}
+                      AND account_type_id = 2),
+                   (SELECT chart_account_id
+                    FROM pgroup_accounts
+                    WHERE pgroup_id = (
+                      SELECT pgroup_id
+                      FROM product_pgroups
+                      WHERE product_id = #{id}
+                      ORDER BY id DESC
+                   LIMIT 1
+             )
+         AND account_type_id = 2),
+        (SELECT chart_account_id
+         FROM account_types
+         WHERE id = 2)
+    ) AS chart_account_id
+  </select>
+
+  <select id="getServiceChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT COALESCE(
+                   (SELECT chart_account_id
+                    FROM services
+                    WHERE id = #{id}),
+                   (SELECT chart_account_id
+                    FROM account_types
+                    WHERE id = 9)
+           ) AS chart_account_id
+  </select>
+
+  <select id="getServiceUnearnChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT unearn_chart_account_id
+    FROM sections
+    INNER JOIN services ON sections.id = services.section_id
+    WHERE unearn_chart_account_id IS NOT NULL AND services.id = #{id} LIMIT 1
+  </select>
+
+  <select id="getMiscChartAccountId" resultType="java.lang.Long">
+    SELECT chart_account_id FROM account_types WHERE id = 10
+  </select>
+
+  <select id="getDiscountChartAccountId" resultType="java.lang.Long">
+    SELECT chart_account_id FROM account_types WHERE id = #{id}
+  </select>
+
+  <select id="getVatChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT chart_account_id FROM vat_settings WHERE id = #{vatSettingId}
+  </select>
+
+  <select id="getMarkUpChartAccountId" resultType="java.lang.Long">
+    SELECT chart_account_id FROM account_types WHERE id = #{id}
+  </select>
+
+  <select id="getVatSettingRateId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT id FROM vat_setting_rates WHERE is_active = 1 AND vat_setting_id = #{vatSettingId} ORDER BY id DESC LIMIT 1
+  </select>
+
+  <select id="checkInvoiceProduct" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT COUNT(*) FROM sales_order_details WHERE sales_order_id = #{saleInvoiceId}
+  </select>
+
+  <update id="deleteGeneralLedger">
+    UPDATE general_ledgers SET
+     is_active = 2,
+     modified = NOW(),
+     modified_by = #{userId}
+    WHERE ${field} = #{id}
+  </update>
+
+</mapper>
+

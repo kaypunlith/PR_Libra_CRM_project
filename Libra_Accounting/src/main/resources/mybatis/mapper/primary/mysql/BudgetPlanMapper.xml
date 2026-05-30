@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BudgetPlanMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        budget_pls.id AS id,
+        budget_pls.company_id AS companyId,
+        companies.name AS companyName,
+        budget_pls.branch_id AS branchId,
+        branches.name AS branchName,
+        budget_pls.year AS `year`,
+        budget_pls.name AS `name`,
+        budget_pls.description AS description,
+        DATE_FORMAT(budget_pls.created, '%d-%b-%y %h:%i') AS createdDate,
+        DATE_FORMAT(budget_pls.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+        CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+        CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM budget_pls
+        INNER JOIN companies ON companies.id = budget_pls.company_id
+        LEFT JOIN users AS users1 ON users1.id = budget_pls.created_by
+        LEFT JOIN users AS users2 ON users2.id = budget_pls.modified_by
+        LEFT JOIN branches ON branches.id = budget_pls.branch_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE budget_pls.is_active = 1
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (budget_pls.name LIKE CONCAT('%', #{filter.searchText}, '%'))
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="BudgetPlanResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                budget_pls.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+        SELECT COUNT(budget_pls.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="BudgetPlanResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE budget_pls.id = #{id} AND budget_pls.is_active = 1
+    </select>
+
+    <select id="getBudgetPlanDetail" parameterType="java.lang.Long" resultMap="BudgetPlanDetailResponse">
+        SELECT
+            IFNULL(budget_pl_details.m1, 0) AS m1,
+            IFNULL(budget_pl_details.m2, 0) AS m2,
+            IFNULL(budget_pl_details.m3, 0) AS m3,
+            IFNULL(budget_pl_details.m4, 0) AS m4,
+            IFNULL(budget_pl_details.m5, 0) AS m5,
+            IFNULL(budget_pl_details.m6, 0) AS m6,
+            IFNULL(budget_pl_details.m7, 0) AS m7,
+            IFNULL(budget_pl_details.m8, 0) AS m8,
+            IFNULL(budget_pl_details.m9, 0) AS m9,
+            IFNULL(budget_pl_details.m10, 0) AS m10,
+            IFNULL(budget_pl_details.m11, 0) AS m11,
+            IFNULL(budget_pl_details.m12, 0) AS m12
+        FROM budget_pl_details
+           LEFT JOIN chart_accounts ON chart_accounts.id = budget_pl_details.chart_account_id
+        WHERE budget_pl_details.budget_pl_id = #{budgetPlanId} AND chart_accounts.id = #{chartAccId} AND chart_accounts.is_active = 1
+    </select>
+
+    <select id="getBudgetPlanDashboard" parameterType="java.lang.Long" resultMap="BudgetPlanDetailResponse">
+        SELECT
+            IFNULL(budget_pl_details.m1, 0) AS m1,
+            IFNULL(budget_pl_details.m2, 0) AS m2,
+            IFNULL(budget_pl_details.m3, 0) AS m3,
+            IFNULL(budget_pl_details.m4, 0) AS m4,
+            IFNULL(budget_pl_details.m5, 0) AS m5,
+            IFNULL(budget_pl_details.m6, 0) AS m6,
+            IFNULL(budget_pl_details.m7, 0) AS m7,
+            IFNULL(budget_pl_details.m8, 0) AS m8,
+            IFNULL(budget_pl_details.m9, 0) AS m9,
+            IFNULL(budget_pl_details.m10, 0) AS m10,
+            IFNULL(budget_pl_details.m11, 0) AS m11,
+            IFNULL(budget_pl_details.m12, 0) AS m12
+        FROM budget_pl_details
+                 LEFT JOIN chart_accounts ON chart_accounts.id = budget_pl_details.chart_account_id
+        WHERE budget_pl_details.budget_pl_id = #{budgetPlanId} AND chart_accounts.id = #{chartAccId} AND chart_accounts.is_active = 1
+    </select>
+
+    <select id="getActualBudget" resultType="java.lang.Double">
+        SELECT IFNULL(SUM(IFNULL(gld.credit, 0)) - SUM(IFNULL(gld.debit, 0)), 0)
+        FROM general_ledgers AS gl
+             INNER JOIN general_ledger_details AS gld ON gl.id=gld.general_ledger_id
+        WHERE gld.chart_account_id = #{chartAccountId}
+            AND gl.is_active=1
+            AND MONTH(gl.date) = #{month} AND YEAR(gl.date) = #{year}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM budget_pls
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.BudgetPlan" useGeneratedKeys="true" keyProperty="budgetPlan.id">
+        INSERT INTO budget_pls(
+            company_id,
+            branch_id,
+            `year`,
+            `name`,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{budgetPlan.companyId},
+                     #{budgetPlan.branchId},
+                     #{budgetPlan.year},
+                     #{budgetPlan.name},
+                     #{budgetPlan.description},
+                     NOW(),
+                     #{budgetPlan.createdBy},
+                     #{budgetPlan.isActive}
+                 );
+    </insert>
+
+    <insert id="insertBudgetPlanDetail" parameterType="com.ut.nlSystemAPi.model.BudgetPlanDetail">
+        INSERT INTO budget_pl_details(
+            budget_pl_id,
+            chart_account_id,
+            m1,
+            m2,
+            m3,
+            m4,
+            m5,
+            m6,
+            m7,
+            m8,
+            m9,
+            m10,
+            m11,
+            m12
+        ) VALUES (
+                     #{budgetPlanDetail.budgetPlsId},
+                     #{budgetPlanDetail.chartAccountId},
+                     #{budgetPlanDetail.m1},
+                     #{budgetPlanDetail.m2},
+                     #{budgetPlanDetail.m3},
+                     #{budgetPlanDetail.m4},
+                     #{budgetPlanDetail.m5},
+                     #{budgetPlanDetail.m6},
+                     #{budgetPlanDetail.m7},
+                     #{budgetPlanDetail.m8},
+                     #{budgetPlanDetail.m9},
+                     #{budgetPlanDetail.m10},
+                     #{budgetPlanDetail.m11},
+                     #{budgetPlanDetail.m12}
+                 );
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.BudgetPlan">
+        UPDATE budget_pls SET
+        <if test="budgetPlan.companyId != null"> `company_id` = #{budgetPlan.companyId},</if>
+        <if test="budgetPlan.branchId != null"> `branch_id` = #{budgetPlan.branchId},</if>
+        <if test="budgetPlan.year != null"> `year` = #{budgetPlan.year},</if>
+        <if test="budgetPlan.name != null"> `name` = #{budgetPlan.name},</if>
+        <if test="budgetPlan.description != null"> `description` = #{budgetPlan.description},</if>
+        modified = NOW(),
+        modified_by = #{budgetPlan.modifiedBy}
+        WHERE id = #{budgetPlan.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE budget_pls SET
+                              is_active = 2,
+                              modified = NOW(),
+                              modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <delete id="deleteBudgetPlanDetail" parameterType="java.lang.Long">
+        DELETE FROM budget_pl_details WHERE budget_pl_id = #{id};
+    </delete>
+
+    <!--    Table List-->
+    <select id="getChartAccGroupRevenue" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Income')
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupCostOfGoodsSold" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Cost of Goods Sold')
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupGrossProfit" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Gross Profit')
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupTotalExpenses" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense') AND g.is_depreciation NOT IN (2,3)
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupTotalOtherRevenue" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Income')
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupTotalOtherExpenses" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Expense') AND g.is_depreciation NOT IN (2,3)
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupEarningsTax" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Earnings Interest') AND g.is_depreciation NOT IN (2,3)
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupEarningsBeforeTax" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense','Other Expense') AND g.is_depreciation IN (2)
+        ORDER BY t.id
+    </select>
+
+    <select id="getChartAccGroupProfitLoss" resultMap="BudgetPlanSubTableResponse">
+        SELECT g.id,g.name
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense','Other Expense') AND g.is_depreciation IN (3)
+        ORDER BY t.id
+    </select>
+
+    <!--    account -->
+    <select id="getChartAccFind" resultMap="BudgetPlanSubSubTableResponse">
+        SELECT id,CONCAT_WS(' ',account_codes,'·',account_description) AS name
+        FROM chart_accounts
+        WHERE is_active=1 AND chart_account_group_id = #{accountGroupId}
+          AND id NOT IN (SELECT parent_id FROM chart_accounts WHERE is_active=1 AND parent_id IS NOT NULL) ORDER BY account_codes
+    </select>
+
+    <select id="getChartAcc" resultMap="BudgetPlanSubSubTableResponse">
+        SELECT id,CONCAT_WS(' ',account_codes,'·',account_description) AS name
+        FROM chart_accounts
+        WHERE is_active=1 AND chart_account_group_id = #{accountGroupId}
+        ORDER BY account_codes
+    </select>
+
+
+</mapper>

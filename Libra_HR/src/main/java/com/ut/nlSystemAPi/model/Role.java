@@ -1,0 +1,33 @@
+package com.ut.nlSystemAPi.model;
+
+import com.ut.nlSystemAPi.model.base.BaseModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+import java.io.Serializable;
+import java.util.List;
+
+@Data
+public class Role extends BaseModel implements Serializable {
+
+  private static final long serialVersionUID = 1L;
+
+  @ApiModelProperty(position = 1)
+  private Long id;
+
+  @ApiModelProperty(position = 2)
+  private String name;
+
+  @ApiModelProperty(position = 2)
+  private String Username;
+
+  @ApiModelProperty(position = 2)
+  private String modifiedDate;
+
+  @ApiModelProperty(position = 3)
+  private List<RoleUser> userList;
+
+  @ApiModelProperty(position = 4)
+  private List<ModuleType> moduleTypeList;
+
+}

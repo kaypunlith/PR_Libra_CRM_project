@@ -1,0 +1,4 @@
+package com.ut.nlSystemAPi.model.response.Dropdown;
+
+public class MadeInCountryDropdownResponse {
+}

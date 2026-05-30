@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.AnnouncementMapper">
+
+    <resultMap id="AnnouncementResponse" type="com.ut.nlSystemAPi.model.response.Announcement.AnnouncementResponse">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="image" column="image"/>
+        <result property="imageUrl" column="imageUrl"/>
+        <result property="thumbnail" column="image"/>
+        <result property="thumbnailUrl" column="imageUrl"/>
+        <result property="content" column="content"/>
+        <result property="schedule" column="schedule"/>
+        <result property="isPublic" column="isPublic"/>
+        <result property="isActive" column="isActive"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <resultMap id="AnnouncementCustomerResponse" type="com.ut.nlSystemAPi.model.response.Announcement.AnnouncementCustomerResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        announcements.id AS id,
+        announcements.title AS title,
+        announcements.image AS image,
+        announcements.image_url AS imageUrl,
+        announcements.content AS content,
+        announcements.schedule AS schedule,
+        announcements.is_public AS isPublic,
+        announcements.created AS created,
+        CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+        announcements.modified AS modified,
+        CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM announcements
+        LEFT JOIN users AS creator ON announcements.created_by = creator.id
+        LEFT JOIN users AS modifier ON announcements.modified_by = modifier.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE announcements.is_active = 1
+        AND announcements.type = 2
+        <if test="filter.searchText != null">
+            AND (
+                announcements.title LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR announcements.content LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AnnouncementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                announcements.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(announcements.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="AnnouncementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE announcements.is_active = 1 AND announcements.type = 2 AND announcements.id = #{id}
+    </select>
+
+    <select id="getCustomers" parameterType="java.lang.Long" resultMap="AnnouncementCustomerResponse">
+        SELECT
+            customers.id AS id,
+            customers.name AS name
+        FROM announcement_user_apps
+        INNER JOIN user_apps ON user_apps.id = announcement_user_apps.user_app_id
+        INNER JOIN customers ON customers.user_app_id = user_apps.id
+        WHERE announcement_user_apps.announcement_id = #{announcementId}
+        AND customers.is_active = 1
+        GROUP BY customers.id, customers.name
+        ORDER BY customers.name ASC
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Announcement.Announcement" useGeneratedKeys="true" keyProperty="announcement.id">
+        INSERT INTO announcements (
+            title,
+            image,
+            image_url,
+            content,
+            schedule,
+            created,
+            created_by,
+            is_public,
+            type,
+            user_type,
+            is_active
+        ) VALUES (
+            #{announcement.title},
+            #{announcement.image},
+            #{announcement.imageUrl},
+            #{announcement.content},
+            #{announcement.schedule},
+            NOW(),
+            #{announcement.createdBy},
+            #{announcement.isPublic},
+            #{announcement.type},
+            #{announcement.userType},
+            #{announcement.isActive}
+        )
+    </insert>
+
+    <insert id="insertUserApp">
+        INSERT INTO announcement_user_apps (
+            announcement_id,
+            user_app_id
+        ) VALUES (
+            #{announcementId},
+            #{userAppId}
+        )
+    </insert>
+
+    <insert id="insertUserAppsByCustomerIds">
+        INSERT INTO announcement_user_apps (
+            announcement_id,
+            user_app_id
+        )
+        SELECT
+            #{announcementId},
+            customers.user_app_id
+        FROM customers
+        WHERE customers.is_active = 1
+          AND customers.user_app_id IS NOT NULL
+          AND customers.id IN
+          <foreach collection="customerIds" item="customerId" open="(" separator="," close=")">
+              #{customerId}
+          </foreach>
+        GROUP BY customers.user_app_id
+    </insert>
+
+    <insert id="insertUserAppsByUserAppIds">
+        INSERT INTO announcement_user_apps (
+            announcement_id,
+            user_app_id
+        )
+        SELECT
+            #{announcementId},
+            user_apps.id
+        FROM user_apps
+        WHERE user_apps.id IN
+          <foreach collection="userAppIds" item="userAppId" open="(" separator="," close=")">
+              #{userAppId}
+          </foreach>
+        GROUP BY user_apps.id
+    </insert>
+
+    <insert id="insertNotificationsByCustomerIds">
+        INSERT INTO notifications (
+            type,
+            announcement_id,
+            user_id,
+            is_read,
+            created,
+            created_by,
+            is_active
+        )
+        SELECT
+            4,
+            #{announcementId},
+            customers.user_app_id,
+            0,
+            NOW(),
+            #{createdBy},
+            1
+        FROM customers
+        WHERE customers.is_active = 1
+          AND customers.user_app_id IS NOT NULL
+          AND customers.id IN
+          <foreach collection="customerIds" item="customerId" open="(" separator="," close=")">
+              #{customerId}
+          </foreach>
+        GROUP BY customers.user_app_id
+    </insert>
+
+    <insert id="insertNotificationsByUserAppIds">
+        INSERT INTO notifications (
+            type,
+            announcement_id,
+            user_id,
+            is_read,
+            created,
+            created_by,
+            is_active
+        )
+        SELECT
+            4,
+            #{announcementId},
+            user_apps.id,
+            0,
+            NOW(),
+            #{createdBy},
+            1
+        FROM user_apps
+        WHERE user_apps.id IN
+          <foreach collection="userAppIds" item="userAppId" open="(" separator="," close=")">
+              #{userAppId}
+          </foreach>
+        GROUP BY user_apps.id
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Announcement.Announcement">
+        UPDATE announcements SET
+            <if test="announcement.title != null">title = #{announcement.title},</if>
+            <if test="announcement.image != null">image = #{announcement.image},</if>
+            <if test="announcement.imageUrl != null">image_url = #{announcement.imageUrl},</if>
+            <if test="announcement.content != null">content = #{announcement.content},</if>
+            <if test="announcement.schedule != null">schedule = #{announcement.schedule},</if>
+            <if test="announcement.isPublic != null">is_public = #{announcement.isPublic},</if>
+            type = #{announcement.type},
+            modified = NOW(),
+            modified_by = #{announcement.modifiedBy}
+        WHERE id = #{announcement.id} AND is_active = 1 AND type = 2
+    </update>
+
+    <delete id="deleteUserApps" parameterType="java.lang.Long">
+        DELETE FROM announcement_user_apps WHERE announcement_id = #{announcementId}
+    </delete>
+
+    <update id="deleteNotifications">
+        UPDATE notifications SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{modifiedBy}
+        WHERE announcement_id = #{announcementId}
+          AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE announcements SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1 AND type = 2
+    </update>
+</mapper>

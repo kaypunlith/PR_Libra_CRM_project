@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ClassPartnerManagementMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        class_partner_managements.id AS id,
+        class_partner_managements.name AS name,
+        (SELECT GROUP_CONCAT((SELECT name FROM egroups WHERE id = egroup_id) SEPARATOR ", ")
+         FROM class_egroup_partner_managements
+         WHERE class_id = class_partner_managements.id) AS employeeGroupName,
+        IF(class_partner_managements.created_by IS NULL, "", (SELECT CONCAT(first_name, " ", last_name) FROM users WHERE id = class_partner_managements.created_by AND is_active = 1 LIMIT 1)) AS createdBy,
+        DATE_FORMAT(class_partner_managements.created, "%d-%b-%Y %H:%i") AS created,
+        IF(class_partner_managements.modified_by IS NULL, "", (SELECT CONCAT(first_name, " ", last_name) FROM users WHERE id = class_partner_managements.modified_by AND is_active = 1 LIMIT 1)) AS modifiedBy,
+        DATE_FORMAT(class_partner_managements.modified, "%d-%b-%Y %H:%i") AS modified
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM class_partner_managements
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE class_partner_managements.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                class_partner_managements.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR (SELECT GROUP_CONCAT((SELECT name FROM egroups WHERE id = egroup_id) SEPARATOR ", ")
+                    FROM class_egroup_partner_managements
+                    WHERE class_id = class_partner_managements.id) LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="ClassPartnerManagementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>class_partner_managements.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(class_partner_managements.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="ClassPartnerManagementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE class_partner_managements.is_active = 1 AND class_partner_managements.id = #{id}
+    </select>
+
+    <select id="getEgroupIds" resultType="java.lang.Long">
+        SELECT egroup_id
+        FROM class_egroup_partner_managements
+        WHERE class_id = #{classId}
+    </select>
+
+    <select id="getTypeNetworkEmployees" resultMap="ClassPartnerManagementTypeNetworkEmployeeResponse">
+        SELECT
+            cutnpm.class_id AS classId,
+            cutnpm.type_network_id AS typeNetworkId,
+            tnpm.name AS typeNetworkName,
+            cutnpm.user_id AS userId,
+            employees.name AS employeeName
+        FROM class_user_type_network_partner_managements cutnpm
+        LEFT JOIN type_network_partner_managements tnpm ON tnpm.id = cutnpm.type_network_id AND tnpm.is_active = 1
+        LEFT JOIN employees ON employees.user_id = cutnpm.user_id AND employees.is_active = 1
+        WHERE cutnpm.class_id = #{classId}
+        ORDER BY cutnpm.type_network_id, employees.name
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM class_partner_managements
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="classPartnerManagement.id">
+        INSERT INTO class_partner_managements (
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{classPartnerManagement.name},
+            NOW(),
+            #{classPartnerManagement.createdBy},
+            #{classPartnerManagement.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE class_partner_managements SET
+        <trim suffixOverrides=",">
+            <if test="classPartnerManagement.name != null">name = #{classPartnerManagement.name},</if>
+            modified = NOW(),
+            modified_by = #{classPartnerManagement.modifiedBy},
+        </trim>
+        WHERE id = #{classPartnerManagement.id} AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE class_partner_managements SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <delete id="deleteEgroups">
+        DELETE FROM class_egroup_partner_managements
+        WHERE class_id = #{classId}
+    </delete>
+
+    <delete id="deleteTypeNetworkEmployees">
+        DELETE FROM class_user_type_network_partner_managements
+        WHERE class_id = #{classId}
+    </delete>
+
+    <insert id="insertEgroup">
+        INSERT INTO class_egroup_partner_managements (class_id, egroup_id)
+        VALUES (#{classId}, #{egroupId})
+    </insert>
+
+    <insert id="insertTypeNetworkEmployee">
+        INSERT INTO class_user_type_network_partner_managements (class_id, user_id, type_network_id)
+        VALUES (#{classId}, #{userId}, #{typeNetworkId})
+    </insert>
+</mapper>

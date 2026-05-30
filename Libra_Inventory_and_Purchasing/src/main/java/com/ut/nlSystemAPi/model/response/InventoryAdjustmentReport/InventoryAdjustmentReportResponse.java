@@ -1,0 +1,29 @@
+package com.ut.nlSystemAPi.model.response.InventoryAdjustmentReport;
+
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+@Data
+public class InventoryAdjustmentReportResponse {
+
+    @ApiModelProperty(position = 1)
+    private Long id;
+
+    @ApiModelProperty(position = 1)
+    private String date;
+
+    @ApiModelProperty(position = 1)
+    private String createBy;
+
+    @ApiModelProperty(position = 1)
+    private String reference;
+
+    @ApiModelProperty(position = 1)
+    private String companyName;
+
+    @ApiModelProperty(position = 1)
+    private String warehouseName;
+
+    @ApiModelProperty(position = 1)
+    private String account;
+}

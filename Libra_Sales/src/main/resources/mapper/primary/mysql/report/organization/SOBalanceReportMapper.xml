@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+
+    <select id="getListSOBalance" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.SOBalanceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.SOBalanceReportResponse">
+        SELECT
+        customers.id AS organizationId,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS organizationName,
+        currency_centers.symbol AS currencySymbol,
+        orders.id AS soId,
+        orders.type AS `type`,
+        orders.order_code AS soNo,
+        orders.order_date AS soDate,
+        orders.is_close AS isClose,
+        orders.is_approve AS isApprove,
+        orders.status AS status,
+        DATEDIFF(DATE(NOW()), orders.order_date) AS dateDiff,
+        sales_orders.id AS invoiceId,
+        sales_orders.so_code AS invoiceNo,
+        CONCAT(users.last_name, ' ', users.first_name) AS createdBy,
+        (orders.total_amount + orders.total_vat) AS totalAmount
+        FROM orders
+        INNER JOIN customers ON orders.customer_id = customers.id
+        INNER JOIN users ON orders.created_by = users.id
+        INNER JOIN currency_centers ON currency_centers.id = orders.currency_center_id
+        LEFT JOIN sales_orders ON orders.id = sales_orders.order_id AND sales_orders.status > 0
+        WHERE orders.status > 0
+        <if test="filter.dateFrom != null">
+            AND orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.organizationId != null">
+            AND orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.type != null">
+            AND orders.type = #{filter.type}
+        </if>
+        ORDER BY organizationName, orders.order_code ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSOBalance" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.SOBalanceReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT customers.id)
+        FROM orders
+        INNER JOIN customers ON orders.customer_id = customers.id
+        INNER JOIN users ON orders.created_by = users.id
+        INNER JOIN currency_centers ON currency_centers.id = orders.currency_center_id
+        LEFT JOIN sales_orders ON orders.id = sales_orders.order_id AND sales_orders.status > 0
+        WHERE orders.status > 0
+        <if test="filter.dateFrom != null">
+            AND orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.organizationId != null">
+            AND orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.type != null">
+            AND orders.type = #{filter.type}
+        </if>
+    </select>
+
+</mapper>

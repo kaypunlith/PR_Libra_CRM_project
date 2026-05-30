@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportPaySlip">
+
+  <select id="getReportPaySlip" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="ReportPaySlipResponse">
+    SELECT
+    employees.id AS employeeId,
+    employees.name_en AS employeeNameEn,
+    employees.name_kh AS employeeNameKh
+    FROM employee_attendances
+    LEFT JOIN employees ON employees.id = employee_attendances.employee_id
+    LEFT JOIN employee_department_histories ON employee_department_histories.department_id = #{filter.departmentId}
+    WHERE employees.is_active = 1
+    AND MONTH(employee_attendances.datetime_scan) = MONTH(#{filter.date})
+    GROUP BY employees.id, employees.name_en
+  </select>
+
+  <select id="getDayRate" resultType="java.lang.Float">
+      SELECT day_rate
+      FROM employees WHERE id = #{employeeId}
+  </select>
+
+  
+  <select id="getDayRateNight" resultType="java.lang.Float">
+    SELECT night_rate
+    FROM employees WHERE id = #{employeeId}
+</select>
+
+
+<select id="getPayrollId" resultType="java.lang.Long">
+    SELECT 
+      id
+    FROM payrolls
+     WHERE DATE(pay_date)
+        BETWEEN DATE_SUB(#{filter.date}, INTERVAL 30 DAY)
+        AND #{filter.date};
+</select>
+
+
+<select id="getOtherPayReport" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="ReportOtherPayResponse">
+    SELECT
+        other_bonus.name AS name,
+        SUM(payroll_other_bonus.amount) AS amount
+    FROM payroll_other_bonus
+             LEFT JOIN other_bonus
+                       ON other_bonus.id = payroll_other_bonus.other_bonus_id
+    WHERE payroll_other_bonus.payroll_id = #{payrollId}
+      AND payroll_other_bonus.employee_id = #{filter.employeeId}
+      AND payroll_other_bonus.branch_id IN (1, 2)
+    GROUP BY other_bonus.name;
+
+</select>
+
+
+
+  <select id="getListSumDayMonFri" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultType="java.lang.Float">
+      SELECT
+          SUM(total_working_minute)
+      FROM employee_attendances
+      WHERE is_active = 1
+          AND employee_id = #{filter.employeeId}
+          AND MONTH(datetime_scan) = MONTH(#{filter.date})
+        AND day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday');
+
+  </select>
+
+  <select id="getListSumDaySatSun" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultType="java.lang.Float">
+      SELECT
+          SUM(total_working_minute)
+      FROM employee_attendances
+      WHERE is_active = 1
+          AND employee_id = #{filter.employeeId}
+          AND MONTH(datetime_scan) = MONTH(#{filter.date})
+        AND day IN ('Saturday', 'Sunday');
+  </select>
+
+  
+  
+  <select id="getListSumNight" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultType="java.lang.Float">
+    SELECT 
+    SUM(ea.total_working_minute)
+    FROM 
+        employee_attendances ea
+    LEFT JOIN 
+        employee_work_shifts ews 
+        ON ews.work_shift_id = ea.work_shift_id
+        AND ews.employee_id = ea.employee_id
+        AND ews.is_active = 1
+    LEFT JOIN 
+        work_shifts ws 
+        ON ws.id = ews.work_shift_id
+        AND ws.is_active = 1
+    WHERE 
+        ws.id = 3
+        AND ea.is_active = 1
+        AND ea.employee_id = #{filter.employeeId}
+        AND MONTH(ea.datetime_scan) = MONTH(#{filter.date});
+
+  </select>
+
+</mapper>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ClassAccountMapper">
+
+  <resultMap id="ClassAccountResponse" type="com.ut.nlSystemAPi.model.response.ClassAccount.ClassAccountResponse">
+
+  </resultMap>
+
+  <resultMap id="CompanyResponse" type="com.ut.nlSystemAPi.model.Company">
+
+  </resultMap>
+
+  <resultMap id="UserResponse" type="com.ut.nlSystemAPi.model.response.User.UserResponse">
+
+  </resultMap>
+
+</mapper>

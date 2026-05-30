@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReceivePaymentOrganizationMapper">
+
+    <select id="getTmpData" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentOrganizationFilter" resultMap="ReceivePaymentOrganizationTmpResponse">
+        SELECT
+        IFNULL(SUM(credit),0) AS credit,
+        `main_gl_id` AS mainGlId,
+        `chart_account_id` AS chartAccountId,
+        `company_id` AS companyId,
+        `customer_id` AS customerId
+        FROM general_ledgers gl2
+        INNER JOIN general_ledger_details gld2 ON gl2.id=gld2.general_ledger_id
+        WHERE gl2.is_approve = 1 AND gl2.is_active = 1
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.groupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id= #{filter.groupId})
+        </if>
+        <if test="filter.customerId != null">
+            AND customer_id = #{filter.customerId}
+        </if>
+        AND chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name='Accounts Receivable'))
+        AND sales_order_id IS NULL
+        AND credit_memo_id IS NULL
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NULL
+        AND credit>0
+        GROUP BY `main_gl_id`, `chart_account_id`, `company_id`, `customer_id`
+    </select>
+
+  <sql id="BASE_COLUMN_LIST">
+        gld.id AS id,
+        gl.`date` AS `date`,
+        gl.reference AS reference,
+        COALESCE(CONCAT_WS(' ', cus.customer_code, '-', cus.name), '') AS customerName,
+        gld.customer_id AS customerId,
+        gld.company_id AS companyId,
+        gld.branch_id AS branchId,
+        branches.name AS branchName,
+        gld.memo AS memo,
+        gl.note AS note,
+        gld.chart_account_id AS chartAccountId,
+        CONCAT(ca.account_codes, '-', ca.account_description) AS chartAccount,
+        IFNULL(gld.debit, 0) AS totalAmount,
+        IFNULL(gld.debit, 0) - IFNULL((SELECT IFNULL(SUM(credit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND customer_id = gld.customer_id), 0) AS amountDue,
+        IFNULL(gld.debit, 0) - IFNULL((SELECT IFNULL(SUM(credit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND customer_id = gld.customer_id), 0) AS balance
+  </sql>
+
+  <sql id="BASE_FROM">
+      FROM general_ledgers gl
+      INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+      LEFT JOIN branches ON gld.branch_id = branches.id
+      LEFT JOIN customers AS cus ON cus.id = gld.customer_id
+      LEFT JOIN chart_accounts ca ON ca.id = gld.chart_account_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+      WHERE gl.is_approve=1 AND gl.is_active=1
+      AND gld.customer_id IS NOT NULL
+      <if test="filter.companyId != null">
+          AND gld.company_id = #{filter.companyId}
+      </if>
+      <if test="filter.groupId != null">
+          AND gld.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id= #{filter.groupId})
+      </if>
+      <if test="filter.customerId != null">
+          AND gld.customer_id = #{filter.customerId}
+      </if>
+      <if test="filter.branchId != null">
+          AND gld.branch_id = #{filter.branchId}
+      </if>
+      AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name='Accounts Receivable'))
+      AND gl.sales_order_id IS NULL
+      AND credit_memo_id IS NULL
+      AND purchase_order_id IS NULL
+      AND purchase_return_id IS NULL
+      AND debit > 0
+      AND gld.debit-IFNULL((SELECT IFNULL(SUM(credit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND customer_id = gld.customer_id), 0)>0.001
+  </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentOrganizationFilter" resultMap="ReceivePaymentOrganizationResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY gl.date ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentOrganizationFilter" resultType="java.lang.Long">
+    SELECT COUNT(gl.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <insert id="insertArAging" parameterType="com.ut.nlSystemAPi.model.ReceivePaymentOrganization" useGeneratedKeys="true" keyProperty="receivePayment.arId">
+    INSERT INTO ar_agings(
+      date,
+      `company_id`,
+      branch_id,
+      cgroup_id,
+      customer_id,
+      employee_id,
+      deposit_to,
+      reference,
+      note,
+      exchange_rate,
+      cheque_number,
+      account_codes,
+      account_description,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{receivePayment.date},
+               #{receivePayment.companyId},
+               #{receivePayment.branchId},
+               #{receivePayment.cGroupId},
+               #{receivePayment.customerId},
+               #{receivePayment.employeeId},
+               #{receivePayment.depositTo},
+               #{receivePayment.reference},
+               #{receivePayment.note},
+               #{receivePayment.exchangeRate},
+               #{receivePayment.chequeNumber},
+               #{receivePayment.accountCode},
+               #{receivePayment.accountDescription},
+               NOW(),
+               #{receivePayment.createdBy},
+               #{receivePayment.isActive}
+             );
+  </insert>
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.ReceivePaymentOrganization" useGeneratedKeys="true" keyProperty="receivePayment.glId">
+    INSERT INTO general_ledgers(
+      `date`,
+      `ar_aging_id`,
+      reference,
+      is_sys,
+      is_adj,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{receivePayment.date},
+               #{receivePayment.arId},
+               #{receivePayment.reference},
+               0,
+               0,
+               NOW(),
+               #{receivePayment.createdBy},
+               #{receivePayment.isActive}
+             );
+  </insert>
+
+  <insert id="insertArAgingDetail" parameterType="com.ut.nlSystemAPi.model.ReceivePaymentOrganizationDetail">
+    INSERT INTO ar_aging_details(
+      `ar_aging_id`,
+      `general_ledger_id`,
+      customer_id,
+      employee_id,
+      amount_due,
+      paid,
+      balance,
+      memo
+    ) VALUES (
+               #{receiveDetailPayment.arId},
+               #{receiveDetailPayment.glId},
+               #{receiveDetailPayment.customerId},
+               #{receiveDetailPayment.employeeId},
+               #{receiveDetailPayment.amountDue},
+               #{receiveDetailPayment.amountPaid},
+               #{receiveDetailPayment.balance},
+               #{receiveDetailPayment.memo}
+             );
+  </insert>
+
+  <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+    INSERT INTO general_ledger_details(
+        main_gl_id,
+      `general_ledger_id`,
+      `chart_account_id`,
+       company_id,
+       branch_id,
+      `type`,
+      debit,
+      credit,
+      memo,
+      customer_id,
+      employee_id,
+      class_id
+    ) VALUES (
+               #{journalEntryDetail.mainGlId},
+               #{journalEntryDetail.generalLedgerId},
+               #{journalEntryDetail.chartAccountId},
+               #{journalEntryDetail.companyId},
+               #{journalEntryDetail.branchId},
+               #{journalEntryDetail.type},
+               #{journalEntryDetail.debit},
+               #{journalEntryDetail.credit},
+               #{journalEntryDetail.memo},
+               #{journalEntryDetail.customerId},
+               #{journalEntryDetail.employeeId},
+               #{journalEntryDetail.classId}
+             );
+  </insert>
+
+  <select id="getReLastReceivePaymentCode" resultType="java.lang.String">
+      SELECT reference
+      FROM general_ledgers
+      WHERE is_active = 1 AND YEAR(date) = YEAR(NOW()) AND `reference` LIKE '%OR%'
+      ORDER BY id DESC LIMIT 1
+  </select>
+
+
+    <sql id="BASE_COLUMN_LIST_PRINT">
+        ar_agings.id AS id,
+        ar_agings.date AS date,
+        ar_agings.reference AS reference,
+        customers.name AS customerName,
+        (SELECT CONCAT(account_codes, '-',account_description) FROM chart_accounts WHERE id = ar_agings.deposit_to) AS chartAccountName,
+        (SELECT SUM(paid) FROM ar_aging_details WHERE ar_aging_id = ar_agings.id) AS totalAmount,
+        ar_agings.note AS note,
+        ar_agings.exchange_rate AS exchangeRate,
+        ar_agings.gl_id AS glId,
+        ar_agings.cheque_number AS chequeNumber,
+        (SELECT name FROM companies WHERE id = ar_agings.company_id) AS `companyName`,
+        IFNULL(customers.name, '') AS customerName,
+        ar_agings.account_codes AS accountCode
+    </sql>
+
+    <sql id="BASE_FROM_PRINT">
+        FROM ar_agings
+        LEFT JOIN customers ON customers.id = ar_agings.customer_id
+        LEFT JOIN ar_aging_details ON ar_aging_details.ar_aging_id = ar_agings.id
+    </sql>
+
+    <sql id="BASE_WHERE_PRINT">
+        WHERE ar_agings.is_active = 1 AND ar_aging_details.customer_id IS NOT NULL
+        <if test="filter.reference != null and filter.reference != ''">
+            AND (ar_agings.reference LIKE CONCAT("%", #{filter.reference}, "%"))
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != ''">
+            AND ar_agings.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateTo != null">
+            AND DATE(ar_agings.date) >= DATE(#{filter.dateFrom}) AND DATE(ar_agings.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+    </sql>
+
+    <select id="getListPrint" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentPrintFilter" resultMap="ReceivePaymentResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRINT"/>
+        <include refid="BASE_FROM_PRINT"/>
+        <include refid="BASE_WHERE_PRINT"/>
+        ORDER BY ar_agings.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countListPrint" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentPrintFilter" resultType="java.lang.Long">
+        SELECT COUNT(ar_agings.id)
+        <include refid="BASE_FROM_PRINT"/>
+        <include refid="BASE_WHERE_PRINT"/>
+    </select>
+
+    <select id="find" parameterType="java.lang.Long" resultMap="ReceivePaymentResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRINT"/>
+        <include refid="BASE_FROM_PRINT"/>
+        WHERE ar_agings.id = #{id}
+        AND ar_agings.is_active = 1
+    </select>
+
+    <select id="getGeneralLedgerDetail" parameterType="java.lang.Long" resultMap="ReceivePaymentDetailResponse">
+        SELECT
+            memo AS memo,
+            ar_aging_details.paid AS totalAmount,
+            (SELECT COALESCE(reference, '') FROM general_ledgers WHERE id IN (SELECT general_ledger_id FROM general_ledger_details WHERE id = ar_aging_details.general_ledger_id) LIMIT 1) AS invoiceCode
+        FROM ar_aging_details
+        WHERE ar_aging_details.ar_aging_id = #{id}
+    </select>
+
+    <select id="getGlFile" parameterType="java.lang.Long" resultMap="ReceivePaymentFileResponse">
+        SELECT file_name AS fileName, file_url AS fileUrl FROM general_ledger_files WHERE general_ledger_id = #{glId};
+    </select>
+
+    <select id="getListCredit" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentOrganizationFilter" resultMap="ReceivePaymentCreditResponse">
+        SELECT
+        IFNULL(SUM(credit),0) AS credit,
+        `main_gl_id` AS mainGlId,
+        `chart_account_id` AS chartAccountId,
+        `company_id` AS companyId,
+        `customer_id` AS customerId
+        FROM general_ledgers gl2
+        INNER JOIN general_ledger_details gld2 ON gl2.id=gld2.general_ledger_id
+        WHERE gl2.is_approve=1 AND gl2.is_active=1
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.groupId != null">
+            AND customer_id IN (
+                SELECT customer_id FROM customer_cgroups WHERE cgroup_id= #{filter.groupId}
+            )
+        </if>
+        <if test="filter.customerId != null">
+            AND customer_id = #{filter.customerId}
+        </if>
+        AND chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name='Accounts Receivable'))
+        AND sales_order_id IS NULL
+        AND credit_memo_id IS NULL
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NULL
+        AND credit>0
+        GROUP BY `main_gl_id`, `chart_account_id`, `company_id`, `customer_id`
+    </select>
+
+    <select id="createTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        CREATE TABLE IF NOT EXISTS ${tableName} (
+            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+            `main_gl_id` int(11) DEFAULT NULL,
+            `chart_account_id` int(11) DEFAULT NULL,
+            `company_id` int(11) DEFAULT NULL,
+            `credit` double DEFAULT NULL,
+            `customer_id` bigint(20) DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `main_gl_id` (`main_gl_id`),
+            KEY `chart_account_id` (`chart_account_id`),
+            KEY `company_id` (`company_id`),
+            KEY `customer_id` (`customer_id`)
+            ) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+    </select>
+
+    <select id="dropTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        DROP TABLE ${tableName};
+    </select>
+
+    <insert id="insertDebitData" parameterType="com.ut.nlSystemAPi.model.response.PayBills.PayBillsDebitDataResponse">
+        INSERT INTO ${tableName} (
+            main_gl_id,
+            chart_account_id,
+            company_id,
+            credit,
+            customer_id
+        ) VALUES (
+                     #{response.mainGlId},
+                     #{response.chartAccountId},
+                     #{response.companyId},
+                     #{response.credit},
+                     #{response.customerId}
+                 )
+    </insert>
+
+    <select id="getMainGlId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT main_gl_id FROM general_ledger_details WHERE id=#{gldId};
+    </select>
+
+    <update id="updateMainGlToGld" parameterType="java.lang.Long">
+        UPDATE general_ledger_details SET main_gl_id=#{gldId} WHERE id=#{gldId};
+    </update>
+
+    <update id="updateMainGl" parameterType="java.lang.Long">
+        UPDATE general_ledger_details SET main_gl_id=#{gldId} WHERE main_gl_id=#{mainGlId};
+    </update>
+
+</mapper>

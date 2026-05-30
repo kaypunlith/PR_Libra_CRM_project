@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BOQMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        boqs.id AS id,
+        boqs.code AS code,
+        boqs.date AS `date`,
+        boqs.company_id AS companyId,
+        companies.name AS companyName,
+        customers.id AS organizationId,
+        customers.customer_code AS organizationCode,
+        customers.name AS organizationName,
+        customer_contacts.id AS organizationContactId,
+        customer_contacts.contact_name AS organizationContact,
+        boqs.note AS note,
+        boqs.total_cost AS totalCost,
+        boqs.total_price AS totalPrice,
+        boqs.status AS status,
+        CONCAT(approver.first_name, ' ', approver.last_name) AS approvedBy,
+        boqs.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM boqs
+        LEFT JOIN companies ON companies.id = boqs.company_id
+        LEFT JOIN customers ON customers.id = boqs.customer_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = boqs.customer_contact_id
+        LEFT JOIN users AS approver ON approver.id = boqs.approved_by
+        LEFT JOIN users AS creator ON creator.id = boqs.created_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE boqs.status >= 0
+        <if test="filter.searchText != null">
+            AND boqs.code LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.BOQ.BOQResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY boqs.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+       SELECT COUNT(boqs.id)
+       <include refid="BASE_FROM"/>
+       <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.BOQ.BOQResponse">
+       SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+        WHERE boqs.status >= 0 AND boqs.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.BOQ.BOQDetail" useGeneratedKeys="true" keyProperty="boq.id">
+        INSERT INTO boqs (
+            `date`,
+            company_id,
+            customer_id,
+            customer_contact_id,
+            note,
+            total_cost,
+            total_price,
+            created,
+            created_by,
+            status
+        ) VALUES (
+                 #{boq.date},
+                 #{boq.companyId},
+                 #{boq.organizationId},
+                 #{boq.organizationContactId},
+                 #{boq.note},
+                 #{boq.totalCost},
+                 #{boq.totalPrice},
+                 NOW(),
+                 #{boq.createdBy},
+                 1
+             )
+    </insert>
+
+    <select id="getListDetail" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.BOQ.BOQDetailResponse">
+        SELECT
+        boq_details.type_id AS `type`,
+        boq_details.id AS id,
+        boq_details.product_id AS productId,
+        CASE WHEN type_id IN (2,3)
+        THEN boq_details.description
+        ELSE products.name END AS productName,
+        products.code AS sku,
+        products.barcode AS upc,
+        (SELECT GROUP_CONCAT(name) FROM pgroups WHERE id IN (SELECT pgroup_id FROM product_pgroups WHERE product_id = products.id)) AS productBrand,
+        products.photo AS productPhotoUrl,
+        products.photo_name AS productPhotoName,
+        products.spec AS spec,
+        boq_details.qty AS qty,
+        IFNULL(products.small_val_uom,1) / IFNULL(boq_details.conversion, 1) AS conversion,
+        boq_details.qty_uom_id AS uomId,
+        uoms.name AS uomName,
+        uoms.abbr AS uomAbbr,
+        boq_details.unit_cost AS unitCost,
+        boq_details.total_cost AS totalCost,
+        boq_details.unit_price AS unitPrice,
+        boq_details.total_price AS totalPrice,
+        boq_details.remark AS remark
+        FROM boq_details
+        LEFT JOIN products ON products.id = boq_details.product_id
+        LEFT JOIN uoms ON uoms.id = boq_details.qty_uom_id
+        WHERE boq_details.boq_id = #{boqId}
+        ORDER BY boq_details.id ASC
+    </select>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.BOQ.BOQDetail">
+        INSERT INTO boq_details (
+            boq_id,
+            type_id,
+            product_id,
+            description,
+            qty,
+            conversion,
+            qty_uom_id,
+            unit_cost,
+            total_cost,
+            unit_price,
+            total_price,
+            remark
+        ) VALUES (
+                     #{detail.boqId},
+                     #{detail.type},
+                     #{detail.itemId},
+                     #{detail.itemName},
+                     #{detail.qty},
+                     #{detail.conversion},
+                     #{detail.uomId},
+                     #{detail.unitCost},
+                     #{detail.totalCost},
+                     #{detail.unitPrice},
+                     #{detail.totalPrice},
+                     #{detail.remark}
+                 )
+    </insert>
+
+    <update id="approve" parameterType="java.lang.Long">
+        UPDATE boqs SET
+        status = #{status},
+        <choose>
+            <when test="status == 2">
+                is_approve = 1,
+            </when>
+            <otherwise>
+                is_approve = 0,
+            </otherwise>
+        </choose>
+        approved = NOW(),
+        approved_by = #{userId}
+        WHERE id = #{id} AND status > 0;
+    </update>
+
+</mapper>

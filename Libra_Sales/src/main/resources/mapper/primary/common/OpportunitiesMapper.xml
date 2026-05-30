@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OpportunitiesMapper">
+
+    <resultMap id="OpportunityResponse" type="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityResponse">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="name" column="name"/>
+        <result property="amount" column="amount"/>
+        <result property="expectedDate" column="expectedDate"/>
+        <result property="pipelineId" column="pipelineId"/>
+        <result property="pipelineName" column="pipelineName"/>
+        <result property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="probability" column="probability"/>
+        <result property="sourceId" column="sourceId"/>
+        <result property="sourceName" column="sourceName"/>
+        <result property="organizationId" column="organizationId"/>
+        <result property="organizationName" column="organizationName"/>
+        <result property="responsibilityId" column="responsibilityId"/>
+        <result property="responsibilityName" column="responsibilityName"/>
+        <result property="divisionId" column="divisionId"/>
+        <result property="divisionName" column="divisionName"/>
+        <result property="contactId" column="contactId"/>
+        <result property="contactName" column="contactName"/>
+        <result property="quotationId" column="quotationId"/>
+        <result property="quotationNo" column="quotationNo"/>
+        <result property="salesOrderId" column="salesOrderId"/>
+        <result property="salesOrderNo" column="salesOrderNo"/>
+        <result property="description" column="description"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+</mapper>

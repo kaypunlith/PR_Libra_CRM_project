@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.EmployeesMapper">
+
+  <resultMap id="EmployeesResponse" type="com.ut.nlSystemAPi.model.response.EmployeesResponse">
+
+  </resultMap>
+
+  <resultMap id="ListEmployeesStatusRespon" type="com.ut.nlSystemAPi.model.response.ListEmployeesStatusRespon">
+
+  </resultMap>
+
+  <resultMap id="ListMaritalsStatusRespon" type="com.ut.nlSystemAPi.model.response.ListMaritalsStatusRespon">
+
+  </resultMap>
+
+  <resultMap id="EmployeeTypesResponse" type="com.ut.nlSystemAPi.model.response.EmployeeTypesResponse">
+
+  </resultMap>
+
+  <resultMap id="ApplyEmployeeTypesRequest" type="com.ut.nlSystemAPi.model.request.ApplyEmployeeTypesRequest">
+
+  </resultMap>
+
+  <resultMap id="EmployeeDocument" type="com.ut.nlSystemAPi.model.EmployeeDocument">
+
+  </resultMap>
+
+  <resultMap id="EmployeeDocumentResponse" type="com.ut.nlSystemAPi.model.response.EmployeeDocumentResponse">
+
+  </resultMap>
+
+  <resultMap id="Employee" type="com.ut.nlSystemAPi.model.Employee">
+
+  </resultMap>
+
+  <resultMap id="EmployeeList" type="com.ut.nlSystemAPi.model.response.EmployeeList">
+
+  </resultMap>
+
+  <resultMap id="ApplyEmployeesList" type="com.ut.nlSystemAPi.model.response.ApplyEmployeesList">
+
+  </resultMap>
+
+  <resultMap id="EmployeeTableShiftRequestResponse" type="com.ut.nlSystemAPi.model.response.EmployeeTableShiftRequestResponse">
+  </resultMap>
+
+  <resultMap id="EmployeePositionHistory" type="com.ut.nlSystemAPi.model.response.EmployeePositionHistory">
+
+  </resultMap>
+
+  <resultMap id="EmployeeDepartmentHistory" type="com.ut.nlSystemAPi.model.response.EmployeeDepartmentHistory">
+
+  </resultMap>
+
+  <resultMap id="EmployeeStatusHistory" type="com.ut.nlSystemAPi.model.response.EmployeeStatusHistory">
+
+  </resultMap>
+
+  <resultMap id="EmployeeSalaryHistory" type="com.ut.nlSystemAPi.model.response.EmployeeSalaryHistory">
+
+  </resultMap>
+
+  <resultMap id="EmployeesIncreaseSalary" type="com.ut.nlSystemAPi.model.EmployeesIncreaseSalary">
+
+  </resultMap>
+
+  <resultMap id="EmployeeAchievement" type="com.ut.nlSystemAPi.model.EmployeeAchievement">
+
+  </resultMap>
+
+  <resultMap id="EmployeeMistake" type="com.ut.nlSystemAPi.model.EmployeeMistake">
+
+  </resultMap>
+
+  <!-- * employee workshift response -->
+  <resultMap id="EmployeeWorkshiftResponse" type="com.ut.nlSystemAPi.model.response.EmployeeWorkshiftResponse">
+
+  </resultMap>
+
+  <!-- * employee second workshift response -->
+  <resultMap id="EmployeeSecondWorkshiftResponse" type="com.ut.nlSystemAPi.model.response.EmployeeSecondWorkshiftResponse">
+
+  </resultMap>
+
+  <!-- * employee working location response -->
+  <resultMap id="EmployeeWorkingLocationResponse" type="com.ut.nlSystemAPi.model.response.EmployeeWorkingLocationResponse">
+
+  </resultMap>
+
+  <resultMap id="EmployeeConnectedDeviceResponse" type="com.ut.nlSystemAPi.model.response.EmployeeConnectedDeviceResponse">
+
+  </resultMap>
+
+</mapper>

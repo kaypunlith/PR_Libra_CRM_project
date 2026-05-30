@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InspectionMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    inspection
+    .
+    id
+    AS id,
+    inspection.group_id AS groupId,
+    inspection.department_id AS departmentId,
+    departments.province_id AS provinceId,
+    inspection.employee_id AS employeeId,
+    employees.name AS employeeName,
+    employees.position_id AS positionId,
+    positions.name AS positionName,
+    employees.photo AS profile,
+    employees.code AS employeeCode,
+    inspection.assessment_date AS assessmentDate,
+    inspection.assessment_note AS assessmentNote,
+    creator.full_name AS createdBy,
+    egroups.name AS groupName,
+    departments.name AS departmentName,
+    provinces.name AS provinceName,
+    inspection.created AS createdDate,
+    IFNULL(inspection.service_percentage, 0) AS servicePercentage,
+    IFNULL(inspection.enviroment_percentage, 0) AS environmentPercentage,
+    IFNULL(inspection.product_percentage, 0) AS productPercentage,
+    IFNULL(inspection.service_score, 0) AS serviceTotalScore,
+    IFNULL(inspection.enviroment_score, 0) AS environtmentTotalScore,
+    IFNULL(inspection.product_score, 0) AS productTotalScore
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM inspection
+    LEFT JOIN employees ON employees.id = inspection.employee_id
+    LEFT JOIN positions ON positions.id = employees.position_id
+    LEFT JOIN departments ON departments.id = inspection.department_id
+    LEFT JOIN egroups ON egroups.id = inspection.group_id
+    LEFT JOIN provinces ON provinces.id = departments.province_id
+    LEFT JOIN users AS creator ON creator.id = inspection.created_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE inspection.is_active = 1
+    <if test="filter.startDate != null and filter.toDate != null and filter.startDate != '' and filter.toDate != ''">
+      AND DATE(inspection.created) >= #{filter.startDate} AND DATE(inspection.created) &lt;= #{filter.toDate}
+    </if>
+    <if test="filter.groupId != null">
+      AND inspection.group_id  = #{filter.groupId}
+    </if>
+    <if test="filter.departmentId != null">
+      AND inspection.department_id = #{filter.departmentId}
+    </if>
+    <if test="filter.provinceId != null">
+      AND inspection.department_id IN (SELECT `id` FROM `departments` WHERE `is_active` = 1 AND `province_id` = #{filter.provinceId})
+    </if>
+    <if test="filter.year != null">
+      AND YEAR(inspection.created) = #{filter.year}
+    </if>
+  </sql>
+
+  <select id="getListInspection" parameterType="com.ut.nlSystemAPi.model.filter.InspectionFilter" resultMap="InspectionListResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY inspection.id DESC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="count"  resultType="int">
+    SELECT count(inspection.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getListInspectionGroup" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="InspectionGroupResponse">
+    SELECT
+      id AS id,
+      name AS name,
+      shortcuts AS shortcuts,
+      percentage AS percentage
+    FROM inspection_group
+    WHERE is_active = 1;
+  </select>
+
+  <select id="getListProvince" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ProvinceResponse">
+    SELECT
+      id AS id,
+      name AS name
+    FROM provinces
+    WHERE is_active = 1;
+  </select>
+
+  <select id="getListQuater" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="QuarterResponse">
+    SELECT
+      quarters.id AS id,
+      quarters.name AS name,
+      quarter_months.start_date AS startDate,
+      quarter_months.to_date AS toDate
+    FROM quarters
+           INNER JOIN quarter_months ON quarter_months.quarter_id = quarters.id
+    WHERE quarters.is_active = 1;
+  </select>
+
+  <select id="getListSubInspection" parameterType="java.lang.Long" resultMap="SubInspectionResponse">
+    SELECT
+      id AS id,
+      name AS name,
+      inspection_group_id AS inspectionGroupId,
+      score AS score,
+      IFNULL(SUM(full_score),0) AS fullScore,
+      IFNULL(percentage,0) AS percentage
+    FROM sub_inspection
+    WHERE is_active = 1 AND inspection_group_id = #{id}
+    GROUP BY id;
+  </select>
+
+  <select id="getListSubSubInspection" parameterType="java.lang.Long" resultMap="SubSubInspectionResponse">
+    SELECT id                AS id,
+           sub_inspection_id AS subInspectionGroupId,
+           name              AS name
+    FROM sub_sub_inspection
+    WHERE is_active = 1
+      AND sub_inspection_id = #{id};
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Inspection" useGeneratedKeys="true" keyProperty="inspection.id">
+    INSERT INTO inspection (
+      group_id,
+      employee_id,
+      department_id,
+      province_id,
+      assessment_date,
+      assessment_note,
+      created,
+      created_by,
+      is_active,
+      modified,
+      modified_by
+    ) VALUES (
+    #{inspection.groupId},
+    #{inspection.employeeId},
+    #{inspection.departmentId},
+    #{inspection.provinceId},
+    #{inspection.assessmentDate},
+    #{inspection.assessmentNote},
+    NOW(),
+    #{inspection.createdBy},
+    1,
+    <if test="inspection.modifiedBy != null">NOW()</if><if test="inspection.modifiedBy == null">NULL</if>,
+    #{inspection.modifiedBy}
+    );
+  </insert>
+
+  <update id="updateScores" parameterType="com.ut.nlSystemAPi.model.request.Inspection.InspectionScoreUpdate">
+    UPDATE inspection SET
+    <if test="inspectionScoreUpdate.groupId != null">group_id  = #{inspectionScoreUpdate.groupId},</if>
+    <if test="inspectionScoreUpdate.employeeId != null">employee_id = #{inspectionScoreUpdate.employeeId},</if>
+    <if test="inspectionScoreUpdate.departmentId != null">department_id = #{inspectionScoreUpdate.departmentId},</if>
+    <if test="inspectionScoreUpdate.provinceId != null">province_id = #{inspectionScoreUpdate.provinceId},</if>
+    <if test="inspectionScoreUpdate.assessmentDate != null">assessment_date = #{inspectionScoreUpdate.assessmentDate},</if>
+    <if test="inspectionScoreUpdate.assessmentNote != null">assessment_note = #{inspectionScoreUpdate.assessmentNote},</if>
+    <if test="inspectionScoreUpdate.servicePercentage != null">service_percentage = #{inspectionScoreUpdate.servicePercentage},</if>
+    <if test="inspectionScoreUpdate.enviromentPercentage != null">enviroment_percentage = #{inspectionScoreUpdate.enviromentPercentage},</if>
+    <if test="inspectionScoreUpdate.productPercentage != null">product_percentage = #{inspectionScoreUpdate.productPercentage},</if>
+    <if test="inspectionScoreUpdate.serviceScore != null">service_score = #{inspectionScoreUpdate.serviceScore},</if>
+    <if test="inspectionScoreUpdate.enviromentScore != null">enviroment_score = #{inspectionScoreUpdate.enviromentScore},</if>
+    <if test="inspectionScoreUpdate.productScore != null">product_score = #{inspectionScoreUpdate.productScore},</if>
+    modified = NOW()
+    WHERE id = #{inspectionScoreUpdate.id}
+  </update>
+
+  <insert id="insertSubInspection" parameterType="com.ut.nlSystemAPi.model.request.Inspection.SubInspectionRequest" useGeneratedKeys="true" keyProperty="subInspectionRequest.id">
+    INSERT INTO sub_inspection_form (
+      inspection_id,
+      sub_inspection_id,
+      total_score,
+      percentage,
+      is_active
+    ) VALUES (
+               #{subInspectionRequest.inspectionId},
+               #{subInspectionRequest.subInspectionId},
+               #{subInspectionRequest.totalScore},
+               #{subInspectionRequest.percentage},
+               1
+             );
+  </insert>
+
+  <update id="deleteInspectionScore" parameterType="java.lang.Long">
+    DELETE FROM `inspection_score` WHERE `is_active` = 1 AND `inspection_id` = #{inspectionId};
+  </update>
+
+  <insert id="insertInspectoinDetail" parameterType="com.ut.nlSystemAPi.model.InspectionScore" keyProperty="inspectionScore.id">
+    INSERT INTO inspection_score (
+      inspection_id,
+      sub_sub_inspection_id,
+      score,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+    #{inspectionScore.inspectionId},
+    #{inspectionScore.subSubInspectionId},
+    #{inspectionScore.score},
+    NOW(),
+    #{inspectionScore.createdBy},
+    1
+    );
+  </insert>
+
+  <select id="sumInspectoinScroeDetail" resultType="java.lang.Float">
+    SELECT IFNULL(SUM(score),0) FROM inspection_score WHERE `is_active` = 1 AND `inspection_id` = #{inspectionId} AND `sub_sub_inspection_id`
+      IN(SELECT `id` FROM `sub_sub_inspection` WHERE `is_active` = 1 AND `sub_inspection_id` = #{subInspectionId})
+  </select>
+
+  <select id="standartScore" resultType="java.lang.Long">
+    SELECT IFNULL(COUNT(`id`),0) * 5 FROM `sub_sub_inspection` WHERE `is_active` = 1 AND `sub_inspection_id` = #{subInspectionId};
+  </select>
+
+  <select id="getScoreDetailById" resultType="java.lang.Long">
+    SELECT IFNULL(SUM(`score`),0) FROM `inspection_score` WHERE `is_active` = 1 AND `inspection_id` = #{inspectionId} AND `sub_sub_inspection_id` = #{subSubInspectionId};
+  </select>
+
+  <select id="getSubInspectionPercentage" resultType="java.lang.Long">
+    SELECT IFNULL(SUM(`percentage`),0) FROM `inspection_score` WHERE `is_active` = 1 AND `inspection_id` = #{inspectionId} AND `sub_sub_inspection_id` = #{subSubInspectionId};
+  </select>
+
+  <select id="getInspectionOne" parameterType="java.lang.Long" resultMap="InspectionFindResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST"/>,
+      (SELECT `full_score` FROM `inspection_group` WHERE `is_active` = 1 AND `id` = 1 LIMIT 1) AS serviceFullScore,
+      (SELECT `full_score` FROM `inspection_group` WHERE `is_active` = 1 AND `id` = 2 LIMIT 1) AS environtmentFullScore,
+      (SELECT `full_score` FROM `inspection_group` WHERE `is_active` = 1 AND `id` = 3 LIMIT 1) AS productFullScore
+    <include refid="BASE_FROM"/>
+    WHERE inspection.is_active = 1 AND inspection.id = #{id}
+  </select>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE inspection SET
+           is_active = 2,
+           modified = NOW(),
+           modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <select id="listSummaryInspection" parameterType="com.ut.nlSystemAPi.model.filter.InspectionFilter" resultMap="InspectionSummaryResponse">
+    SELECT
+     COUNT(inspection.id) as qc,
+    egroups.name AS groupName,
+    departments.name AS departmentName,
+    provinces.name AS provinceName,
+    IFNULL(IFNULL(SUM(inspection.service_percentage),0) / COUNT(inspection.id),0) AS servicePercentage,
+    IFNULL(IFNULL(SUM(inspection.enviroment_percentage),0) / COUNT(inspection.id),0) AS environtmentPercentage,
+    IFNULL(IFNULL(SUM(inspection.product_percentage),0) / COUNT(inspection.id),0) AS productPercentage,
+    IFNULL(IFNULL(SUM(inspection.service_percentage + inspection.enviroment_percentage + inspection.product_percentage),0) / COUNT(inspection.id),0) AS totalPercentage,
+    IFNULL(IFNULL(SUM(inspection.service_score + inspection.enviroment_score + inspection.product_score),0) / COUNT(inspection.id),0) AS totalScore,
+    (CASE
+    WHEN IFNULL(IFNULL(SUM(inspection.service_percentage + inspection.enviroment_percentage + inspection.product_percentage),0) / COUNT(inspection.id),0) > 94 THEN 'A'
+    WHEN IFNULL(IFNULL(SUM(inspection.service_percentage + inspection.enviroment_percentage + inspection.product_percentage),0) / COUNT(inspection.id),0) >= 90 THEN 'B'
+    WHEN IFNULL(IFNULL(SUM(inspection.service_percentage + inspection.enviroment_percentage + inspection.product_percentage),0) / COUNT(inspection.id),0) >= 80 THEN 'C'
+    WHEN IFNULL(IFNULL(SUM(inspection.service_percentage + inspection.enviroment_percentage + inspection.product_percentage),0) / COUNT(inspection.id),0) >= 70 THEN 'D'
+    WHEN IFNULL(IFNULL(SUM(inspection.service_percentage + inspection.enviroment_percentage + inspection.product_percentage),0) / COUNT(inspection.id),0) &lt; 70 THEN 'F'
+    END) AS rank
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    GROUP BY inspection.department_id
+    ORDER BY inspection.department_id ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+</mapper>

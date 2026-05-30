@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TelegramNotificationMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    telegram_groups.id AS id,
+    telegram_groups.name AS `name`,
+    telegram_groups.chat_id AS chatId,
+    CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+    CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy,
+    telegram_groups.created AS created,
+    telegram_groups.modified AS modified
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM telegram_groups
+    LEFT JOIN users AS creator ON creator.id = telegram_groups.created_by
+    LEFT JOIN users AS modifier ON modifier.id = telegram_groups.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE telegram_groups.is_active = 1
+    <if test="filter.searchText != null and filter.searchText != ''">
+      AND telegram_groups.name LIKE CONCAT('%', #{filter.searchText},'%')
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="TelegramNotificationResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null and filter.orderBy != ''">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        telegram_groups.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TelegramNotificationResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE telegram_groups.is_active = 1 AND telegram_groups.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM telegram_groups
+    WHERE is_active = 1 AND chat_id = #{chatId}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(telegram_groups.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.TelegramNotification" useGeneratedKeys="true" keyProperty="telegramNotification.id">
+    INSERT INTO telegram_groups (
+      name,
+      chat_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{telegramNotification.name},
+      #{telegramNotification.chatId},
+      NOW(),
+      #{telegramNotification.createdBy},
+       1
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.TelegramNotification">
+    UPDATE telegram_groups SET
+    <if test="telegramNotification.name != null">`name` = #{telegramNotification.name},</if>
+    <if test="telegramNotification.chatId != null">`chat_id` = #{telegramNotification.chatId},</if>
+    modified = NOW(),
+    modified_by = #{telegramNotification.modifiedBy}
+    WHERE id = #{telegramNotification.id} AND is_active = 1
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE telegram_groups SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <update id="updateDepartment" parameterType="java.lang.Long">
+    UPDATE departments SET
+    group_id = #{telegramGroupId}
+    WHERE id = #{id} AND is_active = 1 AND group_id IS NULL
+  </update>
+
+  <delete id="deleteDepartment" parameterType="java.lang.Long">
+    UPDATE departments SET
+    group_id = NULL
+    WHERE group_id = #{id} AND is_active = 1
+  </delete>
+
+  <select id="getDepartment" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.DropdownResponse">
+    SELECT
+      id AS id,
+      name AS name
+    FROM departments
+    WHERE group_id = #{id} AND is_active = 1
+  </select>
+
+</mapper>

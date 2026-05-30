@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportMapper">
+
+  <resultMap id="DepositRequestReport" type="com.ut.nlSystemAPi.model.response.DepositRequestReport">
+
+  </resultMap>
+
+  <resultMap id="DepositReportListYear" type="com.ut.nlSystemAPi.model.response.DepositReportListYear">
+
+  </resultMap>
+
+  <resultMap id="ProFundListGroup" type="com.ut.nlSystemAPi.model.response.ProFundListGroup">
+
+  </resultMap>
+
+  <resultMap id="ProFundListDepartment" type="com.ut.nlSystemAPi.model.response.ProFundListDepartment">
+
+  </resultMap>
+
+  <resultMap id="ProvidentFundReport" type="com.ut.nlSystemAPi.model.response.ProvidentFundReport">
+
+  </resultMap>
+
+  <resultMap id="ProFundYearList" type="com.ut.nlSystemAPi.model.response.ProFundYearList">
+
+  </resultMap>
+
+  <resultMap id="ProFundTotalYearList" type="com.ut.nlSystemAPi.model.response.ProFundTotalYearList">
+
+  </resultMap>
+
+  <resultMap id="ReportDeposit" type="com.ut.nlSystemAPi.model.response.ReportDeposit">
+
+  </resultMap>
+
+  <resultMap id="ReportDepositRequest" type="com.ut.nlSystemAPi.model.response.ReportDepositRequest">
+
+  </resultMap>
+
+  <resultMap id="ReportDepositMonthly" type="com.ut.nlSystemAPi.model.response.ReportDepositMonthly">
+
+  </resultMap>
+
+  <resultMap id="AnnualLeaveResponse" type="com.ut.nlSystemAPi.model.response.AnnualLeaveResponse">
+
+  </resultMap>
+
+  <resultMap id="AttendanceResponse" type="com.ut.nlSystemAPi.model.response.AttendanceResponse">
+
+  </resultMap>
+  
+</mapper>

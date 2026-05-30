@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SectionMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        location_groups.id AS warehouseId,
+    location_groups.name AS warehouseName,
+    locations.id AS id,
+    locations.name AS `name`,
+    locations.is_for_sale AS isForSale,
+    locations.is_active AS isActive,
+    locations.created AS created,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    locations.modified AS modified,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM locations
+    LEFT JOIN location_groups ON location_groups.id = locations.location_group_id
+    LEFT JOIN users AS users1 ON users1.id = locations.created_by
+    LEFT JOIN users AS users2 ON users2.id = locations.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE locations.is_active = 1
+        <if test="filter.searchText != null"> AND locations.name LIKE CONCAT("%", #{filter.searchText}, "%") OR location_groups.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="SectionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                locations.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(locations.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="SectionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE locations.is_active = 1 AND locations.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM locations
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Section" useGeneratedKeys="true" keyProperty="section.id">
+        INSERT INTO locations (
+            `name`,
+            location_group_id,
+            created,
+            created_by,
+            is_for_sale,
+            is_active
+        ) VALUES (
+                     #{section.locationName},
+                     #{section.warehouseId},
+                     NOW(),
+                     #{section.createdBy},
+                     #{section.isForSale},
+                     #{section.isActive}
+                 )
+    </insert>
+
+    <insert id="insertInventory" parameterType="java.lang.Long">
+        CREATE TABLE `${locationId}_inventories` (
+                                                     `id` bigint(20) NOT NULL,
+                                                     `cycle_product_id` bigint(20) DEFAULT NULL,
+                                                     `cycle_product_detail_id` bigint(20) DEFAULT NULL,
+                                                     `sales_order_id` bigint(20) DEFAULT NULL,
+                                                     `point_of_sales_id` bigint(20) DEFAULT NULL,
+                                                     `credit_memo_id` bigint(20) DEFAULT NULL,
+                                                     `purchase_order_id` bigint(20) DEFAULT NULL,
+                                                     `purchase_return_id` bigint(20) DEFAULT NULL,
+                                                     `transfer_order_id` bigint(20) DEFAULT NULL,
+                                                     `type` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+                                                     `customer_id` int(11) DEFAULT NULL,
+                                                     `vendor_id` int(11) DEFAULT NULL,
+                                                     `product_id` int(11) NOT NULL,
+                                                     `location_id` int(11) NOT NULL,
+                                                     `location_group_id` int(11) NOT NULL,
+                                                     `qty` int(11) NOT NULL,
+                                                     `unit_cost` decimal(15,3) NOT NULL,
+                                                     `date` date NOT NULL,
+                                                     `lots_number` varchar(50) COLLATE utf8_unicode_ci DEFAULT NULL,
+                                                     `date_expired` date NOT NULL,
+                                                     `created` datetime NOT NULL,
+                                                     `created_by` bigint(11) NOT NULL,
+                                                     `modified` datetime NOT NULL,
+                                                     `modified_by` bigint(11) NOT NULL,
+                                                     `is_active` tinyint(4) NOT NULL DEFAULT '1'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${locationId}_inventories`
+            ADD PRIMARY KEY (`id`),
+    ADD KEY `product_id` (`product_id`),
+    ADD KEY `location_id` (`location_id`),
+    ADD KEY `lots_number` (`lots_number`),
+    ADD KEY `location_group_id` (`location_group_id`);
+
+        ALTER TABLE `${locationId}_inventories` CHANGE `id` `id` BIGINT(20) NOT NULL AUTO_INCREMENT;
+    </insert>
+
+    <insert id="insertInventoryTotal" parameterType="java.lang.Long">
+        CREATE TABLE `${locationId}_inventory_totals` (
+                                                          `product_id` int(11) NOT NULL DEFAULT '0',
+                                                          `location_id` int(11) NOT NULL DEFAULT '0',
+                                                          `lots_number` varchar(50) COLLATE utf8_unicode_ci NOT NULL DEFAULT '0',
+                                                          `expired_date` date NOT NULL,
+                                                          `total_qty` decimal(15,3) DEFAULT '0.000',
+                                                          `total_order` decimal(15,3) DEFAULT '0.000'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${locationId}_inventory_totals`
+            ADD PRIMARY KEY (`product_id`,`location_id`,`lots_number`,`expired_date`),
+  ADD KEY `index_keys` (`product_id`,`location_id`,`lots_number`,`expired_date`);
+    </insert>
+
+    <insert id="insertInventoryTotalDetail" parameterType="java.lang.Long">
+        CREATE TABLE `${locationId}_inventory_total_details` (
+                                                                 `product_id` int(11) NOT NULL DEFAULT '0',
+                                                                 `location_id` int(11) NOT NULL DEFAULT '0',
+                                                                 `lots_number` varchar(50) COLLATE utf8_unicode_ci NOT NULL DEFAULT '0',
+                                                                 `expired_date` date NOT NULL,
+                                                                 `total_cycle` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_so` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_pos` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_pb` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_pbc` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_cm` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_to_in` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_to_out` decimal(15,3) DEFAULT '0.000',
+                                                                 `total_order` decimal(15,3) DEFAULT '0.000',
+                                                                 `date` date NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+        ALTER TABLE `${locationId}_inventory_total_details`
+            ADD PRIMARY KEY (`product_id`,`location_id`,`lots_number`,`expired_date`,`date`),
+  ADD KEY `index_keys` (`product_id`,`location_id`,`lots_number`,`expired_date`,`date`);
+    </insert>
+
+    <select id="checkTableExists" parameterType="String" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = #{tableName}
+    </select>
+
+    <insert id="insertUserLocations">
+        INSERT INTO user_locations (user_id, location_id)
+        SELECT user_id, #{locationId}
+        FROM user_location_groups
+        WHERE location_group_id = #{warehouseId}
+    </insert>
+
+    <delete id="deleteUserLocations" parameterType="java.lang.Long">
+        DELETE FROM user_locations WHERE location_id = #{locationId}
+    </delete>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.Section">
+        UPDATE locations SET
+        <if test="section.warehouseId != null">`location_group_id` = #{section.warehouseId},</if>
+        <if test="section.locationName != null">`name` = #{section.locationName},</if>
+        <if test="section.isForSale != null">`is_for_sale` = #{section.isForSale},</if>
+        modified = NOW(),
+        modified_by = #{section.modifiedBy}
+        WHERE id = #{section.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE locations SET
+         is_active = 2,
+         modified = NOW(),
+         modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+</mapper>

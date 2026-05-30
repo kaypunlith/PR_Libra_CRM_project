@@ -1,0 +1,2533 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DashboardAccountingMapper">
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ProfitAndLostDashboardResponse">
+        SELECT
+            gld.branch_id AS branchId,
+            SUM(gld.debit) AS debit,
+            SUM(gld.credit) AS credit,
+            gl.`date` AS date,
+            gld.chart_account_id AS chartAccountId,
+            gld.company_id AS companyId,
+            gld.location_id AS locationId,
+            gld.customer_id AS customerId,
+            gld.vendor_id AS vendorId,
+            gld.employee_id AS employeeId,
+            gld.other_id AS otherId,
+            gld.class_id AS classId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_approve = 1
+          AND gl.is_active = 1
+          AND IFNULL(gl.is_retained_earnings,0) = 0
+          AND gld.company_id IN (
+              SELECT company_id FROM user_companies WHERE user_id = #{filter.userId}
+          )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND gl.`date` &gt;= #{filter.dateFrom}
+            AND gl.`date` &lt;= #{filter.dateTo}
+        </if>
+        GROUP BY gl.`date`, gld.chart_account_id, gld.company_id, gld.location_id, gld.customer_id, gld.vendor_id, gld.employee_id, gld.other_id, gld.class_id
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultType="java.lang.Long">
+        SELECT COUNT( gl.id)
+
+         FROM general_ledgers gl
+
+    </select>
+
+    <select id="createTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        CREATE TABLE IF NOT EXISTS `${tableName}` (
+        `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `branch_id` INT(11) DEFAULT NULL,
+            `date` DATE DEFAULT NULL,
+            `chart_account_id` INT(11) DEFAULT NULL,
+            `company_id` INT(11) DEFAULT NULL,
+            `location_id` INT(11) DEFAULT NULL,
+            `debit` DOUBLE DEFAULT NULL,
+            `credit` DOUBLE DEFAULT NULL,
+            `customer_id` BIGINT(20) DEFAULT NULL,
+            `vendor_id` BIGINT(20) DEFAULT NULL,
+            `employee_id` BIGINT(20) DEFAULT NULL,
+            `other_id` BIGINT(20) DEFAULT NULL,
+            `class_id` BIGINT(20) DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `chart_account_id` (`chart_account_id`),
+            KEY `company_id` (`company_id`),
+            KEY `location_id` (`location_id`),
+            KEY `date` (`date`)
+            ) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+    </select>
+
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.ProfitLossDashboardReport" useGeneratedKeys="true" keyProperty="profitLossDashboardReport.id">
+        INSERT INTO ${tableName} (
+            `date`,
+            `chart_account_id`,
+            `company_id`,
+            `location_id`,
+            `debit`,
+            `credit`,
+            `customer_id`,
+            `vendor_id`,
+            `employee_id`,
+            `other_id`,
+            `class_id`
+        ) VALUES (
+                     #{profitLossDashboardReport.date},
+                     #{profitLossDashboardReport.chartAccountId},
+                     #{profitLossDashboardReport.companyId},
+                     #{profitLossDashboardReport.locationId},
+                     #{profitLossDashboardReport.debit},
+                     #{profitLossDashboardReport.credit},
+                     #{profitLossDashboardReport.customerId},
+                     #{profitLossDashboardReport.vendorId},
+                     #{profitLossDashboardReport.employeeId},
+                     #{profitLossDashboardReport.otherId},
+                     #{profitLossDashboardReport.classId}
+                 )
+    </insert>
+
+    <select id="getListProfitAndLost" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ProfitAndLostResponse">
+        SELECT
+            MONTH(m.month) AS month,
+            COALESCE(expense.totalExpense, 0) AS totalExpenses,
+            (COALESCE(revenue.totalRevenue, 0) - COALESCE(cogs.costGoodsSold, 0)) AS grossProfit,
+            (COALESCE(revenue.totalRevenue, 0) - COALESCE(cogs.costGoodsSold, 0) - COALESCE(expense.totalExpense, 0)) AS profitLoss
+        FROM (
+            SELECT DATE_FORMAT(gl.date, '%Y-%m-01') AS month
+            FROM ${tableName} gl
+            INNER JOIN chart_accounts ca ON gl.chart_account_id = ca.id
+            INNER JOIN chart_account_groups g ON ca.chart_account_group_id = g.id
+            INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+            WHERE g.is_active = 1
+              AND t.name IN ('Income','Other Income','Cost of Goods Sold','Expense')
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND gl.date &gt;= #{filter.dateFrom}
+                AND gl.date &lt;= #{filter.dateTo}
+            </if>
+            GROUP BY YEAR(gl.date), MONTH(gl.date)
+        ) AS m
+        LEFT JOIN (
+            SELECT
+                DATE_FORMAT(gl.date, '%Y-%m-01') AS month,
+                SUM(IFNULL(gl.credit, 0)) - SUM(IFNULL(gl.debit, 0)) AS totalRevenue
+            FROM ${tableName} gl
+            INNER JOIN chart_accounts ca ON gl.chart_account_id = ca.id
+            INNER JOIN chart_account_groups g ON ca.chart_account_group_id = g.id
+            INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+            WHERE g.is_active = 1
+              AND t.name IN ('Income','Other Income')
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND gl.date &gt;= #{filter.dateFrom}
+                AND gl.date &lt;= #{filter.dateTo}
+            </if>
+            GROUP BY YEAR(gl.date), MONTH(gl.date)
+        ) AS revenue ON m.month = revenue.month
+        LEFT JOIN (
+            SELECT
+                DATE_FORMAT(gl.date, '%Y-%m-01') AS month,
+                SUM(IFNULL(gl.debit, 0)) - SUM(IFNULL(gl.credit, 0)) AS costGoodsSold
+            FROM ${tableName} gl
+            INNER JOIN chart_accounts ca ON gl.chart_account_id = ca.id
+            INNER JOIN chart_account_groups g ON ca.chart_account_group_id = g.id
+            INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+            WHERE g.is_active = 1
+              AND t.name IN ('Cost of Goods Sold')
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND gl.date &gt;= #{filter.dateFrom}
+                AND gl.date &lt;= #{filter.dateTo}
+            </if>
+            GROUP BY YEAR(gl.date), MONTH(gl.date)
+        ) AS cogs ON m.month = cogs.month
+        LEFT JOIN (
+            SELECT
+                DATE_FORMAT(gl.date, '%Y-%m-01') AS month,
+                SUM(IFNULL(gl.debit, 0)) - SUM(IFNULL(gl.credit, 0)) AS totalExpense
+            FROM ${tableName} gl
+            INNER JOIN chart_accounts ca ON gl.chart_account_id = ca.id
+            INNER JOIN chart_account_groups g ON ca.chart_account_group_id = g.id
+            INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+            WHERE g.is_active = 1
+              AND t.name IN ('Expense')
+              AND g.is_depreciation NOT IN (2, 3)
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND gl.date &gt;= #{filter.dateFrom}
+                AND gl.date &lt;= #{filter.dateTo}
+            </if>
+            GROUP BY YEAR(gl.date), MONTH(gl.date)
+        ) AS expense ON m.month = expense.month
+        ORDER BY m.month
+    </select>
+
+
+    <select id="getListRevenue" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="RevenueDashboardResponse">
+        SELECT
+            ca.id AS id,
+            CONCAT(ca.account_codes, ' - ', ca.account_description) AS name,
+            COALESCE(SUM(gld.credit) - SUM(gld.debit), 0) AS amount
+        FROM chart_accounts ca
+            INNER JOIN chart_account_groups g ON ca.chart_account_group_id = g.id
+            INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+            INNER JOIN general_ledger_details gld ON gld.chart_account_id = ca.id
+            INNER JOIN general_ledgers gl ON gl.id = gld.general_ledger_id
+        WHERE ca.is_active = 1
+          AND g.is_active = 1
+          AND t.name IN ('Income','Other Income')
+          AND gl.is_active = 1
+          AND gl.is_approve = 1
+          AND IFNULL(gl.is_retained_earnings,0) = 0
+          AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+          AND gld.branch_id IN
+          <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+            #{branchId}
+          </foreach>
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+          AND gl.date &gt;= #{filter.dateFrom}
+          AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        GROUP BY ca.id, ca.account_codes, ca.account_description
+        HAVING amount > 0
+        ORDER BY ca.account_codes
+    </select>
+    <select id="getListExpenditure" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ExpenditureDashboardResponse">
+        SELECT
+            g.id AS id,
+            g.name AS name,
+            IFNULL(
+                    (
+                        SELECT SUM(debit)
+                        FROM general_ledger_details AS glb
+                        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+                            AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                                AND glb.branch_id IN
+                                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                                    #{branchId}
+                                </foreach>
+                            </if>
+                            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                                AND (SELECT DATE(date) FROM general_ledgers WHERE id = general_ledger_id) >= DATE(#{filter.dateFrom})
+                                AND (SELECT DATE(date) FROM general_ledgers WHERE id = general_ledger_id)  &lt;= DATE(#{filter.dateTo})
+                                AND (SELECT YEAR(date) FROM general_ledgers WHERE id = general_ledger_id) >= YEAR(#{filter.dateFrom})
+                                AND (SELECT YEAR(date) FROM general_ledgers WHERE id = general_ledger_id)  &lt;= YEAR(#{filter.dateTo})
+                            </if>
+                    ) + (
+                        SELECT SUM(credit)
+                        FROM general_ledger_details AS glb
+                        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+                            AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                                AND glb.branch_id IN
+                                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                                    #{branchId}
+                                </foreach>
+                            </if>
+                            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                                AND (SELECT DATE(date) FROM general_ledgers WHERE id = general_ledger_id) >= DATE(#{filter.dateFrom})
+                                AND (SELECT DATE(date) FROM general_ledgers WHERE id = general_ledger_id)  &lt;= DATE(#{filter.dateTo})
+                                AND (SELECT YEAR(date) FROM general_ledgers WHERE id = general_ledger_id) >= YEAR(#{filter.dateFrom})
+                                AND (SELECT YEAR(date) FROM general_ledgers WHERE id = general_ledger_id)  &lt;= YEAR(#{filter.dateTo})
+                            </if>
+                    ),
+                    0
+            ) AS amount
+        FROM chart_account_groups g
+            INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense', 'Other Expense') AND g.is_depreciation NOT IN (2,3)
+        HAVING amount > 0
+        ORDER BY t.id
+    </select>
+
+
+    <select id="getListCustomerSegmentation" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="CustomerSegmentDashboardResponse">
+        SELECT
+            grouped.cgroup_id AS id,
+            CASE WHEN cgroups.name IS NULL THEN 'Other' ELSE cgroups.name END AS groupName,
+            COUNT(*) * 1.0 AS totalInvoice,
+            SUM(grouped.customer_total) AS totalAmount
+        FROM (
+            SELECT
+                totals.customer_id,
+                totals.customer_total,
+                customer_group.cgroup_id
+            FROM (
+                SELECT
+                    records.customer_id,
+                    SUM(records.total_amount) AS customer_total
+                FROM (
+                    SELECT
+                        invoice.customer_id,
+                        (invoice.total_amount - IFNULL(invoice.discount, 0) - IFNULL(invoice.total_deposit, 0)) AS total_amount
+                    FROM sales_orders AS invoice
+                    WHERE invoice.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                      AND invoice.status > 0
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND DATE(invoice.order_date) >= DATE(#{filter.dateFrom})
+                        AND DATE(invoice.order_date) &lt;= DATE(#{filter.dateTo})
+                    </if>
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND invoice.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    GROUP BY invoice.id, invoice.customer_id
+                    UNION ALL
+                    SELECT
+                        invoice.customer_id,
+                        (invoice.total_amount - IFNULL(invoice.discount, 0)) * -1 AS total_amount
+                    FROM credit_memos AS invoice
+                    WHERE invoice.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                      AND invoice.status > 0
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND DATE(invoice.order_date) >= DATE(#{filter.dateFrom})
+                        AND DATE(invoice.order_date) &lt;= DATE(#{filter.dateTo})
+                    </if>
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND invoice.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    GROUP BY invoice.id, invoice.customer_id
+                ) AS records
+                GROUP BY records.customer_id
+            ) AS totals
+            LEFT JOIN (
+                SELECT
+                    customer_id,
+                    MIN(cgroup_id) AS cgroup_id
+                FROM customer_cgroups
+                GROUP BY customer_id
+            ) AS customer_group ON customer_group.customer_id = totals.customer_id
+        ) AS grouped
+        LEFT JOIN cgroups ON grouped.cgroup_id = cgroups.id
+        GROUP BY grouped.cgroup_id, groupName
+        HAVING SUM(grouped.customer_total) > 0
+        ORDER BY totalAmount DESC
+    </select>
+
+    <select id="getListSaleTopCustomer" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="SaleTopCustomerDashboardResponse">
+        SELECT
+            t.customerId AS customerId,
+            (SELECT name FROM customers WHERE id = t.customerId) AS customerName,
+            SUM(t.totalInvoice) AS totalInvoice,
+            SUM(t.totalAmount) AS totalAmount
+        FROM (
+            SELECT
+                invoice.customer_id AS customerId,
+                1 AS totalInvoice,
+                SUM(invoice_detail.total_price - invoice_detail.discount_amount) AS totalAmount
+            FROM sales_orders AS invoice
+                INNER JOIN sales_order_details AS invoice_detail ON invoice.id = invoice_detail.sales_order_id
+            WHERE invoice.status = 2
+              AND invoice.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(invoice.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(invoice.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(invoice.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(invoice.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND invoice.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY invoice.customer_id
+            UNION ALL
+            SELECT
+                invoice.customer_id AS customerId,
+                -1 AS totalInvoice,
+                SUM(invoice_detail.total_price - invoice_detail.discount_amount) * -1 AS totalAmount
+            FROM credit_memos AS invoice
+                INNER JOIN credit_memo_details AS invoice_detail ON invoice.id = invoice_detail.credit_memo_id
+            WHERE invoice.status = 2
+              AND invoice.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(invoice.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(invoice.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(invoice.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(invoice.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND invoice.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY invoice.customer_id
+        ) AS t
+        GROUP BY t.customerId
+        HAVING SUM(t.totalAmount) > 0
+        ORDER BY SUM(t.totalAmount) DESC
+        LIMIT 10
+    </select>
+
+    
+    <select id="getListInvoice" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ExpenditureDashboardResponse">
+        SELECT 
+            'Invoice' AS name,
+            COUNT(*) AS amount
+        FROM `sales_orders` AS so
+        WHERE so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            AND so.status > 0
+            AND so.discount = 0 
+            AND so.id NOT IN (
+                SELECT sales_order_id 
+                FROM credit_memos 
+                WHERE status > 0 
+                <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                    AND MONTH(credit_memos.order_date) >= MONTH(#{filter.dateFrom})
+                    AND MONTH(credit_memos.order_date) &lt;= MONTH(#{filter.dateTo})
+                    AND YEAR(credit_memos.order_date) >= YEAR(#{filter.dateFrom})
+                    AND YEAR(credit_memos.order_date) &lt;= YEAR(#{filter.dateTo})
+                </if>
+            )  
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+    </select>
+
+    <select id="getListVoidInvoice" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ExpenditureDashboardResponse">
+        SELECT 
+            'Void Invoice' AS name,
+            COUNT(*) AS amount
+        FROM `sales_orders` AS so
+        WHERE so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            AND so.status = 0
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+    </select>
+
+    
+    <select id="getListCmInvoice" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ExpenditureDashboardResponse">
+        SELECT 
+            'CM Invoice' AS name,
+            COUNT(*) AS amount
+        FROM `sales_orders` AS so
+        WHERE so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            AND so.status > 0 AND so.discount = 0
+            AND so.id IN (
+                SELECT sales_order_id FROM credit_memos 
+                WHERE status > 0
+                <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                    AND MONTH(order_date) >= MONTH(#{filter.dateFrom})
+                    AND MONTH(order_date) &lt;= MONTH(#{filter.dateTo})
+                    AND YEAR(order_date) >= YEAR(#{filter.dateFrom})
+                    AND YEAR(order_date) &lt;= YEAR(#{filter.dateTo})
+                </if>
+            )
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+    </select>
+
+    
+    <select id="getListDiscountInvoice" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ExpenditureDashboardResponse">
+        SELECT 
+            'Discount Invoice' AS name,
+            COUNT(*) AS amount
+        FROM `sales_orders` AS so
+        WHERE so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            AND so.status > 0
+            AND so.discount > 0 
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+    </select>
+    
+    <select id="getListSaleTopItem" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="InvoiceCurrenciesDashboardResponse">
+        SELECT
+            t.id AS id,
+            (SELECT name FROM products WHERE id = t.id) AS name,
+            SUM(t.totalInvoiceCurrencies) AS totalInvoiceCurrencies
+        FROM (
+            SELECT
+                sod.product_id AS id,
+                SUM(sod.total_price - sod.discount_amount) AS totalInvoiceCurrencies
+            FROM sales_orders AS so
+                INNER JOIN sales_order_details AS sod ON so.id = sod.sales_order_id
+            WHERE so.status = 2
+              AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY sod.product_id
+            UNION ALL
+            SELECT
+                cmd.product_id AS id,
+                SUM(cmd.total_price - cmd.discount_amount) * -1 AS totalInvoiceCurrencies
+            FROM credit_memos AS cm
+                INNER JOIN credit_memo_details AS cmd ON cm.id = cmd.credit_memo_id
+            WHERE cm.status = 2
+              AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(cm.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(cm.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(cm.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(cm.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND cm.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY cmd.product_id
+        ) AS t
+        GROUP BY t.id
+        HAVING SUM(t.totalInvoiceCurrencies) > 0
+        ORDER BY SUM(t.totalInvoiceCurrencies) DESC
+        LIMIT 10
+    </select>
+
+    <select id="getInvoiceCurrencies" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="InvoiceCurrenciesDashboardResponse">
+        SELECT
+            cc.id AS id,
+            cc.name AS name,
+            COALESCE(s.sales_total, 0) - COALESCE(cm.cm_total, 0) AS totalInvoiceCurrencies
+        FROM currency_centers cc
+        LEFT JOIN (
+            SELECT so.currency_center_id AS cid,
+                   SUM(so.total_amount - IFNULL(so.discount, 0)) AS sales_total
+            FROM sales_orders AS so
+            WHERE so.status > 0
+              AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            GROUP BY so.currency_center_id
+        ) s ON s.cid = cc.id
+        LEFT JOIN (
+            SELECT cm.currency_center_id AS cid,
+                   SUM(cm.total_amount - IFNULL(cm.discount, 0)) AS cm_total
+            FROM credit_memos AS cm
+            WHERE cm.status > 0
+              AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND cm.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(cm.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(cm.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(cm.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(cm.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            GROUP BY cm.currency_center_id
+        ) cm ON cm.cid = cc.id
+        WHERE (COALESCE(s.sales_total, 0) - COALESCE(cm.cm_total, 0)) > 0
+        ORDER BY totalInvoiceCurrencies DESC
+    </select>
+
+    <select id="getListSaleByProductGroup" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="saleByProductGroupDashboardResponse">
+        SELECT
+            result.parent_group_id AS id,
+            CASE WHEN parent_group.name IS NULL THEN 'Other' ELSE parent_group.name END AS name,
+            result.total_invoice AS totalInvoice,
+            result.total_amount AS totalAmount
+        FROM (
+            SELECT
+                records.parent_group_id,
+                SUM(records.total_invoice) AS total_invoice,
+                SUM(records.total_amount) AS total_amount
+            FROM (
+                SELECT
+                    CASE
+                        WHEN pg.parent_id IS NULL OR pg.parent_id = 0 OR pg.parent_id = '' THEN pg.id
+                        ELSE pg.parent_id
+                    END AS parent_group_id,
+                    1 AS total_invoice,
+                    SUM(IFNULL(sod.total_price, 0) - IFNULL(sod.discount_amount, 0)) AS total_amount
+                FROM sales_orders AS so
+                    INNER JOIN sales_order_details AS sod ON so.id = sod.sales_order_id
+                    INNER JOIN product_pgroups AS pp ON pp.product_id = sod.product_id
+                    INNER JOIN pgroups AS pg ON pg.id = pp.pgroup_id
+                WHERE so.status = 2
+                  AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND so.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+                <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                    AND DATE(so.order_date) >= DATE(#{filter.dateFrom})
+                    AND DATE(so.order_date) &lt;= DATE(#{filter.dateTo})
+                </if>
+                GROUP BY so.id, parent_group_id
+                UNION ALL
+                SELECT
+                    CASE
+                        WHEN pg.parent_id IS NULL OR pg.parent_id = 0 OR pg.parent_id = '' THEN pg.id
+                        ELSE pg.parent_id
+                    END AS parent_group_id,
+                    -1 AS total_invoice,
+                    SUM(IFNULL(cmd.total_price, 0) - IFNULL(cmd.discount_amount, 0)) * -1 AS total_amount
+                FROM credit_memos AS cm
+                    INNER JOIN credit_memo_details AS cmd ON cm.id = cmd.credit_memo_id
+                    INNER JOIN product_pgroups AS pp ON pp.product_id = cmd.product_id
+                    INNER JOIN pgroups AS pg ON pg.id = pp.pgroup_id
+                WHERE cm.status = 2
+                  AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND cm.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+                <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                    AND DATE(cm.order_date) >= DATE(#{filter.dateFrom})
+                    AND DATE(cm.order_date) &lt;= DATE(#{filter.dateTo})
+                </if>
+                GROUP BY cm.id, parent_group_id
+            ) AS records
+            GROUP BY records.parent_group_id
+        ) AS result
+        LEFT JOIN pgroups AS parent_group ON parent_group.id = result.parent_group_id
+        WHERE result.total_amount > 0
+        ORDER BY result.total_amount DESC
+    </select>
+
+    <select id="getListSaleYearToDate" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="saleYearToDateDashboardResponse">
+        SELECT
+            (
+                SELECT COUNT(*)
+                FROM sales_orders AS so
+                WHERE so.status > 0
+                  AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND so.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+                <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                    AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                    AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                    AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                    AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+                </if>
+            ) AS totalInvoice,
+            (
+                COALESCE(
+                    (SELECT SUM(so.total_amount - IFNULL(so.discount, 0))
+                     FROM sales_orders AS so
+                     WHERE so.status > 0
+                       AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND so.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                        AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                        AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                        AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+                    </if>
+                    ), 0
+                )
+                -
+                COALESCE(
+                    (SELECT SUM(cm.total_amount - IFNULL(cm.discount, 0))
+                     FROM credit_memos AS cm
+                     WHERE cm.status > 0
+                       AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND cm.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND MONTH(cm.order_date) >= MONTH(#{filter.dateFrom})
+                        AND MONTH(cm.order_date) &lt;= MONTH(#{filter.dateTo})
+                        AND YEAR(cm.order_date) >= YEAR(#{filter.dateFrom})
+                        AND YEAR(cm.order_date) &lt;= YEAR(#{filter.dateTo})
+                    </if>
+                    ), 0
+                )
+            ) AS totalAmount,
+            (
+                (COALESCE(
+                    (SELECT SUM(so.total_amount - IFNULL(so.discount, 0))
+                     FROM sales_orders AS so
+                     WHERE so.status > 0
+                       AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND so.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                        AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                        AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                        AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+                    </if>
+                    ), 0)
+                 - COALESCE(
+                    (SELECT SUM(cm.total_amount - IFNULL(cm.discount, 0))
+                     FROM credit_memos AS cm
+                     WHERE cm.status > 0
+                       AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND cm.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND MONTH(cm.order_date) >= MONTH(#{filter.dateFrom})
+                        AND MONTH(cm.order_date) &lt;= MONTH(#{filter.dateTo})
+                        AND YEAR(cm.order_date) >= YEAR(#{filter.dateFrom})
+                        AND YEAR(cm.order_date) &lt;= YEAR(#{filter.dateTo})
+                    </if>
+                    ), 0)
+                ) / NULLIF((
+                    SELECT COUNT(*) FROM sales_orders AS so
+                    WHERE so.status > 0
+                      AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                    <if test="filter.branchId != null and filter.branchId.size() > 0">
+                        AND so.branch_id IN
+                        <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                            #{branchId}
+                        </foreach>
+                    </if>
+                    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                        AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                        AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                        AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                        AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+                    </if>
+                ), 0)
+            ) AS average,
+            (
+                SELECT MAX(so.total_amount - IFNULL(so.total_deposit, 0))
+                FROM sales_orders AS so
+                WHERE so.status > 0
+                  AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND so.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+                <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                    AND MONTH(so.order_date) >= MONTH(#{filter.dateFrom})
+                    AND MONTH(so.order_date) &lt;= MONTH(#{filter.dateTo})
+                    AND YEAR(so.order_date) >= YEAR(#{filter.dateFrom})
+                    AND YEAR(so.order_date) &lt;= YEAR(#{filter.dateTo})
+                </if>
+            ) AS largest
+    </select>
+
+    <select id="getListSaleYearToDateDetail" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="saleYearToDateDetailDashboardResponse">
+        SELECT m.m AS month,
+               COALESCE(s.sales_total, 0) - COALESCE(cm.cm_total, 0) AS totalAmount
+        FROM (
+            SELECT 1 AS m UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6
+            UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
+        ) m
+        LEFT JOIN (
+            SELECT MONTH(so.order_date) AS m,
+                   SUM(so.total_amount - IFNULL(so.discount, 0)) AS sales_total
+            FROM sales_orders AS so
+            WHERE so.status > 0
+              AND YEAR(so.order_date) = YEAR(#{filter.dateFrom})
+              AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY MONTH(so.order_date)
+        ) s ON s.m = m.m
+        LEFT JOIN (
+            SELECT MONTH(cm.order_date) AS m,
+                   SUM(cm.total_amount - IFNULL(cm.discount, 0)) AS cm_total
+            FROM credit_memos AS cm
+            WHERE cm.status > 0
+              AND YEAR(cm.order_date) = YEAR(#{filter.dateFrom})
+              AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND cm.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY MONTH(cm.order_date)
+        ) cm ON cm.m = m.m
+        WHERE m.m BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+        ORDER BY m.m
+    </select>
+
+    <select id="getListPurchaseToVendor" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="PurchaseYearToVendorDashboardResponse">
+        SELECT
+            t.vendorId AS vendorId,
+            (SELECT name FROM vendors WHERE id = t.vendorId) AS vendorName,
+            SUM(t.totalInvoice) AS totalInvoice,
+            SUM(t.totalAmount) AS totalAmount
+        FROM (
+            SELECT
+                invoice.vendor_id AS vendorId,
+                1 AS totalInvoice,
+                SUM(invoice_detail.total_cost - invoice_detail.discount_amount) AS totalAmount
+            FROM purchase_orders AS invoice
+                INNER JOIN purchase_order_details AS invoice_detail ON invoice.id = invoice_detail.purchase_order_id
+            WHERE invoice.status >= 0
+              AND invoice.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND invoice.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(invoice.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(invoice.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(invoice.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(invoice.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            GROUP BY invoice.vendor_id
+
+            UNION ALL
+
+            SELECT
+                invoice.vendor_id AS vendorId,
+                -1 AS totalInvoice,
+                SUM(invoice_detail.total_price) * -1 AS totalAmount
+            FROM purchase_returns AS invoice
+                INNER JOIN purchase_return_details AS invoice_detail ON invoice.id = invoice_detail.purchase_return_id
+            WHERE invoice.status >= 0
+              AND invoice.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND invoice.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(invoice.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(invoice.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(invoice.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(invoice.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            GROUP BY invoice.vendor_id
+        ) AS t
+        GROUP BY t.vendorId
+        HAVING SUM(t.totalAmount) > 0
+        ORDER BY SUM(t.totalAmount) DESC
+        LIMIT 10
+    </select>
+
+    <select id="getListPurchaseCurrencies" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="PurchaseCurrenciesDashboardResponse">
+        SELECT
+            cc.id AS typeMoneyId,
+            cc.name AS typeMoney,
+            COALESCE(po.total_po, 0) - COALESCE(pr.total_pr, 0) AS totalAmount
+        FROM currency_centers cc
+        LEFT JOIN (
+            SELECT pr.currency_center_id AS cid,
+                   SUM(po.total_amount - IFNULL(po.discount_amount, 0)) AS total_po
+            FROM purchase_orders AS po
+              INNER JOIN purchase_requests AS pr ON pr.id = po.purchase_request_id
+            WHERE pr.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+              AND po.status > 0
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND po.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(po.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(po.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(po.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(po.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            GROUP BY pr.currency_center_id
+        ) po ON po.cid = cc.id
+        LEFT JOIN (
+            SELECT prr.currency_center_id AS cid,
+                   SUM(prr.total_amount) AS total_pr
+            FROM purchase_returns AS prr
+            WHERE prr.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+              AND prr.status > 0
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND prr.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(prr.order_date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(prr.order_date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(prr.order_date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(prr.order_date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            GROUP BY prr.currency_center_id
+        ) pr ON pr.cid = cc.id
+        WHERE (COALESCE(po.total_po, 0) - COALESCE(pr.total_pr, 0)) > 0
+        ORDER BY totalAmount DESC
+    </select>
+
+    <select id="getPurchaseYearToDate" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="PurchaseYearToDateDashboardResponse">
+        SELECT m.m AS month,
+               COALESCE(po.total_po, 0) - COALESCE(pr.total_pr, 0) AS total
+        FROM (
+            SELECT 1 AS m UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6
+            UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
+        ) m
+        LEFT JOIN (
+            SELECT MONTH(po.order_date) AS m,
+                   SUM(po.total_amount - IFNULL(po.discount_amount, 0)) AS total_po
+            FROM purchase_orders po
+            WHERE po.status > 0
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND po.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND YEAR(po.order_date) = YEAR(#{filter.dateFrom})
+                AND MONTH(po.order_date) BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+            </if>
+            GROUP BY MONTH(po.order_date)
+        ) po ON po.m = m.m
+        LEFT JOIN (
+            SELECT MONTH(pr.order_date) AS m,
+                   SUM(pr.total_amount) AS total_pr
+            FROM purchase_returns pr
+            WHERE pr.status > 0
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND pr.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND YEAR(pr.order_date) = YEAR(#{filter.dateFrom})
+                AND MONTH(pr.order_date) BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+            </if>
+            GROUP BY MONTH(pr.order_date)
+        ) pr ON pr.m = m.m
+        WHERE m.m BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+        ORDER BY m.m
+    </select>
+
+    <select id="getPurchaseYearToDateDetail" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="PurchaseYearToDateDetailDashboardResponse">
+        SELECT
+            COUNT(*) AS Bills,
+            (COALESCE((
+                SELECT SUM(po.total_amount - IFNULL(po.discount_amount, 0))
+                FROM purchase_orders po
+                WHERE po.status > 0
+                  AND DATE(po.order_date) >= #{filter.dateFrom}
+                  AND DATE(po.order_date) &lt;= #{filter.dateTo}
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND po.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+            ),0)
+            - COALESCE((
+                SELECT SUM(pr.total_amount)
+                FROM purchase_returns pr
+                WHERE pr.status > 0
+                  AND DATE(pr.order_date) >= #{filter.dateFrom}
+                  AND DATE(pr.order_date) &lt;= #{filter.dateTo}
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND pr.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+            ),0)) AS totalAmount,
+            (COALESCE((
+                SELECT SUM(po.total_amount - IFNULL(po.discount_amount, 0))
+                FROM purchase_orders po
+                WHERE po.status > 0
+                  AND DATE(po.order_date) >= #{filter.dateFrom}
+                  AND DATE(po.order_date) &lt;= #{filter.dateTo}
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND po.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+            ),0)
+            - COALESCE((
+                SELECT SUM(pr.total_amount)
+                FROM purchase_returns pr
+                WHERE pr.status > 0
+                  AND DATE(pr.order_date) >= #{filter.dateFrom}
+                  AND DATE(pr.order_date) &lt;= #{filter.dateTo}
+                <if test="filter.branchId != null and filter.branchId.size() > 0">
+                    AND pr.branch_id IN
+                    <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                        #{branchId}
+                    </foreach>
+                </if>
+            ),0)) / NULLIF(COUNT(*),0) AS Average,
+            (SELECT MAX(po.total_amount)
+             FROM purchase_orders po
+             WHERE po.status > 0
+               AND DATE(po.order_date) >= #{filter.dateFrom}
+               AND DATE(po.order_date) &lt;= #{filter.dateTo}
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND po.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            ) AS Largest
+        FROM purchase_orders AS po
+        WHERE po.status > 0
+          AND DATE(po.order_date) >= #{filter.dateFrom}
+          AND DATE(po.order_date) &lt;= #{filter.dateTo}
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND po.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+    </select>
+
+    <select id="getSaleTargetVsActual" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="SaleTargetVsActualDashboardResponse">
+        SELECT
+            CONCAT('Q', q.q) AS quarter,
+            COALESCE(s.sales_total, 0) - COALESCE(cm.cm_total, 0) AS actualAmount
+        FROM (
+            SELECT 1 AS q UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+        ) q
+        LEFT JOIN (
+            SELECT CEIL(MONTH(so.order_date) / 3) AS q,
+                   SUM(so.total_amount - IFNULL(so.discount, 0)) AS sales_total
+            FROM sales_orders AS so
+            WHERE so.status > 0
+              AND YEAR(so.order_date) = COALESCE(YEAR(#{filter.dateTo}), COALESCE(YEAR(#{filter.dateFrom}), YEAR(CURDATE())))
+              AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY CEIL(MONTH(so.order_date) / 3)
+        ) s ON s.q = q.q
+        LEFT JOIN (
+            SELECT CEIL(MONTH(cm.order_date) / 3) AS q,
+                   SUM(cm.total_amount - IFNULL(cm.discount, 0)) AS cm_total
+            FROM credit_memos AS cm
+            WHERE cm.status > 0
+              AND YEAR(cm.order_date) = COALESCE(YEAR(#{filter.dateTo}), COALESCE(YEAR(#{filter.dateFrom}), YEAR(CURDATE())))
+              AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND cm.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY CEIL(MONTH(cm.order_date) / 3)
+        ) cm ON cm.q = q.q
+        ORDER BY q.q
+    </select>
+
+    <select id="getListTarget" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="SaleTargetDashboardResponse">
+        SELECT
+            id AS id,
+            year AS year,
+            amount_q1 AS amountQ1,
+            amount_q2 AS amountQ2,
+            amount_q3 AS amountQ3,
+            amount_q4 AS amountQ4
+        FROM dashboard_sale_target_settings
+        WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND year = COALESCE(YEAR(#{filter.dateTo}), YEAR(#{filter.dateFrom}))
+          AND is_active = 1
+        LIMIT 1;
+    </select>
+
+    <select id="getListGrowthRate" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="GrowthRateDashboardResponse">
+        SELECT
+            this_year.order_month AS month,
+            this_year.totalAmount AS totalThisYear,
+            last_year.totalAmount AS totalLastYear,
+        CASE
+        WHEN last_year.totalAmount = 0 THEN 0
+        ELSE (this_year.totalAmount - last_year.totalAmount) / last_year.totalAmount * 100
+        END AS growthRate
+        FROM
+        (SELECT
+        MONTH(so.order_date) AS order_month,
+        SUM(so.total_amount - IFNULL(so.discount, 0) - IFNULL(so.total_deposit, 0)) AS totalAmount
+        FROM sales_orders AS so
+        WHERE status > 0
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND so.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND YEAR(so.order_date) = YEAR(#{filter.dateTo})
+        AND MONTH(so.order_date) BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+        GROUP BY MONTH(so.order_date)
+        ) AS this_year
+        LEFT JOIN
+        (SELECT
+        MONTH(so.order_date) AS order_month,
+        SUM(so.total_amount - IFNULL(so.discount, 0) - IFNULL(so.total_deposit, 0)) AS totalAmount
+        FROM sales_orders AS so
+        WHERE status > 0
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND so.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND YEAR(so.order_date) = YEAR(#{filter.dateFrom}) - 1
+        AND MONTH(so.order_date) BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+        GROUP BY MONTH(so.order_date)
+        ) AS last_year
+        ON this_year.order_month = last_year.order_month
+        ORDER BY this_year.order_month;
+
+    </select>
+<!--    //Has problem-->
+    <select id="getListGrowthRateDetail" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="GrowthRateDetailDashboardResponse">
+        SELECT
+            this_year.order_month AS month,
+            this_year.totalAmount AS grandTotalThisYear,
+            last_year.totalAmount AS grandTotalLastYear,
+            CASE
+                WHEN last_year.totalAmount = 0 OR last_year.totalAmount IS NULL THEN 0
+                ELSE (this_year.totalAmount - last_year.totalAmount) / last_year.totalAmount * 100
+            END AS grandTotalGrowthRate
+        FROM
+        (
+            SELECT
+                MONTH(so.order_date) AS order_month,
+                SUM(so.total_amount - IFNULL(so.discount, 0) - IFNULL(so.total_deposit, 0)) AS totalAmount
+            FROM sales_orders AS so
+            WHERE status > 0
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            AND YEAR(so.order_date) = YEAR(#{filter.dateTo})
+            AND MONTH(so.order_date) BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+            GROUP BY MONTH(so.order_date)
+        ) AS this_year
+        LEFT JOIN
+        (
+            SELECT
+                MONTH(so.order_date) AS order_month,
+                SUM(so.total_amount - IFNULL(so.discount, 0) - IFNULL(so.total_deposit, 0)) AS totalAmount
+            FROM sales_orders AS so
+            WHERE status > 0
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            AND YEAR(so.order_date) = YEAR(#{filter.dateFrom}) - 1
+            AND MONTH(so.order_date) BETWEEN MONTH(#{filter.dateFrom}) AND MONTH(#{filter.dateTo})
+            GROUP BY MONTH(so.order_date)
+        ) AS last_year
+        ON this_year.order_month = last_year.order_month
+        ORDER BY this_year.order_month;
+    </select>
+
+    <select id="getListTotalSaleByQuarter" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="TotalSaleByQuarterDashboardResponse">
+        SELECT
+            CONCAT('Quarter', q.q) AS name,
+            CAST(y.targetYear AS CHAR) AS year,
+            DATE_FORMAT(
+                STR_TO_DATE(CONCAT(y.targetYear, '-',
+                    CASE q.q WHEN 1 THEN '01' WHEN 2 THEN '04' WHEN 3 THEN '07' ELSE '10' END,
+                    '-01'), '%Y-%m-%d'
+                ), '%Y-%m-%d') AS monthFrom,
+            DATE_FORMAT(
+                LAST_DAY(
+                    DATE_ADD(
+                        STR_TO_DATE(CONCAT(y.targetYear, '-',
+                            CASE q.q WHEN 1 THEN '01' WHEN 2 THEN '04' WHEN 3 THEN '07' ELSE '10' END,
+                            '-01'), '%Y-%m-%d'
+                        ), INTERVAL 2 MONTH
+                    )
+                ), '%Y-%m-%d') AS monthTo
+        FROM (
+            SELECT 1 AS q UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+        ) q
+        CROSS JOIN (
+            SELECT COALESCE(YEAR(#{filter.dateTo}), COALESCE(YEAR(#{filter.dateFrom}), YEAR(CURDATE()))) AS targetYear
+        ) y
+        ORDER BY q.q
+    </select>
+
+    <select id="getListDetailSaleByQuarter" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="TotalSaleByQuarterDetailDashboardResponse">
+        SELECT
+            m.m AS month,
+            COALESCE(s.sales_total, 0) - COALESCE(cm.cm_total, 0) AS totalAmount
+        FROM (
+            SELECT 1 AS m UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6
+            UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12
+        ) AS m
+        LEFT JOIN (
+            SELECT MONTH(so.order_date) AS m,
+                   SUM(so.total_amount - IFNULL(so.discount,0) - IFNULL(so.total_deposit,0)) AS sales_total
+            FROM sales_orders AS so
+            WHERE so.status > 0
+              AND YEAR(so.order_date) = YEAR(#{monthFrom})
+              AND MONTH(so.order_date) BETWEEN MONTH(#{monthFrom}) AND MONTH(#{monthTo})
+              AND so.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND so.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY MONTH(so.order_date)
+        ) AS s ON s.m = m.m
+        LEFT JOIN (
+            SELECT MONTH(cm.order_date) AS m,
+                   SUM(cm.total_amount - IFNULL(cm.discount,0)) AS cm_total
+            FROM credit_memos AS cm
+            WHERE cm.status > 0
+              AND YEAR(cm.order_date) = YEAR(#{monthFrom})
+              AND MONTH(cm.order_date) BETWEEN MONTH(#{monthFrom}) AND MONTH(#{monthTo})
+              AND cm.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND cm.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            GROUP BY MONTH(cm.order_date)
+        ) AS cm ON cm.m = m.m
+        WHERE m.m BETWEEN MONTH(#{monthFrom}) AND MONTH(#{monthTo})
+        ORDER BY m.m
+    </select>
+
+    <select id="getListGraph" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="GraphCostOfGoodsRawMap">
+        SELECT
+            result.month,
+            result.parent_group_id,
+            result.parent_group_name,
+            SUM(result.amount) AS amount
+        FROM (
+            SELECT
+                MONTH(po.order_date) AS month,
+                COALESCE(parent.id, pg.id) AS parent_group_id,
+                COALESCE(parent.name, pg.name) AS parent_group_name,
+                SUM(pod.total_cost - pod.discount_amount) AS amount
+            FROM purchase_orders AS po
+                INNER JOIN purchase_order_details AS pod ON po.id = pod.purchase_order_id
+                INNER JOIN product_pgroups AS pp ON pod.product_id = pp.product_id
+                INNER JOIN pgroups AS pg ON pp.pgroup_id = pg.id
+                LEFT JOIN pgroups AS parent ON pg.parent_id = parent.id
+            WHERE po.status = 3
+              AND po.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+              <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND DATE(po.order_date) BETWEEN DATE(#{filter.dateFrom}) AND DATE(#{filter.dateTo})
+              </if>
+              <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND po.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+              </if>
+            GROUP BY MONTH(po.order_date), COALESCE(parent.id, pg.id), COALESCE(parent.name, pg.name)
+            UNION ALL
+            SELECT
+                MONTH(pr.order_date) AS month,
+                COALESCE(parent.id, pg.id) AS parent_group_id,
+                COALESCE(parent.name, pg.name) AS parent_group_name,
+                SUM(prd.total_price) * -1 AS amount
+            FROM purchase_returns AS pr
+                INNER JOIN purchase_return_details AS prd ON pr.id = prd.purchase_return_id
+                INNER JOIN product_pgroups AS pp ON prd.product_id = pp.product_id
+                INNER JOIN pgroups AS pg ON pp.pgroup_id = pg.id
+                LEFT JOIN pgroups AS parent ON pg.parent_id = parent.id
+            WHERE pr.status = 3
+              AND pr.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+              <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND DATE(pr.order_date) BETWEEN DATE(#{filter.dateFrom}) AND DATE(#{filter.dateTo})
+              </if>
+              <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND pr.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+              </if>
+            GROUP BY MONTH(pr.order_date), COALESCE(parent.id, pg.id), COALESCE(parent.name, pg.name)
+        ) AS result
+        GROUP BY result.month, result.parent_group_id, result.parent_group_name
+        ORDER BY result.month, result.parent_group_name
+    </select>
+
+    <select id="dropTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        DROP TABLE ${tableName};
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_BY_PURCHASE_ORDER">
+
+    </sql>
+
+    <select id="getListAmountOutStandingFirstAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(credit) AS amount,
+            GROUP_CONCAT(purchase_order_id) AS arrPurchaseOrderId,
+            GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+            GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+            AND chart_account_id IN (SELECT id
+                FROM chart_accounts
+                WHERE is_active = 1
+                    AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+            AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            AND vendor_id IN (
+                SELECT
+                vendors.id
+                FROM vendors
+                WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND purchase_order_id IS NOT NULL
+        AND credit>0
+        AND purchase_return_receipt_id IS NULL
+    </select>
+
+    <select id="getListAmountOutStandingSecondAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(debit) AS amount,
+            GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+            AND chart_account_id IN (
+                SELECT id
+                    FROM chart_accounts
+                WHERE is_active = 1
+                    AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND vendor_id IN (
+            SELECT
+                vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NOT NULL
+        AND (
+            purchase_order_id IN (${purchaseOrderId})
+            <if test="arrMainGlId != null and arrMainGlId != '' and arrMainGlId != '-1'">
+                OR
+                main_gl_id IN (${arrMainGlId})
+            </if>
+        )
+    </select>
+
+
+    <select id="getListAmountOutStandingThirdAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(debit) AS amount,
+            GROUP_CONCAT(purchase_return_id) AS arrPurchaseReturnId,
+            GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+            AND chart_account_id IN (
+                SELECT id
+                FROM chart_accounts
+                WHERE is_active = 1
+                    AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND vendor_id IN (
+            SELECT
+                vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NOT NULL
+        AND main_gl_id IS NULL
+    </select>
+
+
+    <select id="getListAmountOutStandingFourthAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(credit) AS amount,
+            GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+            AND chart_account_id IN (
+                SELECT id
+                FROM chart_accounts
+                WHERE is_active = 1
+                    AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND vendor_id IN (
+            SELECT
+                vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit>0
+        AND purchase_return_id IS NOT NULL
+        AND (
+        purchase_return_id IN (${purchaseReturnId})
+        )
+    </select>
+
+<!--    get amount overdue-->
+
+
+
+    <select id="getAmountFirstOverdueAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(credit) AS amount,
+            GROUP_CONCAT(purchase_order_id) AS arrPurchaseOrderId,
+            GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+            GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+            AND chart_account_id IN (
+                SELECT id
+                FROM chart_accounts
+                WHERE is_active = 1
+                    AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND vendor_id IN (
+            SELECT
+                vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND purchase_order_id IS NOT NULL
+        AND credit>0
+        AND purchase_return_receipt_id IS NULL
+    </select>
+
+        <select id="getAmountSecondOverdueAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(debit) AS amount,
+            GROUP_CONCAT(gl.id) AS arr_gl_id
+            FROM general_ledgers gl
+            INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+            WHERE is_active=1
+            AND chart_account_id IN (
+            SELECT id
+            FROM chart_accounts
+            WHERE is_active = 1
+            AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+            AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+            AND vendor_id IN (
+            SELECT
+            vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND gld.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            AND debit>0
+            AND purchase_order_id IS NOT NULL
+            AND (
+            purchase_order_id IN (${purchaseOrderId})
+            <if test="arrMainGlId != null and arrMainGlId != '' and arrMainGlId != '-1'">
+            OR
+            main_gl_id IN (${arrMainGlId})
+            </if>
+            )
+    </select>
+
+    <select id="getAmountThirdOverDueAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+        SUM(debit) AS amount,
+        GROUP_CONCAT(purchase_return_id) AS arrPurchaseReturnId,
+        GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NOT NULL
+        AND main_gl_id IS NULL
+    </select>
+
+
+    <select id="getAmountFourthOverDueAP" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(credit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit>0
+        AND purchase_return_id IS NOT NULL
+        AND (
+        purchase_return_id IN (${purchaseReturnId})
+        )
+    </select>
+
+    <select id="getLisAmountFirstOutstandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(debit) AS amount,
+            GROUP_CONCAT(sales_order_id) AS saleOrderId,
+            GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+            GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+            WHERE is_active=1
+            AND chart_account_id IN (
+                SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                    SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+                )
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                    SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+    </select>
+
+    <select id="getAmountSecondOutstandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(credit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+        )
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND customer_id IN (
+        SELECT customers.id FROM customers WHERE payment_term_id IN (
+        SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+        )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit>0
+        AND sales_order_id IS NOT NULL
+        AND (
+        sales_order_id IN (#{saleOrderId})
+        OR
+        main_gl_id IN (#{arrGlId})
+        )
+
+    </select>
+
+    <select id="getAmountThirdOutStandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(credit) AS amount,
+               GROUP_CONCAT(credit_memo_id) AS creditMemo,
+               GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND credit_memo_id IN (
+            SELECT GROUP_CONCAT(id) AS cmid FROM credit_memos WHERE status > 0 AND sales_order_id IN (${saleOrderId})
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+          AND credit>0
+          AND sales_order_id IS NULL
+          AND credit_memo_id IS NOT NULL
+          AND main_gl_id IS NULL
+    </select>
+
+    <select id="getAmountFourthOutStandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(debit) AS amount,
+               GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+          AND debit>0
+          AND credit_memo_id IS NOT NULL
+          AND (
+            credit_memo_id IN (${creditMemo})
+            )
+    </select>
+
+
+    <select id="getAmountFirstOverdueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+        SUM(debit) AS amount,
+        GROUP_CONCAT(sales_order_id) AS saleOrderId,
+        GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+        GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+        )
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND customer_id IN (
+        SELECT customers.id FROM customers WHERE payment_term_id IN (
+        SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+        )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND sales_order_id IS NOT NULL
+        AND debit>0
+        AND credit_memo_receipt_id IS NULL
+    </select>
+    <select id="getAmountSecondOverdueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(credit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+        )
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND customer_id IN (
+        SELECT customers.id FROM customers WHERE payment_term_id IN (
+        SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+        )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit>0
+        AND sales_order_id IS NOT NULL
+        AND (
+        sales_order_id IN (#{saleOrderId})
+        OR
+        main_gl_id IN (#{arrGlIdAr})
+        )
+    </select>
+
+    <select id="getAmountThirdOverDueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT
+            SUM(credit) AS amount,
+            GROUP_CONCAT(credit_memo_id) AS creditMemo,
+            GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND credit_memo_id IN (
+            SELECT GROUP_CONCAT(id) AS cmid FROM credit_memos WHERE status > 0 AND sales_order_id IN (${saleOrderId})
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+          AND credit>0
+          AND sales_order_id IS NULL
+          AND credit_memo_id IS NOT NULL
+          AND main_gl_id IS NULL
+    </select>
+
+    <select id="getAmountFourthOverDueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ReportAgingResult">
+        SELECT SUM(debit) AS amount,
+               GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+          AND debit>0
+          AND credit_memo_id IS NOT NULL
+          AND (
+            credit_memo_id IN (#{creditMemo})
+        )
+    </select>
+<!--    graphic-->
+
+
+    <select id="getListNetDayGraphic" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseNetDay">
+        SELECT id AS id,
+               net_days AS netDay
+        FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+    </select>
+
+    <select id="getLisAmountGraphicFirstOutStanding" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT
+            SUM(credit) AS amount,
+            GROUP_CONCAT(purchase_order_id) AS purchaseOrderId,
+            GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+            GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE is_active = 1
+        AND chart_account_id IN (
+            SELECT id
+            FROM chart_accounts
+            WHERE is_active = 1
+            AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name = 'Accounts Payable'
+            )
+        )
+        AND company_id IN (
+        SELECT company_id FROM user_companies WHERE user_id = 1
+        )
+        AND vendor_id IN (
+            SELECT vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (
+            SELECT id FROM payment_terms WHERE is_active = 1
+            )
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit > 0
+        AND purchase_order_id IS NOT NULL
+        AND purchase_return_receipt_id IS NULL;
+
+    </select>
+
+    <select id="getLisAmountGraphicSecondOutStanding" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT
+        SUM(debit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NOT NULL
+        AND (
+         purchase_order_id IN (${purchaseOrderId})
+        <if test="arrMainGlId != null and arrMainGlId != '' and arrMainGlId != '-1'">
+        OR
+         main_gl_id IN (${arrMainGlId})
+        </if>
+        )
+
+    </select>
+
+    <select id="getLisAmountGraphicThirdOutStanding" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT
+        SUM(debit) AS amount,
+        GROUP_CONCAT(purchase_return_id) AS purchaseReturnId,
+        GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NOT NULL
+        AND main_gl_id IS NULL
+    </select>
+
+
+
+    <select id="getLisAmountGraphicFourthOutStanding" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT SUM(credit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit>0
+        AND purchase_return_id IS NOT NULL
+        AND (
+        purchase_return_id IN (#{purchaseReturnId})
+        )
+    </select>
+
+    <select id="getAmountGraphicFirstOverdue" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT
+            SUM(credit) AS amount,
+            GROUP_CONCAT(purchase_order_id) AS purchaseOrderId,
+            GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+            GROUP_CONCAT(gl.id) AS arrGlId
+            FROM general_ledgers gl
+            INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+            WHERE is_active=1
+            AND chart_account_id IN (
+            SELECT id
+            FROM chart_accounts
+            WHERE is_active = 1
+            AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+            )
+            AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+            AND vendor_id IN (
+            SELECT
+            vendors.id
+            FROM vendors
+            WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+            )
+            <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+                AND MONTH(date) >= MONTH(#{filter.dateFrom})
+                AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+                AND YEAR(date) >= YEAR(#{filter.dateFrom})
+                AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+            </if>
+            <if test="filter.branchId != null and filter.branchId.size() > 0">
+                AND gld.branch_id IN
+                <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                    #{branchId}
+                </foreach>
+            </if>
+            AND purchase_order_id IS NOT NULL
+            AND credit>0
+            AND purchase_return_receipt_id IS NULL
+    </select>
+
+
+
+    <select id="getAmountGraphicSecondOverdue" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT SUM(debit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NOT NULL
+        AND (
+        purchase_order_id IN (${purchaseOrderId})
+        <if test="arrMainGlId != null and arrMainGlId != '' and arrMainGlId != '-1'">
+        OR
+        main_gl_id IN (${arrMainGlId})
+        </if>
+        )
+    </select>
+
+    <select id="getAmountGraphicThirdOverdue" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT SUM(debit) AS amount,
+        GROUP_CONCAT(purchase_return_id) AS purchaseReturnId,
+        GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND debit>0
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NOT NULL
+        AND main_gl_id IS NULL
+    </select>
+
+    <select id="getAmountGraphicFourthOverdue" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAP">
+        SELECT SUM(credit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+        SELECT id
+        FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name = 'Accounts Payable')
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND vendor_id IN (
+        SELECT
+        vendors.id
+        FROM vendors
+        WHERE payment_term_id IN (SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days)
+        )
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND MONTH(date) >= MONTH(#{filter.dateFrom})
+            AND MONTH(date) &lt;= MONTH(#{filter.dateTo})
+            AND YEAR(date) >= YEAR(#{filter.dateFrom})
+            AND YEAR(date) &lt;= YEAR(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        AND credit>0
+        AND purchase_return_id IS NOT NULL
+        AND (
+        purchase_return_id IN (#{purchaseReturnId})
+        )
+    </select>
+
+
+    <select id="getLisAmountGraphicFirstOutStandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+        SELECT
+         SUM(debit) AS amount,
+         GROUP_CONCAT(sales_order_id) AS saleOrderId,
+         GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+         GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+        AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+        AND ADDDATE(`date`, INTERVAL #{netDay} DAY) &lt; #{filter.dateFrom}
+        AND sales_order_id IS NOT NULL
+        AND debit>0
+        AND credit_memo_receipt_id IS NULL
+    </select>
+
+    <select id="getLisAmountGraphicSecondOutStandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+        SELECT SUM(credit) AS amount,
+        GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE is_active = 1
+        AND chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE is_active = 1 AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types WHERE name = 'Accounts Receivable'
+        )
+        )
+        AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        AND customer_id IN (
+        SELECT customers.id FROM customers WHERE payment_term_id IN (
+        SELECT id FROM payment_terms WHERE is_active = 1
+        )
+        )
+        AND ADDDATE(`date`, INTERVAL #{netDay} DAY) &lt; #{filter.dateFrom}
+        AND credit > 0
+        AND sales_order_id IS NOT NULL
+          AND (
+            sales_order_id IN (${saleOrderId})
+            <if test="arrMainGlId != null and arrMainGlId != '' and arrMainGlId != '-1'">
+                OR
+            main_gl_id IN (${arrMainGlId})
+            </if>
+            )
+
+    </select>
+
+    <select id="getLisAmountGraphicThirdOutStandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+
+        SELECT SUM(credit) AS amount,
+               GROUP_CONCAT(credit_memo_id) AS creditMemo,
+               GROUP_CONCAT(gl.id) AS arrGlId
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND credit_memo_id IN (
+            SELECT GROUP_CONCAT(id) AS cmid FROM credit_memos WHERE status > 0 AND sales_order_id IN (${saleOrderId})
+        )
+          AND credit>0
+          AND sales_order_id IS NULL
+          AND credit_memo_id IS NOT NULL
+          AND main_gl_id IS NULL
+    </select>
+
+
+    <select id="getLisAmountGraphicFourthOutStandingAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+
+        SELECT SUM(debit) AS amount,
+               GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND debit>0
+          AND credit_memo_id IS NOT NULL
+          AND (
+            credit_memo_id IN ("['arr_credit_memo_id']")
+            )
+    </select>
+
+
+
+
+
+    <select id="getAmountGraphicFirstOverdueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+        SELECT
+        SUM(debit) AS amount,
+    GROUP_CONCAT(sales_order_id) AS saleOrderId,
+    GROUP_CONCAT(main_gl_id) AS arrMainGlId,
+    GROUP_CONCAT(gl.id) AS arr_gl_id
+FROM general_ledgers gl
+    INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+WHERE is_active=1
+    AND chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+            SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+        )
+    )
+    AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+    AND customer_id IN (
+        SELECT customers.id FROM customers WHERE payment_term_id IN (
+            SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+        )
+    )
+      AND ADDDATE(`date`, INTERVAL #{netDay} DAY) &lt; #{filter.dateFrom}
+        AND sales_order_id IS NOT NULL
+        AND debit>0
+        AND credit_memo_receipt_id IS NULL
+    </select>
+
+    <select id="getAmountGraphicSecondOverdueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+        SELECT SUM(credit) AS amount,
+               GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND ADDDATE(`date`, INTERVAL #{netDay} DAY) &lt; #{filter.dateFrom}
+          AND credit>0
+          AND sales_order_id IS NOT NULL
+          AND (
+            sales_order_id IN (${saleOrderId})
+            <if test="arrMainGlId != null and arrMainGlId != '' and arrMainGlId != '-1'">
+                OR
+            main_gl_id IN (${arrMainGlId})
+            </if>
+            )
+    </select>
+
+
+    <select id="getAmountGraphicThirdOverdueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+        SELECT
+            SUM(credit) AS amount,
+            GROUP_CONCAT(credit_memo_id) AS creditMemo,
+            GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND credit_memo_id IN (
+            SELECT GROUP_CONCAT(id) AS cmid FROM credit_memos WHERE status > 0 AND sales_order_id IN (${saleOrderId})
+        )
+          AND credit>0
+          AND sales_order_id IS NULL
+          AND credit_memo_id IS NOT NULL
+          AND main_gl_id IS NULL
+    </select>
+
+    <select id="getAmountGraphicFourthOverdueAR" parameterType="com.ut.nlSystemAPi.model.filter.DashboardFilter" resultMap="ResponseGraphicAR">
+        SELECT SUM(debit) AS amount,
+               GROUP_CONCAT(gl.id) AS arr_gl_id
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (
+                SELECT id FROM chart_account_types WHERE name='Accounts Receivable'
+            )
+        )
+          AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+          AND customer_id IN (
+            SELECT customers.id FROM customers WHERE payment_term_id IN (
+                SELECT id FROM payment_terms WHERE is_active = 1 ORDER BY net_days
+            )
+        )
+          AND debit>0
+          AND credit_memo_id IS NOT NULL
+          AND (
+            credit_memo_id IN (${creditMemo})
+            )
+    </select>
+
+
+
+
+</mapper>

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.AuthMapper">
+
+  <insert id="insertClientId">
+    INSERT INTO oauth_client_details (client_id, device_info, client_secret, scope, authorized_grant_types, web_server_redirect_uri, authorities, access_token_validity, refresh_token_validity, additional_information, autoapprove, created)
+    VALUES (#{clientId}, #{clientName}, #{clientSecure}, 'read,write,trust', 'password,refresh_token', null, null, #{tokenValidate}, #{refreshTokenValidate}, null, 1, now())
+    ON DUPLICATE KEY UPDATE device_info = #{clientName}, access_token_validity = #{tokenValidate}, refresh_token_validity = #{refreshTokenValidate}, created = now();
+  </insert>
+
+  <select id="checkUserValid" parameterType="java.lang.String" resultType="java.lang.Long">
+    SELECT COUNT(id) FROM users WHERE username = #{username} AND is_active = 1 AND user_type != 3 LIMIT 1 ;
+  </select>
+
+  <select id="checkStatusUserLogin" parameterType="java.lang.String" resultType="java.lang.Long">
+    SELECT status_login FROM users WHERE username = #{username} AND is_active = 1 LIMIT 1;
+  </select>
+
+  <select id="checkUserLogout" parameterType="java.lang.String" resultType="java.lang.String">
+    SELECT refresh_token FROM oauth_access_token WHERE user_name = #{username} AND client_id = #{clientId} LIMIT 1;
+
+    UPDATE users SET
+       session_id=NULL,
+       session_start=NULL,
+       session_active=NULL,
+       session_lat=NULL,
+       session_long=NULL,
+       session_accuracy=NULL,
+       login_attempt=NULL,
+       login_attempt_remote_ip=NULL,
+       login_attempt_http_user_agent=NULL,
+       login_lat=NULL,
+       login_long=NULL,
+       login_accuracy=NULL
+    WHERE username = #{username} AND is_active = 1 ;
+  </select>
+
+  <delete id="clearUserToken">
+    DELETE FROM oauth_access_token WHERE user_name = #{username} AND client_id = #{clientId};
+    DELETE FROM oauth_client_details WHERE client_id = #{clientId};
+    DELETE FROM oauth_refresh_token WHERE token_id = #{tokenId};
+  </delete>
+
+
+ <!-- <insert id="insertClientId">
+    INSERT INTO oauth_client_details (client_id, device_info, client_secret, scope, authorized_grant_types, web_server_redirect_uri, authorities, access_token_validity, refresh_token_validity, additional_information, autoapprove, created)
+    VALUES (#{clientId}, #{clientName}, #{clientSecure}, 'read,write,trust', 'password,refresh_token', null, null, #{tokenValidate}, #{refreshTokenValidate}, null, 1, now())
+      ON DUPLICATE KEY UPDATE device_info = #{clientName}, access_token_validity = #{tokenValidate}, refresh_token_validity = #{refreshTokenValidate}, created = now();
+  </insert>
+
+  <select id="checkUserValid" parameterType="java.lang.String" resultType="java.lang.Long">
+    SELECT COUNT(id) FROM users WHERE username = #{username} AND is_active = 1 LIMIT 1;
+  </select>
+
+  <select id="checkStatusUserLogin" parameterType="java.lang.String" resultType="java.lang.Long">
+    SELECT status_login FROM users WHERE username = #{username} AND is_active = 1 LIMIT 1;
+  </select>
+
+  <select id="checkUserLogout" parameterType="java.lang.String" resultType="java.lang.String">
+    SELECT refresh_token FROM oauth_access_token WHERE user_name = #{username} AND client_id = #{clientId} LIMIT 1;
+  </select>
+
+  <delete id="clearUserToken">
+    DELETE FROM oauth_access_token WHERE user_name = #{username} AND client_id = #{clientId};
+    DELETE FROM oauth_client_details WHERE client_id = #{clientId};
+    DELETE FROM oauth_refresh_token WHERE token_id = #{tokenId};
+  </delete>-->
+
+  <update id="updateUser" parameterType="java.lang.String">
+    UPDATE users SET
+         qr_code = #{qrCode},
+         secret_key = #{secretKey}
+    WHERE username = #{username} AND is_active = 1;
+  </update>
+
+  <update id="clearRechaptcha" parameterType="java.lang.String">
+    UPDATE check_user_login SET
+      number_of_login = 0
+    WHERE host_name = #{hostName} AND host_address = #{hostAddress}
+  </update>
+
+  <select id="getSecretKey" resultType="java.lang.String" parameterType="java.lang.String">
+    SELECT secret_key
+    FROM users
+    WHERE is_active = 1 AND username  = #{username} LIMIT 1
+  </select>
+
+  <select id="checkLoginVerifyToken" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM access_token
+    WHERE is_active = 1 AND username = #{username} and login_verify_token = #{loginVerifyToken}
+  </select>
+
+  <select id="getListAccessToken" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AccessTokenResponse">
+    SELECT
+      access_token AS accessToken,
+      token_type AS tokenType,
+      refresh_token AS refreshToken,
+      expires_in AS expiresIn,
+      scope AS scope
+    FROM access_token
+    WHERE is_active = 1 AND username = #{filter.searchText} LIMIT 1;
+  </select>
+
+  <select id="updateStatusLogin" resultType="java.lang.Long" parameterType="java.lang.String">
+    UPDATE access_token SET login_status = 1
+    WHERE is_active = 1 AND username = #{username};
+  </select>
+
+  <update id="updateUserLoginAuth" parameterType="java.lang.String">
+    UPDATE users SET
+      is_login_auth = 1
+    WHERE username = #{username};
+  </update>
+
+  <select id="updateUserSession" resultType="java.lang.Long" parameterType="java.lang.String">
+    UPDATE users SET
+       session_id = REPLACE(UUID(), '-', ''),
+       session_start = NOW(),
+       session_active = NOW()
+    WHERE is_active = 1 AND username = #{username};
+  </select>
+
+  <select id="checkIpAddress" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM check_user_login
+    WHERE host_name = #{hostName} AND host_address = #{hostAddress}
+  </select>
+
+  <update id="updateCheckUserLogin" parameterType="java.lang.String">
+    UPDATE check_user_login SET
+      number_of_login = number_of_login + 1
+    WHERE host_name = #{hostName} AND host_address = #{hostAddress}
+  </update>
+
+  <insert id="insertCheckUserLogin" parameterType="com.ut.nlSystemAPi.model.CheckUserLogin" useGeneratedKeys="true" keyProperty="checkUserLogin.id">
+    INSERT INTO check_user_login (
+      host_name,
+      host_address,
+      number_of_login
+    ) VALUES (
+               #{checkUserLogin.hostName},
+               #{checkUserLogin.hostAddress},
+               1
+             );
+  </insert>
+
+  <select id="countNumberOfLoginByIpAddress" resultType="java.lang.Long">
+    SELECT IFNULL(number_of_login,0)
+    FROM check_user_login
+    WHERE host_name = #{hostName} AND host_address = #{hostAddress}
+  </select>
+
+  <select id="checkUserLoginOrNot" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM users
+    WHERE is_active = 1 AND username = #{username} AND secret_key IS NOT NULL AND is_login_auth = 1;
+  </select>
+
+  <update id="updateAccessToken" parameterType="com.ut.nlSystemAPi.model.request.Login.AccessTokenRequest">
+    UPDATE access_token SET
+    <if test="accessTokenRequest.username != null">username  = #{accessTokenRequest.username},</if>
+    <if test="accessTokenRequest.accessToken != null">access_token = #{accessTokenRequest.accessToken},</if>
+    <if test="accessTokenRequest.tokenType != null">token_type = #{accessTokenRequest.tokenType},</if>
+    <if test="accessTokenRequest.refreshToken != null">refresh_token = #{accessTokenRequest.refreshToken},</if>
+    <if test="accessTokenRequest.expiresIn != null">expires_in = #{accessTokenRequest.expiresIn},</if>
+    <if test="accessTokenRequest.scope != null"> scope = #{accessTokenRequest.scope},</if>
+    <if test="accessTokenRequest.loginVerifyToken != null">	login_verify_token = #{accessTokenRequest.loginVerifyToken}</if>
+    WHERE username = #{accessTokenRequest.username}
+  </update>
+
+  <select id="checkDuplicateUsername" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM access_token
+    WHERE is_active = 1 AND username  = #{username}
+  </select>
+
+  <select id="getUserIdByUserName" resultType="java.lang.Long">
+    SELECT id
+    FROM users
+    WHERE username = #{username} AND is_active = 1 AND user_type != 3 LIMIT 1;
+  </select>
+
+  <insert id="insertAccessToken" parameterType="com.ut.nlSystemAPi.model.request.Login.AccessTokenRequest" useGeneratedKeys="true" keyProperty="accessTokenRequest.id">
+    INSERT INTO access_token (
+      username,
+      login_verify_token,
+      access_token,
+      token_type,
+      refresh_token,
+      expires_in,
+      scope,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+       #{accessTokenRequest.username},
+       #{accessTokenRequest.loginVerifyToken},
+       #{accessTokenRequest.accessToken},
+       #{accessTokenRequest.tokenType},
+       #{accessTokenRequest.refreshToken},
+       #{accessTokenRequest.expiresIn},
+       #{accessTokenRequest.scope},
+       NOW(),
+       #{accessTokenRequest.createdBy},
+       1
+     );
+  </insert>
+
+</mapper>

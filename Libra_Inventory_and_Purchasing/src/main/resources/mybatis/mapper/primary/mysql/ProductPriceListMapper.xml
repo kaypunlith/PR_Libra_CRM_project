@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProductPriceListMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+            ppl.id AS id,
+            ppl.ppl_code AS code,
+            ppl.created AS `date`,
+            ppl.title AS title,
+            CONCAT(ppl.date_validate_from," - ",date_validate_to) AS validateThrough,
+            c.id AS companyId,
+            c.name AS companyName,
+            cus.id AS organizationId,
+            cus.name AS organizationName,
+            pg.id AS productGroupId,
+            pg.name AS productGroupName,
+            (SELECT COUNT(*) FROM product_price_list_details ppd WHERE ppd.product_price_list_id = ppl.id) AS itemAmount,
+            pt.id AS priceTypeId,
+            pt.name AS priceTypeName,
+            ppl.created As created,
+            CONCAT(u.first_name, " ", u.last_name) AS createdBy,
+            ppl.modified As modified,
+            CONCAT(u2.first_name, " ", u2.last_name) AS modifiedBy,
+            ppl.is_approve AS isApprove,
+            ppl.is_active AS isClose
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM product_price_lists ppl
+                 LEFT JOIN companies c ON c.id = ppl.company_id
+                 LEFT JOIN customers cus ON cus.id = ppl.customer_id
+                 LEFT JOIN pgroups pg ON pg.id = ppl.pgroup_id
+                 LEFT JOIN price_types pt ON pt.id = ppl.price_type_id
+                 LEFT JOIN users u ON u.id = ppl.created_by
+                 LEFT JOIN users u2 ON u2.id = ppl.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE ppl.is_active >= 0
+        <if test="filter.organizationId != null">
+            AND cus.id = #{filter.organizationId}
+        </if>
+        <if test="filter.status != null">
+            AND ppl.is_active = #{filter.status}
+        </if>
+        <if test="filter.searchText != null">
+            AND ppl.ppl_code LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND ppl.created_by = #{userId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceListFilter" resultMap="ProductPriceListResponse">
+        SELECT
+          <include refid="BASE_COLUMN_LIST"/>
+          <include refid="BASE_FROM"/>
+          <include refid="BASE_WHERE"/>
+         ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                ppl.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListProductDetailByFilter" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceListProductDetailFilter" resultMap="ProductPriceListDetailResponse">
+        SELECT
+            products.id AS productId,
+            products.name AS description,
+            products.code AS model,
+            (SELECT name FROM pgroups WHERE id = product_pgroups.pgroup_id) AS brand,
+            products.price_uom_id AS uomId,
+            (SELECT name FROM uoms WHERE id = price_uom_id) AS uom,
+            unit_cost AS price
+        FROM products
+                 INNER JOIN product_pgroups ON products.id = product_pgroups.product_id
+                 INNER JOIN product_prices ON products.id = product_prices.product_id
+        WHERE products.is_active = 1
+          AND products.company_id = #{filter.companyId}
+          AND product_pgroups.pgroup_id = #{filter.productGroupId}
+          AND product_prices.price_type_id = #{filter.priceTypeId}
+          AND product_prices.uom_id = products.price_uom_id
+        GROUP BY product_prices.product_id
+        ORDER BY products.code
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListProductDetail" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceListProductDetailFilter" resultType="java.lang.Long">
+        SELECT COUNT(products.id)
+        FROM products
+                 INNER JOIN product_pgroups ON products.id = product_pgroups.product_id
+                 INNER JOIN product_prices ON products.id = product_prices.product_id
+        WHERE products.is_active = 1
+          AND products.company_id = #{filter.companyId}
+          AND product_pgroups.pgroup_id = #{filter.productGroupId}
+          AND product_prices.price_type_id = #{filter.priceTypeId}
+          AND product_prices.uom_id = products.price_uom_id
+    </select>
+
+    <select id="countListDetail" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceListFilter" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT products.id)
+        FROM product_price_list_details
+                 LEFT JOIN products ON product_price_list_details.product_id = products.id
+                 LEFT JOIN uoms ON product_price_list_details.uom_id = uoms.id
+                 LEFT JOIN product_pgroups ON products.id = product_pgroups.product_id
+                 LEFT JOIN pgroups ON product_pgroups.pgroup_id = pgroups.id
+        WHERE products.is_active = 1 AND product_price_list_details.product_price_list_id = #{productPriceListId}
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceListFilter" resultType="java.lang.Long">
+        SELECT COUNT(ppl.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="ProductPriceListResponse">
+    SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE ppl.id = #{id} AND ppl.is_active >= 0
+  </select>
+
+    <select id="getListDetail" parameterType="java.lang.Long" resultMap="ProductPriceListDetailResponse">
+        SELECT
+        products.id AS productId,
+        products.name AS description,
+        products.code AS model,
+        pgroups.name AS brand,
+        product_price_list_details.uom_id AS uomId,
+        uoms.name AS uom,
+        product_price_list_details.note AS note,
+        product_price_list_details.price AS price
+        FROM product_price_list_details
+            LEFT JOIN products ON product_price_list_details.product_id = products.id
+            LEFT JOIN uoms ON product_price_list_details.uom_id = uoms.id
+            LEFT JOIN product_pgroups ON products.id = product_pgroups.product_id
+            LEFT JOIN pgroups ON product_pgroups.pgroup_id = pgroups.id
+        WHERE products.is_active = 1 AND product_price_list_details.product_price_list_id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ProductPriceList" useGeneratedKeys="true" keyProperty="productPriceList.id">
+        INSERT INTO product_price_lists (
+            ppl_code,
+            company_id,
+            customer_id,
+            title,
+            date_validate_from,
+            date_validate_to,
+            pgroup_id,
+            price_type_id,
+            is_approve,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+             #{productPriceList.code},
+             #{productPriceList.companyId},
+             #{productPriceList.customerId},
+             #{productPriceList.title},
+             #{productPriceList.dateValidateFrom},
+             #{productPriceList.dateValidateTo},
+             #{productPriceList.pgroupId},
+             #{productPriceList.priceTypeId},
+             #{productPriceList.isApproved},
+             NOW(),
+             #{productPriceList.createdBy},
+             #{productPriceList.isActive}
+        )
+    </insert>
+
+    <insert id="insertPriceListDetails" parameterType="com.ut.nlSystemAPi.model.ProductPriceListDetail" useGeneratedKeys="true" keyProperty="productPriceListDetail.id">
+        INSERT INTO product_price_list_details (
+            product_price_list_id,
+            product_id,
+            uom_id,
+            price,
+            note
+         ) VALUES (
+              #{productPriceListDetail.productPriceListId},
+              #{productPriceListDetail.productId},
+              #{productPriceListDetail.uomId},
+              #{productPriceListDetail.price},
+              #{productPriceListDetail.note}
+         )
+        </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.ProductPriceList">
+            UPDATE product_price_lists SET
+                <if test="productPriceList.companyId != null"> `company_id`= #{productPriceList.companyId},</if>
+                <if test="productPriceList.customerId != null">`customer_id`= #{productPriceList.customerId},</if>
+                <if test="productPriceList.title != null">     `title`= #{productPriceList.title},</if>
+               <if test="productPriceList.pgroupId != null">   `pgroup_id`= #{productPriceList.pgroupId},</if>
+              <if test="productPriceList.priceTypeId != null">`price_type_id`= #{productPriceList.priceTypeId},</if>
+                <if test="productPriceList.dateValidateFrom != null"> `date_validate_from`= #{productPriceList.dateValidateFrom},</if>
+                <if test="productPriceList.dateValidateTo != null">`date_validate_to`= #{productPriceList.dateValidateTo},</if>
+                   `modified` = NOW(),
+                <if test="productPriceList.modifiedBy != null">`modified_by`= #{productPriceList.modifiedBy}</if>
+                    WHERE id = #{productPriceList.id}
+    </update>
+
+    <delete id="deleteProductPriceListDetail" parameterType="java.lang.Long">
+           DELETE FROM product_price_list_details WHERE `product_price_list_id`=#{id}
+    </delete>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE product_price_lists SET
+           is_active = -1,
+           modified =   NOW(),
+           modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="updateApproveStatus" parameterType="java.lang.Long">
+        UPDATE product_price_lists SET
+             is_approve = #{productListApproveStatus.status},
+             date_approve = NOW()
+        WHERE id = #{productListApproveStatus.id};
+    </update>
+
+    <update id="updateIsClose" parameterType="java.lang.Long">
+        UPDATE product_price_lists SET
+            is_active = #{productListApproveStatus.status}
+        WHERE id = #{productListApproveStatus.id};
+    </update>
+
+    <select id="getReLastReceivePaymentCode" resultType="java.lang.String">
+        SELECT ppl_code
+        FROM product_price_lists
+        WHERE is_active = 1 AND YEAR(created) = YEAR(NOW()) AND ppl_code LIKE '%PPL%' ORDER BY id DESC LIMIT 1
+    </select>
+</mapper>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TransferConsignmentReceiveMapper">
+
+  <resultMap id="TransferConsignmentReceiveResponse" type="com.ut.nlSystemAPi.model.response.TransferConsignmentReceive.TransferConsignmentReceiveResponse">
+
+  </resultMap>
+
+  <resultMap id="TransferConsignmentDetailResponse" type="com.ut.nlSystemAPi.model.response.TransferConsignment.TransferConsignmentDetailResponse">
+
+  </resultMap>
+</mapper>

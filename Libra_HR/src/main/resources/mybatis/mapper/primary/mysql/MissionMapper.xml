@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.MissionMapper">
+
+  <resultMap id="MissionResponse" type="com.ut.nlSystemAPi.model.response.MissionResponse">
+  </resultMap>
+
+  <sql id="BASE_COLUMN_LIST">
+        working_time_missions.id AS id,
+        DATE_FORMAT(working_time_missions.date_from, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(working_time_missions.date_to, '%Y-%m-%d') AS endDate,
+        working_time_missions.description AS description,
+        working_time_missions.working_time_id AS workingTimeId,
+        working_times.is_close AS status,
+        working_times.created AS created,
+        working_times.modified AS modified,
+        CONCAT(IFNULL(user1.first_name,''), ' ', IFNULL(user1.last_name,'')) AS createdBy,
+        CONCAT(IFNULL(user2.first_name,''), ' ', IFNULL(user2.last_name,'')) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM working_time_missions
+        JOIN working_times ON working_time_missions.working_time_id = working_times.id
+        LEFT JOIN users AS user1 ON working_times.created_by = user1.id
+        LEFT JOIN users AS user2 ON working_times.modified_by = user2.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE working_time_missions.is_active = 1 AND working_times.type = 2
+    <if test="filter.startDate != null and filter.endDate != null">
+      AND (
+        (DATE(working_time_missions.date_from) &gt;= #{filter.startDate} AND DATE(working_time_missions.date_from) &lt;= #{filter.endDate}) OR
+        (DATE(working_time_missions.date_to) &gt;= #{filter.startDate} AND DATE(working_time_missions.date_to) &lt;= #{filter.endDate})
+      )
+    </if>
+    <if test="filter.status != null">
+      AND working_times.is_close = #{filter.status}
+    </if>
+    <if test="filter.searchText != null">
+      AND working_time_missions.description LIKE CONCAT('%', #{filter.searchText}, '%')
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.MissionFilter" resultMap="MissionResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY working_time_missions.id DESC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="count" parameterType="com.ut.nlSystemAPi.model.filter.MissionFilter" resultType="int">
+    SELECT count(working_time_missions.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="MissionResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE working_time_missions.is_active = 1 AND working_time_missions.id = #{id}
+  </select>
+
+  <insert id="insertWorkingTime" parameterType="com.ut.nlSystemAPi.model.Mission" useGeneratedKeys="true" keyProperty="workingTimeId">
+    INSERT INTO working_times (
+      company_id,
+      description,
+      type,
+      is_close,
+      is_active,
+      created,
+      created_by
+    ) VALUES (
+      1,
+      #{description},
+      2,
+      0,
+      1,
+      NOW(),
+      #{createdBy}
+    )
+  </insert>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Mission" useGeneratedKeys="true" keyProperty="mission.id">
+    INSERT INTO working_time_missions (
+      working_time_id,
+      date_from,
+      date_to,
+      description,
+      is_active,
+      created,
+      created_by,
+      modified,
+      modified_by
+    ) VALUES (
+      #{mission.workingTimeId},
+      #{mission.startDate},
+      #{mission.endDate},
+      #{mission.description},
+      1,
+      NOW(),
+      #{mission.createdBy},
+      <if test="mission.modifiedBy != null">NOW()</if><if test="mission.modifiedBy == null">NULL</if>,
+      #{mission.modifiedBy}
+    )
+  </insert>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE working_time_missions 
+    JOIN working_times ON working_time_missions.working_time_id = working_times.id
+    SET
+      working_time_missions.is_active = 2,
+      working_time_missions.modified = NOW(),
+      working_time_missions.modified_by = #{userId},
+      working_times.is_active = 2,
+      working_times.modified = NOW(),
+      working_times.modified_by = #{userId}
+    WHERE working_time_missions.id = #{id}
+  </update>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Mission">
+    UPDATE working_time_missions SET
+      <if test="mission.description != null">description = #{mission.description},</if>
+      date_from = #{mission.startDate},
+      date_to = #{mission.endDate},
+      modified = NOW(),
+      modified_by = #{mission.modifiedBy}
+    WHERE id = #{mission.id}
+  </update>
+
+  <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.Mission">
+    UPDATE working_times 
+    JOIN working_time_missions ON working_time_missions.working_time_id = working_times.id
+    SET
+      working_times.is_close = #{mission.status},
+      working_times.modified = NOW(),
+      working_times.modified_by = #{mission.modifiedBy}
+    WHERE working_time_missions.id = #{mission.id}
+  </update>
+
+  <!-- Pivot inserts -->
+  <insert id="insertMeans">
+    INSERT INTO working_time_mission_means (working_time_mission_id, working_time_mean_id) VALUES (#{missionId}, #{meanId})
+  </insert>
+
+  <insert id="insertCustomers">
+    INSERT INTO working_time_organizations (working_time_id, organization_id) VALUES (#{missionId}, #{customerId})
+  </insert>
+
+  <insert id="insertDestinations">
+    INSERT INTO working_time_mission_destinations (working_time_mission_id, working_time_destination_id) VALUES (#{missionId}, #{destinationId})
+  </insert>
+  
+  <select id="getMeans" resultType="com.ut.nlSystemAPi.model.response.DropdownResponse">
+    SELECT 
+        working_time_means.id AS id,
+        working_time_means.description AS name
+    FROM working_time_mission_means 
+    JOIN working_time_means ON working_time_mission_means.working_time_mean_id = working_time_means.id
+    WHERE working_time_mission_means.working_time_mission_id = #{missionId}
+  </select>
+  <select id="getCustomers" resultType="com.ut.nlSystemAPi.model.response.DropdownResponse">
+    SELECT 
+        customers.id AS id,
+        customers.name AS name
+    FROM working_time_organizations 
+    JOIN customers ON working_time_organizations.organization_id = customers.id
+    WHERE working_time_organizations.working_time_id = #{missionId}
+  </select>
+  <select id="getDestinations" resultType="com.ut.nlSystemAPi.model.response.DropdownResponse">
+    SELECT 
+        working_time_destinations.id AS id,
+        working_time_destinations.description AS name
+    FROM working_time_mission_destinations 
+    JOIN working_time_destinations ON working_time_mission_destinations.working_time_destination_id = working_time_destinations.id
+    WHERE working_time_mission_destinations.working_time_mission_id = #{missionId}
+  </select>
+
+</mapper>

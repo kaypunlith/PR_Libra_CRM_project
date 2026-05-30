@@ -1,0 +1,483 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PurchaseOrderMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    purchase_requests.id AS id,
+    purchase_requests.pr_code AS poNo,
+    purchase_requests.company_id AS companyId,
+    companies.name AS companyName,
+    purchase_requests.vendor_id AS vendorId,
+    vendors.name AS vendorName,
+    vendors.email_address AS email,
+    purchase_requests.order_date AS poDate,
+    purchase_requests.vendor_contact_id AS vendorContactId,
+    vendor_contacts.contact_name AS vendorContactName,
+    purchase_requests.currency_center_id AS currencyCenterId,
+    currency_centers.name AS currencyCenterName,
+    purchase_requests.note AS note,
+    purchase_requests.final_place_of_delivery_id AS deliveryTo,
+    location_groups.name AS deliveryToName,
+    purchase_requests.delivery_leadtime AS deliveryLeadTime,
+    purchase_requests.ref_quotation AS refSaleOrder,
+    purchase_requests.payment_id AS paymentTermId,
+    payment_terms.name AS paymentTermName,
+    purchase_requests.shipment_id AS shipmentId,
+    shipments.name AS shipmentName,
+    purchase_requests.ship_to AS shipTo,
+    ship_to.name AS shipToName,
+    purchase_requests.contact_ship_to AS contactShipTo,
+    contact_ship_to.contact_name AS contactShipToName,
+    purchase_requests.port_of_dischange_id AS partOfDischargeId,
+    port_of_dischange.name AS partOfDischargeName,
+    purchase_requests.port_of_dischange_contact_id AS partOfDischargeContactId,
+    port_of_dischange_contact.contact_name AS partOfDischargeContactName,
+    purchase_requests.expected_delivery_date AS expectedDeliveryDate,
+    purchase_requests.total_amount AS subTotal,
+    purchase_requests.vat_setting_id AS vatSettingId,
+    vat_settings.name AS vatSettingName,
+    purchase_requests.total_vat AS totalVat,
+    purchase_requests.vat_percent AS vatPercentage,
+    purchase_requests.is_close AS isClose,
+    purchase_requests.status AS status,
+    purchase_requests.created AS created,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    purchase_requests.modified AS modified,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM purchase_requests
+    LEFT JOIN companies ON purchase_requests.company_id = companies.id
+    LEFT JOIN vendors ON purchase_requests.vendor_id = vendors.id
+    LEFT JOIN vendor_contacts ON purchase_requests.vendor_contact_id = vendor_contacts.id
+    LEFT JOIN vendors AS ship_to ON purchase_requests.ship_to = ship_to.id
+    LEFT JOIN vendor_contacts AS contact_ship_to ON purchase_requests.contact_ship_to = contact_ship_to.id
+    LEFT JOIN vendors AS port_of_dischange ON purchase_requests.port_of_dischange_id = port_of_dischange.id
+    LEFT JOIN vendor_contacts AS port_of_dischange_contact ON purchase_requests.port_of_dischange_contact_id = port_of_dischange_contact.id
+    LEFT JOIN currency_centers ON purchase_requests.currency_center_id = currency_centers.id
+    LEFT JOIN location_groups ON purchase_requests.final_place_of_delivery_id = location_groups.id
+    LEFT JOIN payment_terms ON purchase_requests.payment_id = payment_terms.id
+    LEFT JOIN shipments ON purchase_requests.shipment_id = shipments.id
+    LEFT JOIN vat_settings ON purchase_requests.vat_setting_id = vat_settings.id
+    LEFT JOIN users AS users1 ON users1.id = purchase_requests.created_by
+    LEFT JOIN users AS users2 ON users2.id = purchase_requests.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE purchase_requests.status > 0
+    <if test="filter.searchText != null">
+      AND (
+      vendors.name LIKE CONCAT('%', #{filter.searchText}, '%')
+
+      OR purchase_requests.pr_code LIKE CONCAT('%', #{filter.searchText}, '%')
+
+      OR (
+      SELECT GROUP_CONCAT(order_code SEPARATOR ', ')
+      FROM orders
+      WHERE id IN (
+      SELECT order_id
+      FROM purchase_request_orders
+      WHERE purchase_request_id = purchase_requests.id
+      )
+
+
+      ) LIKE CONCAT('%', #{filter.searchText}, '%')
+      OR (
+      SELECT GROUP_CONCAT(so_code SEPARATOR ', ')
+      FROM sales_orders
+      WHERE order_id IN (
+      SELECT id
+      FROM orders
+      WHERE id IN (
+      SELECT order_id
+      FROM purchase_request_orders
+      WHERE purchase_request_id = purchase_requests.id
+      )
+      )
+      ) LIKE CONCAT('%', #{filter.searchText}, '%')
+      )
+
+
+    </if>
+    <if test="filter.dateFrom != null">
+      AND purchase_requests.order_date >= #{filter.dateFrom}
+    </if>
+    <if test="filter.dateTo != null">
+      AND purchase_requests.order_date &lt;= #{filter.dateTo}
+    </if>
+    <if test="filter.status != null">
+      AND purchase_requests.status = #{filter.status}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultMap="PurchaseOrderResponse">
+    SELECT
+    purchase_requests.id AS id,
+    purchase_requests.order_date AS poDate,
+    purchase_requests.pr_code AS poNo,
+    CASE
+    WHEN purchase_requests.pv_request_id IS NOT NULL
+    AND purchase_requests.status IN (1,2) THEN 1
+    ELSE 0
+    END AS hasEr,
+    IFNULL((
+    SELECT GROUP_CONCAT(order_code SEPARATOR ', ')
+    FROM orders
+    WHERE id IN (
+    SELECT order_id
+    FROM purchase_request_orders
+    WHERE purchase_request_id = purchase_requests.id
+    )
+    ), '') AS soNo,
+    IFNULL((
+    SELECT GROUP_CONCAT(so_code SEPARATOR ', ')
+    FROM sales_orders
+    WHERE order_id IN (
+    SELECT id
+    FROM orders
+    WHERE id IN (
+    SELECT order_id
+    FROM purchase_request_orders
+    WHERE purchase_request_id = purchase_requests.id
+    )
+    )
+    ), '') AS invoiceNo,
+    vendors.name AS vendorName,
+    IFNULL(purchase_requests.total_amount, 0) + IFNULL(purchase_requests.total_vat, 0) AS totalAmount,
+    IFNULL(purchase_requests.total_deposit, 0) AS totalDeposit,
+    purchase_requests.expected_delivery_date AS expectedDeliveryDate,
+    purchase_requests.status AS status,
+    purchase_requests.is_close AS isClose,
+    purchase_requests.note AS note,
+    currency_centers.symbol AS symbol
+    FROM purchase_requests
+    INNER JOIN `vendors` ON purchase_requests.vendor_id = vendors.id
+    LEFT JOIN currency_centers ON currency_centers.id = purchase_requests.currency_center_id
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        purchase_requests.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultType="java.lang.Long">
+    SELECT COUNT(purchase_requests.id)
+    FROM purchase_requests
+    INNER JOIN `vendors` ON purchase_requests.vendor_id = vendors.id
+    LEFT JOIN currency_centers ON currency_centers.id = purchase_requests.currency_center_id
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="PurchaseOrderResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE purchase_requests.status > 0 AND purchase_requests.id = #{id}
+  </select>
+
+  <select id="getRefDoc" parameterType="java.lang.Long" resultMap="VendorPhoto">
+    SELECT
+      ref_doc AS url,
+      ref_doc_name AS name
+    FROM purchase_requests
+    WHERE id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM purchase_requests
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.PurchaseOrder" useGeneratedKeys="true" keyProperty="purchaseOrder.id">
+    INSERT INTO purchase_requests (
+      company_id,
+      vendor_id,
+      vendor_contact_id,
+      pr_code,
+      delivery_leadtime,
+      exchange_rate_id,
+      currency_center_id,
+      ref_quotation,
+      shipment_id,
+      payment_id,
+      ship_to,
+      contact_ship_to,
+      port_of_dischange_id,
+      port_of_dischange_contact_id,
+      final_place_of_delivery_id,
+      expected_delivery_date,
+      total_amount,
+      total_vat,
+      vat_percent,
+      vat_setting_id,
+      order_date,
+      note,
+      ref_doc,
+      ref_doc_name,
+      created,
+      created_by,
+      is_close
+    ) VALUES (
+               #{purchaseOrder.companyId},
+               #{purchaseOrder.vendorId},
+               #{purchaseOrder.vendorContactId},
+               #{purchaseOrder.prCode},
+               #{purchaseOrder.deliveryLeadTime},
+               #{purchaseOrder.exchangeRateId},
+               #{purchaseOrder.currencyCenterId},
+               #{purchaseOrder.refQuotation},
+               #{purchaseOrder.shipmentId},
+               #{purchaseOrder.paymentId},
+               #{purchaseOrder.shipTo},
+               #{purchaseOrder.contactShipTo},
+               #{purchaseOrder.partOfDischargeId},
+               #{purchaseOrder.partOfDischargeContactId},
+               #{purchaseOrder.finalPlaceDeliveryId},
+               #{purchaseOrder.expectedDeliveryDate},
+               #{purchaseOrder.totalAmount},
+               #{purchaseOrder.totalVat},
+               #{purchaseOrder.vatPercentage},
+               #{purchaseOrder.vatSettingId},
+               #{purchaseOrder.orderDate},
+               #{purchaseOrder.note},
+               #{purchaseOrder.refDoc},
+               #{purchaseOrder.refDocName},
+               NOW(),
+               #{purchaseOrder.createdBy},
+               #{purchaseOrder.isClose}
+             )
+  </insert>
+
+  <insert id="insertOrder" parameterType="com.ut.nlSystemAPi.model.PurchaseOrderOrder">
+    INSERT INTO purchase_request_orders (
+      purchase_request_id,
+      order_id
+    ) VALUES (
+               #{purchaseOrder.purchaseOrderId},
+               #{purchaseOrder.orderId}
+             )
+  </insert>
+
+  <delete id="deleteOrder" parameterType="java.lang.Long">
+    DELETE FROM purchase_request_orders WHERE purchase_request_id = #{purchaseOrderId};
+  </delete>
+
+  <select id="getOrder" parameterType="java.lang.Long" resultMap="SoNoResponse">
+      SELECT
+        purchase_request_orders.order_id AS id,
+        orders.order_code AS code
+      FROM purchase_request_orders
+             LEFT JOIN orders ON orders.id = purchase_request_orders.order_id
+      WHERE purchase_request_orders.purchase_request_id = #{id}
+  </select>
+
+  <select id="getSmallValUom" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT small_val_uom FROM products WHERE id = #{productId};
+  </select>
+
+  <select id="getDetail" parameterType="java.lang.Long" resultMap="PurchaseOrderDetailResponse">
+    (
+      SELECT
+        1 AS `type`,
+        purchase_request_details.id AS id,
+        purchase_request_details.product_id AS itemId,
+        products.name AS itemName,
+        products.code AS itemCode,
+        products.code AS sku,
+        products.barcode AS upc,
+        purchase_request_details.qty AS qty,
+        IFNULL(products.small_val_uom,1) / IFNULL(purchase_request_details.conversion, 1) AS conversion,
+        purchase_request_details.qty_uom_id AS uomId,
+        uoms.name AS uomName,
+        uoms.abbr AS uomAbbr,
+        purchase_request_details.unit_cost AS unitCost,
+        purchase_request_details.total_cost AS totalCost,
+        purchase_request_details.note AS note
+    FROM purchase_request_details
+        LEFT JOIN products ON products.id = purchase_request_details.product_id
+        LEFT JOIN uoms ON uoms.id = purchase_request_details.qty_uom_id
+    WHERE purchase_request_details.purchase_request_id = #{id}
+    )
+    UNION
+    (
+      SELECT
+        2 AS `type`,
+        purchase_request_services.id AS id,
+        purchase_request_services.service_id AS itemId,
+        services.name AS itemName,
+        services.sku AS code,
+        services.sku AS sku,
+        services.sku AS upc,
+        purchase_request_services.qty AS qty,
+        1 AS conversion,
+        NULL AS uomId,
+        NULL AS uomName,
+        NULL AS uomAbbr,
+        purchase_request_services.unit_cost AS unitCost,
+        purchase_request_services.total_cost AS totalCost,
+        purchase_request_services.note AS note
+      FROM purchase_request_services
+             LEFT JOIN services ON services.id = purchase_request_services.service_id
+      WHERE purchase_request_services.purchase_request_id = #{id}
+    )
+    ORDER BY `type` DESC, id ASC
+  </select>
+
+  <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.PurchaseOrderDetail">
+    INSERT INTO purchase_request_details (
+      purchase_request_id,
+      product_id,
+      note,
+      qty,
+      qty_uom_id,
+      conversion,
+      total_cost,
+      unit_cost
+    )
+    VALUES (
+             #{purchaseOrderDetail.purchaseRequestId},
+             #{purchaseOrderDetail.productId},
+             #{purchaseOrderDetail.note},
+             #{purchaseOrderDetail.qty},
+             #{purchaseOrderDetail.uomId},
+             #{purchaseOrderDetail.conversion},
+             #{purchaseOrderDetail.totalCost},
+             #{purchaseOrderDetail.unitCost}
+           );
+  </insert>
+
+  <delete id="deleteDetail" parameterType="java.lang.Long">
+    DELETE FROM purchase_request_details WHERE purchase_request_id = #{purchaseOrderId};
+  </delete>
+
+  <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.PurchaseOrderServices">
+    INSERT INTO purchase_request_services (
+      purchase_request_id,
+      service_id,
+      note,
+      qty,
+      total_cost,
+      unit_cost
+    )
+    VALUES (
+             #{purchaseOrderServices.purchaseRequestId},
+             #{purchaseOrderServices.serviceId},
+             #{purchaseOrderServices.note},
+             #{purchaseOrderServices.qty},
+             #{purchaseOrderServices.totalCost},
+             #{purchaseOrderServices.unitCost}
+           );
+  </insert>
+
+  <delete id="deleteService" parameterType="java.lang.Long">
+    DELETE FROM purchase_request_services WHERE purchase_request_id = #{purchaseOrderId};
+  </delete>
+
+  <insert id="update" parameterType="com.ut.nlSystemAPi.model.PurchaseOrder" useGeneratedKeys="true" keyProperty="purchaseOrder.id">
+    INSERT INTO purchase_requests (
+    <if test="purchaseOrder.companyId != null">company_id,</if>
+    <if test="purchaseOrder.prCode != null">pr_code,</if>
+    <if test="purchaseOrder.vendorId != null">vendor_id,</if>
+    <if test="purchaseOrder.vendorContactId != null">vendor_contact_id,</if>
+    <if test="purchaseOrder.exchangeRateId != null">exchange_rate_id,</if>
+    <if test="purchaseOrder.currencyCenterId != null">currency_center_id,</if>
+    <if test="purchaseOrder.refQuotation != null">ref_quotation,</if>
+    <if test="purchaseOrder.shipmentId != null">shipment_id,</if>
+    <if test="purchaseOrder.paymentId != null">payment_id,</if>
+    <if test="purchaseOrder.shipTo != null">ship_to,</if>
+    <if test="purchaseOrder.contactShipTo != null">contact_ship_to,</if>
+    <if test="purchaseOrder.partOfDischargeId != null">port_of_dischange_id,</if>
+    <if test="purchaseOrder.partOfDischargeContactId != null">port_of_dischange_contact_id,</if>
+    <if test="purchaseOrder.finalPlaceDeliveryId != null">final_place_of_delivery_id,</if>
+    <if test="purchaseOrder.expectedDeliveryDate != null">expected_delivery_date,</if>
+    <if test="purchaseOrder.totalAmount != null">total_amount,</if>
+    <if test="purchaseOrder.totalVat != null">total_vat,</if>
+    <if test="purchaseOrder.vatPercentage != null">vat_percent,</if>
+    <if test="purchaseOrder.vatSettingId != null">vat_setting_id,</if>
+    <if test="purchaseOrder.orderDate != null">order_date,</if>
+    <if test="purchaseOrder.deliveryLeadTime != null">delivery_leadtime,</if>
+    <if test="purchaseOrder.note != null">note,</if>
+    <if test="purchaseOrder.refDoc != null">ref_doc,</if>
+    <if test="purchaseOrder.refDocName != null">ref_doc_name,</if>
+    created,
+    created_by
+    ) VALUES (
+    <if test="purchaseOrder.companyId != null">#{purchaseOrder.companyId},</if>
+    <if test="purchaseOrder.prCode != null">#{purchaseOrder.prCode},</if>
+    <if test="purchaseOrder.vendorId != null">#{purchaseOrder.vendorId},</if>
+    <if test="purchaseOrder.vendorContactId != null">#{purchaseOrder.vendorContactId},</if>
+    <if test="purchaseOrder.exchangeRateId != null">#{purchaseOrder.exchangeRateId},</if>
+    <if test="purchaseOrder.currencyCenterId != null">#{purchaseOrder.currencyCenterId},</if>
+    <if test="purchaseOrder.refQuotation != null">#{purchaseOrder.refQuotation},</if>
+    <if test="purchaseOrder.shipmentId != null">#{purchaseOrder.shipmentId},</if>
+    <if test="purchaseOrder.paymentId != null">#{purchaseOrder.paymentId},</if>
+    <if test="purchaseOrder.shipTo != null">#{purchaseOrder.shipTo},</if>
+    <if test="purchaseOrder.contactShipTo != null">#{purchaseOrder.contactShipTo},</if>
+    <if test="purchaseOrder.partOfDischargeId != null">#{purchaseOrder.partOfDischargeId},</if>
+    <if test="purchaseOrder.partOfDischargeContactId != null">#{purchaseOrder.partOfDischargeContactId},</if>
+    <if test="purchaseOrder.finalPlaceDeliveryId != null">#{purchaseOrder.finalPlaceDeliveryId},</if>
+    <if test="purchaseOrder.expectedDeliveryDate != null">#{purchaseOrder.expectedDeliveryDate},</if>
+    <if test="purchaseOrder.totalAmount != null">#{purchaseOrder.totalAmount},</if>
+    <if test="purchaseOrder.totalVat != null">#{purchaseOrder.totalVat},</if>
+    <if test="purchaseOrder.vatPercentage != null">#{purchaseOrder.vatPercentage},</if>
+    <if test="purchaseOrder.vatSettingId != null">#{purchaseOrder.vatSettingId},</if>
+    <if test="purchaseOrder.orderDate != null">#{purchaseOrder.orderDate},</if>
+    <if test="purchaseOrder.deliveryLeadTime != null">#{purchaseOrder.deliveryLeadTime},</if>
+    <if test="purchaseOrder.note != null">#{purchaseOrder.note},</if>
+    <if test="purchaseOrder.refDoc != null">#{purchaseOrder.refDoc},</if>
+    <if test="purchaseOrder.refDocName != null">#{purchaseOrder.refDocName},</if>
+    NOW(),
+    #{purchaseOrder.modifiedBy}
+    )
+  </insert>
+
+  <update id="archive" parameterType="java.lang.Long">
+    UPDATE purchase_requests SET
+       status = -1,
+       modified = NOW(),
+       modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE purchase_requests SET
+      status = 0,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="closeStatus" parameterType="java.lang.Long">
+    UPDATE purchase_requests SET
+       is_close = #{filter.isClose},
+       modified = NOW(),
+       modified_by = #{userId}
+    WHERE id = #{filter.id};
+  </update>
+
+  <select id="getLastCode" resultType="java.lang.String">
+    SELECT pr_code
+    FROM purchase_requests
+    WHERE YEAR(created) = YEAR(NOW()) AND pr_code LIKE '%PO%' ORDER BY id DESC LIMIT 1
+  </select>
+
+  <select id="getPrCode" resultType="java.lang.String">
+    SELECT pr_code
+    FROM purchase_requests
+    WHERE id = #{id}
+  </select>
+
+  <select id="getConversionByUomId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT IFNULL(value,1) FROM uom_conversions WHERE from_uom_id = #{uomId} AND is_active = 1 LIMIT 1
+  </select>
+
+</mapper>

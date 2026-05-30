@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.AnnouncementMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    announcements.id AS id,
+    announcements.title AS title,
+    announcements.image AS thumbnailName,
+    announcements.image_url AS thumbnail,
+    announcements.content AS content,
+    announcements.schedule AS schedule,
+    announcements.is_public AS isPublic,
+    announcements.is_active AS isActive,
+    announcements.created AS created,
+    CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+    announcements.modified AS modified,
+    CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM announcements
+    LEFT JOIN users AS creator ON announcements.created_by = creator.id
+    LEFT JOIN users AS modifier ON announcements.modified_by = modifier.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE announcements.is_active = 1
+    AND announcements.type = 1
+    <if test="filter.searchText != null">
+      AND (
+        announcements.title LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR announcements.content LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AnnouncementResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        announcements.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(announcements.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="AnnouncementResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE announcements.is_active = 1 AND announcements.type = 1 AND announcements.id = #{id}
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Announcement" useGeneratedKeys="true" keyProperty="announcement.id">
+    INSERT INTO announcements (
+      title,
+      image,
+      image_url,
+      content,
+      schedule,
+      created,
+      created_by,
+      is_public,
+      type,
+      is_active
+    ) VALUES (
+      #{announcement.title},
+      #{announcement.fileName},
+      #{announcement.fileUrl},
+      #{announcement.content},
+      #{announcement.schedule},
+      NOW(),
+      #{announcement.createdBy},
+      #{announcement.isPublic},
+      #{announcement.type},
+      #{announcement.isActive}
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Announcement">
+    UPDATE announcements SET
+      <if test="announcement.title != null">title = #{announcement.title},</if>
+      <if test="announcement.fileName != null">image = #{announcement.fileName},</if>
+      <if test="announcement.fileUrl != null">image_url = #{announcement.fileUrl},</if>
+      <if test="announcement.content != null">content = #{announcement.content},</if>
+      <if test="announcement.schedule != null">schedule = #{announcement.schedule},</if>
+      <if test="announcement.isPublic != null">is_public = #{announcement.isPublic},</if>
+      type = #{announcement.type},
+      modified = NOW(),
+      modified_by = #{announcement.modifiedBy}
+    WHERE id = #{announcement.id} AND is_active = 1 AND type = 1
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE announcements SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id} AND is_active = 1 AND type = 1
+  </update>
+
+</mapper>

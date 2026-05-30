@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProjectEstimationMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    project_costings.id AS id,
+    project_costings.company_id AS companyId,
+    project_costings.pc_code AS pcCode,
+    project_costings.customer_id AS organizationOwnerId,
+    customers.name AS organizationOwnerName,
+    project_costings.customer_contact_id AS personInChargeId,
+    customer_contacts.contact_name AS personInChargeName,
+    project_costings.employee_id AS projectLeaderId,
+    employees.name AS projectLeaderName,
+    project_costings.boq_id AS boqId,
+    boqs.code AS boqCode,
+    project_costings.`date` AS `date`,
+    project_costings.duration AS duration,
+    project_costings.note AS note,
+    project_costings.total_sub_amount + project_costings.total_amount AS totalProjectRevenue,
+    project_costings.total_sub_amount AS totalEstimateCost,
+    project_costings.total_amount AS grossProfitAmount,
+    project_costings.total_percent AS grossProfitPercent,
+    (SELECT color_code FROM project_costing_percent_setting_colors WHERE project_costings.total_percent >= percent_from AND project_costings.total_percent &lt;= percent_to AND project_costing_percent_setting_colors.is_active = 1 ORDER BY project_costing_percent_setting_colors.id DESC LIMIT 1) AS grossProfitColor,
+    project_costings.status AS status,
+    project_costings.created AS created,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CASE
+    WHEN project_costings.status = 2 THEN project_costings.approved
+    ELSE project_costings.disapproved
+    END AS modified,
+    CASE
+    WHEN project_costings.status = 2 THEN
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = project_costings.approved_by)
+    ELSE
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = project_costings.disapproved_by)
+    END AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM project_costings
+    LEFT JOIN companies ON companies.id = project_costings.company_id
+    LEFT JOIN employees ON employees.id = project_costings.employee_id
+    LEFT JOIN boqs ON boqs.id = project_costings.boq_id
+    INNER JOIN customers ON customers.id = project_costings.customer_id
+    LEFT JOIN customer_contacts ON customer_contacts.id = project_costings.customer_contact_id
+    LEFT JOIN users AS users1 ON users1.id = project_costings.created_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE project_costings.status >= 0 AND project_costings.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+    <if test="filter.searchText != null">
+      AND(
+        project_costings.pc_code LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR boqs.code LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employees.name LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+    <if test="filter.dateFrom != null">
+      AND project_costings.date >= #{filter.dateFrom}
+    </if>
+    <if test="filter.dateTo != null">
+      AND project_costings.date &lt;= #{filter.dateTo}
+    </if>
+    <if test="filter.status != null">
+      AND project_costings.status = #{filter.status}
+    </if>
+    <if test="filter.viewByUser == 1">
+      AND project_costings.created_by = #{userId}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ProjectEstimationFilter" resultType="com.ut.nlSystemAPi.model.response.ProjectEstimation.ProjectEstimationResponse">
+    SELECT
+    project_costings.total_amount * 100 / project_costings.total_sub_amount AS roi,
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        project_costings.date DESC, project_costings.date DESC, project_costings.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ProjectEstimationFilter" resultType="java.lang.Long">
+    SELECT COUNT(project_costings.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.ProjectEstimation.ProjectEstimationResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE project_costings.status >= 0 AND project_costings.id = #{id} AND project_costings.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.ProjectEstimation.ProjectEstimation" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO project_costings (
+      company_id,
+      pc_code,
+      customer_id,
+      customer_contact_id,
+      employee_id,
+      boq_id,
+      date,
+      duration,
+      note,
+      total_sub_amount,
+      total_amount,
+      total_percent,
+      created,
+      created_by,
+      status
+    ) VALUES (
+               #{projectEstimation.companyId},
+               #{projectEstimation.pcCode},
+               #{projectEstimation.customerId},
+               #{projectEstimation.customerContactId},
+               #{projectEstimation.employeeId},
+               #{projectEstimation.boqId},
+               #{projectEstimation.date},
+               #{projectEstimation.duration},
+               #{projectEstimation.note},
+               #{projectEstimation.totalSubAmount},
+               #{projectEstimation.totalAmount},
+               #{projectEstimation.totalPercent},
+               NOW(),
+               #{projectEstimation.createdBy},
+               1
+             )
+  </insert>
+
+  <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.ProjectEstimation.ProjectEstimationDetail">
+    INSERT INTO project_costing_details (
+      project_costing_id,
+      project_costing_term_id,
+      vendor_id,
+      description,
+      qty,
+      uom_id,
+      unit_price,
+      total_price,
+      note
+    ) VALUES (
+               #{detail.projectEstimationId},
+               #{detail.projectEstimationTermId},
+               #{detail.vendorId},
+               #{detail.description},
+               #{detail.qty},
+               #{detail.uomId},
+               #{detail.unitPrice},
+               #{detail.totalPrice},
+               #{detail.note}
+             )
+  </insert>
+
+  <select id="getListDetail" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.ProjectEstimation.ProjectEstimationDetailResponse">
+    SELECT
+      project_costing_details.id AS id,
+      project_costing_details.project_costing_id AS projectEstimationId,
+      project_costing_details.project_costing_term_id AS projectEstimationTermId,
+      project_costing_terms.number AS projectEstimationTermNumber,
+      project_costing_terms.symbol AS projectEstimationTermSymbol,
+      project_costing_terms.name AS projectEstimationTermName,
+      project_costing_terms.color AS projectEstimationTermColor,
+      project_costing_details.vendor_id AS vendorId,
+      vendors.name AS vendorName,
+      project_costing_details.description AS description,
+      project_costing_details.qty AS qty,
+      project_costing_details.uom_id AS uomId,
+      uoms.name AS uomName,
+      uoms.abbr AS uomAbbr,
+      project_costing_details.unit_price AS unitPrice,
+      project_costing_details.total_price AS totalPrice,
+      project_costing_details.note AS note
+    FROM project_costing_details
+        LEFT JOIN project_costing_terms ON project_costing_terms.id = project_costing_details.project_costing_term_id
+        LEFT JOIN uoms ON uoms.id = project_costing_details.uom_id
+        LEFT JOIN vendors ON vendors.id = project_costing_details.vendor_id
+    WHERE project_costing_details.project_costing_id = #{projectEstimationId}
+  </select>
+
+  <update id="approve" parameterType="java.lang.Long">
+    UPDATE project_costings SET
+    <choose>
+      <when test="status == 2">
+        approved = NOW(),
+        approved_by = #{userId},
+      </when>
+      <otherwise>
+        disapproved = NOW(),
+        disapproved_by = #{userId},
+      </otherwise>
+    </choose>
+    status = #{status}
+    WHERE id = #{id} AND status > 0;
+  </update>
+
+</mapper>

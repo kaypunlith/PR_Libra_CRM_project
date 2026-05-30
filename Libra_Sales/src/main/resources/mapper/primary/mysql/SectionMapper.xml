@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SectionMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        sections.id AS id,
+        sections.`name` AS `name`,
+        (SELECT company_id FROM section_companies WHERE section_id = sections.id) AS companyId,
+        (SELECT `name` FROM companies WHERE id = companyId) AS companyName,
+        sections.chart_account_id AS chartAccountId,
+        CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS chartAccountName,
+        sections.unearn_chart_account_id AS unEarnChartAccountId,
+        CONCAT_WS(' - ',unearn.account_codes, unearn.account_description) AS unEarnChartAccountName,
+        sections.description AS description,
+        sections.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        sections.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM sections
+        INNER JOIN chart_accounts ON sections.chart_account_id = chart_accounts.id
+        LEFT JOIN chart_accounts AS unearn ON sections.unearn_chart_account_id = unearn.id
+        LEFT JOIN users AS creator ON sections.created_by = creator.id
+        LEFT JOIN users AS modifier ON sections.modified_by = modifier.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE sections.is_active = 1
+        <if test="filter.searchText != null">
+            AND sections.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="SectionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                sections.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(sections.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="SectionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE sections.is_active = 1 AND sections.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM sections
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Section.Section" useGeneratedKeys="true" keyProperty="section.id">
+        INSERT INTO sections (
+            `name`,
+            chart_account_id,
+            unearn_chart_account_id,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{section.name},
+            #{section.chartAccountId},
+            #{section.unEarnChartAccountId},
+            #{section.description},
+            NOW(),
+            #{section.createdBy},
+            #{section.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Section.Section">
+        UPDATE sections SET
+            <if test="section.name != null">`name` = #{section.name},</if>
+            <if test="section.companyId != null">company_id = #{section.companyId},</if>
+            <if test="section.chartAccountId != null">chart_account_id = #{section.chartAccountId},</if>
+            <if test="section.unEarnChartAccountId != null">unearn_chart_account_id = #{section.unEarnChartAccountId},</if>
+            <if test="section.description != null">description = #{section.description},</if>
+            modified = NOW(),
+            modified_by = #{section.modifiedBy}
+        WHERE id = #{section.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE sections SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <update id="deleteSectionCompany" parameterType="java.lang.Long">
+        DELETE FROM section_companies WHERE section_id = #{id}
+    </update>
+
+    <insert id="insertSectionCompany" parameterType="com.ut.nlSystemAPi.model.entity.Section.Section">
+        INSERT INTO section_companies (
+            section_id,
+            company_id
+        ) VALUES (
+            #{section.id},
+            #{section.companyId}
+        )
+    </insert>
+
+</mapper>

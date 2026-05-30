@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProductGroupMapper">
+
+  <resultMap id="ProductGroupResponse" type="com.ut.nlSystemAPi.model.response.ProductGroup.ProductGroupResponse">
+
+  </resultMap>
+
+  <resultMap id="ICSResponse" type="com.ut.nlSystemAPi.model.response.ProductGroup.ICSResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPgroupResponse" type="com.ut.nlSystemAPi.model.response.ProductGroup.ProductPgroupResponse">
+
+  </resultMap>
+
+  <resultMap id="UserPgroupResponse" type="com.ut.nlSystemAPi.model.response.ProductGroup.UserPgroupResponse">
+
+  </resultMap>
+
+  <resultMap id="PriceTypePgroupResponse" type="com.ut.nlSystemAPi.model.response.ProductGroup.PriceTypePgroupResponse">
+
+  </resultMap>
+
+</mapper>

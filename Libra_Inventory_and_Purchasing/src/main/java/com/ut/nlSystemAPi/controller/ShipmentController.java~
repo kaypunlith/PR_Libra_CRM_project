@@ -1,0 +1,80 @@
+package com.ut.nlSystemAPi.controller;
+import com.ut.nlSystemAPi.base.UserAuthSession;
+import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
+import com.ut.nlSystemAPi.model.ModuleTypeFilter;
+import com.ut.nlSystemAPi.model.base.BaseResult;
+import com.ut.nlSystemAPi.model.base.ResponseMessage;
+import com.ut.nlSystemAPi.model.request.Login.Shipment.ShipmentRequest;
+import com.ut.nlSystemAPi.model.request.Login.Shipment.ShipmentUpdateRequest;
+import com.ut.nlSystemAPi.service.ShipmentService;
+import io.micrometer.core.annotation.Timed;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.Authorization;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import javax.servlet.http.HttpServletRequest;
+import java.net.UnknownHostException;
+
+@RestController
+@RequestMapping("/shipment")
+@Api(tags = "15. Shipment", description = "Shipment Resource")
+@Timed
+public class ShipmentController {
+    @Autowired
+    private ShipmentService shipmentService;
+
+    @PostMapping("/list")
+    @ApiOperation(value = "List shipment by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> list(@RequestBody ModuleTypeFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        // Check Header Token
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return shipmentService.getList(filter, httpServletRequest);
+    }
+
+
+    @PostMapping("/find/{id}")
+    @ApiOperation(value = "Find shipment by id", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> findById(@PathVariable("id") Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        // Check Header Token
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return shipmentService.getOne(id, httpServletRequest);
+    }
+
+    @PostMapping(value = "/add", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Add new shipment", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> add(@RequestBody ShipmentRequest shipmentRequest, BindingResult bindingResult, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        // Check Header Token
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return shipmentService.insert(shipmentRequest, bindingResult, httpServletRequest);
+    }
+
+    @PostMapping(value = "/update", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Update shipment by id", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> update(@RequestBody ShipmentUpdateRequest shipmentUpdateRequest, BindingResult bindingResult, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        // Check Header Token
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return shipmentService.update(shipmentUpdateRequest, bindingResult, httpServletRequest);
+    }
+
+    @PostMapping("/delete/{id}")
+    @ApiOperation(value = "Delete shipment by id", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> delete(@PathVariable("id") Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        // Check Header Token
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return shipmentService.delete(id, httpServletRequest);
+    }
+
+}

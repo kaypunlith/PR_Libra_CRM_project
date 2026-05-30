@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LeadContactMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        customer_contacts.id AS id,
+        customer_contacts.customer_id AS leadId,
+        customers.name AS leadName,
+        customer_contacts.contact_name AS leadContactName,
+        customer_contacts.sex AS gender,
+        customer_contacts.contact_telephone AS contactTelephone,
+        customer_contacts.contact_email AS contactEmail,
+        customer_contacts.position AS position,
+        customer_contacts.emp_personal_id AS personalizeIndexId,
+        employee_personalities.name AS personalizeIndexName,
+        customer_contacts.roles AS role,
+        customer_contacts.work_flow AS workFlow,
+        customer_contacts.needs AS needs,
+        customer_contacts.wants AS wants,
+        customer_contacts.pain_points AS painPoint,
+        customer_contacts.note AS note,
+        customer_contacts.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        customer_contacts.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM customer_contacts
+        LEFT JOIN customers ON customers.id = customer_contacts.customer_id
+        LEFT JOIN employee_personalities ON employee_personalities.id = customer_contacts.emp_personal_id
+        LEFT JOIN users AS creator ON creator.id = customer_contacts.created_by
+        LEFT JOIN users AS modifier ON modifier.id = customer_contacts.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE customer_contacts.is_active = 3
+        AND customer_contacts.contact_type = 2
+        AND (
+            customer_contacts.customer_id IS NULL
+            OR customer_contacts.customer_id IN (
+                SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            )
+        )
+        <if test="filter.searchText != null">
+            AND (
+                customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_email LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        <if test="filter.leadId != null">
+            AND customer_contacts.customer_id = #{filter.leadId}
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND customer_contacts.created_by = #{userId}
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="LeadContactResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY customer_contacts.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customer_contacts.contact_name ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT customer_contacts.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="LeadContactResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE customer_contacts.is_active = 3
+        AND customer_contacts.contact_type = 2
+        AND (
+            customer_contacts.customer_id IS NULL
+            OR customer_contacts.customer_id IN (
+                SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            )
+        )
+        AND customer_contacts.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="leadContact.id">
+        INSERT INTO customer_contacts (
+            customer_id,
+            contact_name,
+            sex,
+            contact_telephone,
+            contact_email,
+            position,
+            emp_personal_id,
+            roles,
+            work_flow,
+            needs,
+            wants,
+            pain_points,
+            note,
+            contact_type,
+            is_active,
+            created,
+            created_by
+        ) VALUES (
+            #{leadContact.leadId},
+            #{leadContact.contactName},
+            #{leadContact.gender},
+            #{leadContact.contactTelephone},
+            #{leadContact.contactEmail},
+            #{leadContact.position},
+            #{leadContact.personalizeIndexId},
+            #{leadContact.role},
+            #{leadContact.workFlow},
+            #{leadContact.needs},
+            #{leadContact.wants},
+            #{leadContact.painPoint},
+            #{leadContact.note},
+            2,
+            #{leadContact.isActive},
+            NOW(),
+            #{leadContact.createdBy}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE customer_contacts SET
+            customer_id = #{leadContact.leadId},
+            contact_name = #{leadContact.contactName},
+            sex = #{leadContact.gender},
+            contact_telephone = #{leadContact.contactTelephone},
+            contact_email = #{leadContact.contactEmail},
+            position = #{leadContact.position},
+            emp_personal_id = #{leadContact.personalizeIndexId},
+            roles = #{leadContact.role},
+            work_flow = #{leadContact.workFlow},
+            needs = #{leadContact.needs},
+            wants = #{leadContact.wants},
+            pain_points = #{leadContact.painPoint},
+            note = #{leadContact.note},
+            contact_type = 2,
+            is_active = 3,
+            modified = NOW(),
+            modified_by = #{leadContact.modifiedBy}
+        WHERE id = #{leadContact.id}
+        AND contact_type = 2
+    </update>
+
+    <update id="delete">
+        UPDATE customer_contacts SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND contact_type = 2
+        AND is_active = 3
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM customer_contacts
+        WHERE is_active = 3
+        AND contact_type = 2
+        AND contact_name = #{contactName}
+        <if test="id != null">
+            AND id != #{id}
+        </if>
+    </select>
+
+</mapper>

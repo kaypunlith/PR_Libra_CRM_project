@@ -1,0 +1,716 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.EmployeeAdjustBeginningMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    employees.*,
+      (SELECT username FROM users WHERE id = user_id LIMIT 1) AS username,
+       employee_code AS empId,
+       current_salary AS salary,
+       allowance AS allowance,
+       paid_by AS paidType,
+       remark AS remark,
+       positions.name AS positionName,
+       positions.ordering AS positionOrdering,
+       departments.name AS departmentName,
+       maritals.name AS maritalName,
+       employee_status.name AS employeeStatusName,
+      (SELECT payroll_type FROM employee_apply_status WHERE is_active = 1 AND employee_id = employees.id ORDER BY employee_id DESC LIMIT 01) AS payroll,
+       IFNULL((SELECT IFNULL(increase_salary,0) FROM employee_increase_salaries WHERE is_active = 1 AND employee_id = employees.id
+            AND YEAR(date) = YEAR(CURDATE()) AND MONTH(date) = MONTH(CURDATE()) LIMIT 1),0) AS increaseSalary,
+      (SELECT full_name FROM users WHERE is_active = 1 AND id = employees.created_by) AS createdByName,
+      (SELECT full_name FROM users WHERE is_active = 1 AND id = employees.modified_by) AS modifiedByName
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM employees
+        INNER JOIN positions ON positions.id = employees.position_id
+        INNER JOIN departments ON departments.id = employees.department_id
+        INNER JOIN maritals ON maritals.id = employees.marital_id
+        INNER JOIN employee_status ON employee_status.id = employees.employee_status_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE employees.is_active = 1
+    <choose>
+      <when test="filter.groupId != null or filter.departmentId != null or filter.employessStatusId != null or filter.searchText != null or filter.dateOfWork != null ">
+        <if test="filter.groupId != null and filter.groupId > 0">
+          AND employees.department_id IN (SELECT id FROM departments WHERE group_id = #{filter.groupId}
+          AND id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId}))
+        </if>
+        <if test="filter.departmentId != null and filter.groupId != null">
+          AND employees.department_id = #{filter.departmentId}
+        </if>
+        <if test="filter.employessStatusId != null">
+          AND employees.id IN (SELECT employee_id FROM employee_apply_status WHERE is_active = 1 AND employee_status_id = #{filter.employessStatusId})
+          AND (employees.department_id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+          OR employees.department_id IN (SELECT id FROM departments WHERE user_apply = 0 AND is_active = 1))
+        </if>
+        <if test="filter.dateOfWork != null">
+          AND MONTH(employees.start_working_date) = MONTH(#{filter.dateOfWork}) AND YEAR(employees.start_working_date) = YEAR(#{filter.dateOfWork})
+          AND (employees.department_id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+          OR employees.department_id IN (SELECT id FROM departments WHERE user_apply = 0 AND is_active = 1))
+        </if>
+        <if test="filter.searchText != null">
+          AND (
+            employees.name_en LIKE CONCAT("%", #{filter.searchText}, "%") OR
+            employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR
+            employees.employee_code LIKE CONCAT("%", #{filter.searchText}, "%") OR
+            employees.telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+          )
+          AND (employees.department_id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+          OR employees.department_id IN (SELECT id FROM departments WHERE user_apply = 0 AND is_active = 1))
+        </if>
+      </when>
+      <when test="filter.searchText != null">
+        AND (
+          employees.name_en LIKE CONCAT("%", #{filter.searchText}, "%") OR
+          employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR
+          employees.employee_code LIKE CONCAT("%", #{filter.searchText}, "%") OR
+          employees.telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+        )
+        AND (employees.department_id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+        OR employees.department_id IN (SELECT id FROM departments WHERE user_apply = 0 AND is_active = 1))
+      </when>
+      <otherwise>
+        AND employees.department_id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+        OR employees.department_id IN (SELECT id FROM departments WHERE user_apply = 0 AND is_active = 1) AND employees.is_active = 1
+      </otherwise>
+    </choose>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.EmployeeFilter" resultMap="EmployeesResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+          employees.department_id ASC,
+          positionOrdering ASC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="EmployeeList">
+    SELECT *,
+       (SELECT name FROM positions WHERE id = position_id) AS positionName,
+       (SELECT name FROM egroups WHERE id IN (SELECT group_id FROM departments WHERE is_active = 1 AND id = department_id)) AS groupName,
+       (SELECT name FROM departments WHERE id = department_id) AS departmentName,
+       (SELECT name FROM maritals WHERE id = marital_id) AS maritalName,
+       photo AS profilePhoto,
+       user_id AS applyToUser,
+       start_working_date AS dateOfWork,
+       remark AS remark,
+       emp_reference AS reference,
+       (SELECT username FROM users WHERE id = user_id) AS applyToUserName,
+       is_donated AS donate,
+       is_provident_fund AS providenceFund,
+       paid_by AS paidType,
+       is_deposit AS deposit,
+       num_month AS numOfMonth,
+       amount_deposit AS cashAmount,
+       (SELECT name FROM employee_status WHERE id IN (SELECT employee_status_id FROM employee_apply_status WHERE employee_id = #{id} AND is_active = 1)) AS employeeStatusName,
+       (SELECT filed_type FROM employee_status WHERE id IN (SELECT employee_status_id FROM employee_apply_status WHERE employee_id = #{id} AND is_active = 1)) AS filedType,
+       (SELECT date FROM employee_apply_status WHERE employee_id = #{id} AND is_active = 1) AS date,
+       (SELECT date_to FROM employee_apply_status WHERE employee_id = #{id} AND is_active = 1) AS dateTo,
+       (SELECT payroll_type FROM employee_apply_status WHERE employee_id = #{id} AND is_active = 1) AS payroll,
+       (SELECT full_name FROM users WHERE is_active = 1 AND id = employees.created_by) AS createdByName,
+       (SELECT full_name FROM users WHERE is_active = 1 AND id = employees.modified_by) AS modifiedByName,
+       (SELECT amount FROM employee_adjust_beginnings WHERE is_active = 1 AND employee_id = #{id} ORDER BY id DESC LIMIT 1) AS beginningDeposit,
+       (SELECT amount FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10
+            AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{id} AND pay_date = '2020-11-25')) AS beginningProFund,
+       (SELECT total_of_months FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10
+            AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{id} AND pay_date = '2020-11-25')) AS beginningProFundMonth
+    FROM employees
+    WHERE is_active = 1 AND id = #{id}
+  </select>
+
+  <select id="listDocumentEmp" resultMap="EmployeeDocumentResponse">
+    SELECT *,
+      employee_id AS employeeId,
+      file_name AS fileDocument,
+      file_path AS filePath
+    FROM employee_apply_documents
+    WHERE employee_id = #{empId} AND is_active = 1
+    ORDER BY id ASC
+  </select>
+
+  <select id="checkCurrentSalary" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM payrolls WHERE employee_id = #{employeesId}
+    AND is_active = 1
+  </select>
+
+  <select id="payrollDate" resultType="java.lang.String">
+    SELECT
+        pay_date
+    FROM payrolls WHERE employee_id = #{employeesId} AND is_active = 1
+    ORDER BY id DESC LIMIT 01
+  </select>
+
+  <select id="listEmployeeStatus" resultMap="ListEmployeesStatusRespon">
+    SELECT * FROM employee_status WHERE is_active = 1
+  </select>
+
+  <select id="listMaritals" resultMap="ListMaritalsStatusRespon">
+    SELECT * FROM maritals WHERE is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employees
+    WHERE is_active = 1 AND name_kh = #{nameKh} AND name_en = #{nameEn} AND id_card = #{idCard}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <select id="checkExisting" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employees
+    WHERE is_active = 1
+    <if test="nameKh != null"> AND name_kh = #{nameKh} </if>
+    <if test="nameEn != null"> AND name_en = #{nameEn} </if>
+    <if test="idCard != null"> AND id_card = #{idCard} </if>
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.EmployeeSetting" useGeneratedKeys="true" keyProperty="employeeSetting.id">
+    INSERT INTO employees (
+      user_id,
+      name_kh,
+      name_en,
+      telephone,
+      email,
+      address,
+      photo,
+      dob,
+      gender,
+      id_card,
+      about_me,
+      remark,
+      reason,
+      emp_reference,
+      work_experience,
+      department_id,
+      position_id,
+      start_working_date,
+      current_salary,
+      allowance,
+      marital_id,
+      paid_by,
+      account_number,
+      account_id,
+      is_donated,
+      is_provident_fund,
+      is_deposit,
+      amount_deposit,
+      num_month,
+      employee_status_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeSetting.applyToUser},
+      #{employeeSetting.nameKh},
+      #{employeeSetting.nameEn},
+      #{employeeSetting.telephone},
+      #{employeeSetting.email},
+      #{employeeSetting.address},
+      #{employeeSetting.profilePhoto},
+      #{employeeSetting.dob},
+      #{employeeSetting.gender},
+      #{employeeSetting.idCard},
+      #{employeeSetting.aboutMe},
+      #{employeeSetting.remark},
+      #{employeeSetting.reason},
+      #{employeeSetting.reference},
+      #{employeeSetting.workExperience},
+      #{employeeSetting.departmentId},
+      #{employeeSetting.positionId},
+      #{employeeSetting.dateOfWork},
+      #{employeeSetting.currentSalary},
+      #{employeeSetting.allowance},
+      #{employeeSetting.maritalId},
+      #{employeeSetting.paidType},
+      #{employeeSetting.accountNumber},
+      #{employeeSetting.accountId},
+      #{employeeSetting.donate},
+      #{employeeSetting.providenceFund},
+      #{employeeSetting.deposit},
+      #{employeeSetting.cashAmount},
+      #{employeeSetting.numOfMonth},
+      #{employeeSetting.employeeStatusId},
+      NOW(),
+      #{employeeSetting.createdBy},
+      #{employeeSetting.isActive}
+    );
+
+    INSERT INTO employee_apply_status (
+      employee_id,
+      employee_status_id,
+      payroll_type,
+      date,
+      date_to,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      LAST_INSERT_ID(),
+      #{employeeSetting.employeeStatusId},
+      #{employeeSetting.payroll},
+      #{employeeSetting.date},
+      #{employeeSetting.dateTo},
+      NOW(),
+      #{employeeSetting.createdBy},
+      1
+    );
+  </insert>
+
+  <insert id="insertDocument" parameterType="com.ut.nlSystemAPi.model.EmployeeDocument">
+    INSERT INTO employee_apply_documents (
+      employee_id,
+      file_name,
+      file_path,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeDocument.employeeId},
+      #{employeeDocument.fileDocument},
+      #{employeeDocument.filePath},
+      NOW(),
+      #{employeeDocument.createdBy},
+      1
+    );
+  </insert>
+
+  <!--  check positon history and employee status history-->
+  <select id="checkPositionHistory" resultType="java.lang.Long">
+    SELECT position_id FROM employee_position_histories WHERE is_active = 1 AND employee_id = #{employeesId} ORDER BY id DESC LIMIT 01;
+  </select>
+
+  <select id="checkEmpStatusHistory" resultType="java.lang.Long">
+    SELECT employee_status_id FROM employee_apply_status_histories WHERE is_active = 1 AND employee_id = #{employeesId} ORDER BY id DESC LIMIT 01;
+  </select>
+
+  <!--  insert to position history and employee status history-->
+  <insert id="insertPositionHistory">
+    INSERT INTO employee_position_histories (
+      employee_id,
+      position_id,
+      date,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeesId},
+      #{positionId},
+      NOW(),
+      NOW(),
+      #{createdBy},
+      1
+    );
+  </insert>
+
+  <insert id="insertEmpStatusHistory">
+    INSERT INTO employee_apply_status_histories (
+      employee_id,
+      employee_status_id,
+      date,
+      date_to,
+      reason,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeesId},
+      #{employeeStatusId},
+      #{date},
+      #{dateTo},
+      #{reason},
+      NOW(),
+      #{createdBy},
+      1
+    );
+  </insert>
+
+  <insert id="insertEmpPayroll" parameterType="com.ut.nlSystemAPi.model.PayrollBeginning" useGeneratedKeys="true" keyProperty="payrollBeginning.id">
+    INSERT INTO payrolls (
+      pay_date,
+      employee_id,
+      position_id,
+      paid_type,
+      bank_acc,
+      bank_id,
+      old_salary,
+      increase_salary,
+      total_amount,
+      note,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      '2020-11-25',
+      #{payrollBeginning.employeesId},
+      #{payrollBeginning.positionId},
+      #{payrollBeginning.paidType},
+      #{payrollBeginning.accountNumber},
+      #{payrollBeginning.accountId},
+      #{payrollBeginning.currentSalary},
+      #{payrollBeginning.increaseSalary},
+      #{payrollBeginning.totalAmount},
+      #{payrollBeginning.note},
+      NOW(),
+      #{payrollBeginning.createdBy},
+      #{payrollBeginning.isActive}
+    );
+  </insert>
+
+  <insert id="insertPayrollDetailDeposit">
+    INSERT INTO payroll_details (
+      payroll_id,
+      payroll_item_id,
+      amount,
+      total_of_months,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{payrollId},
+      5,
+      #{amount},
+      2,
+      NOW(),
+      #{userId},
+      1
+    );
+  </insert>
+
+  <insert id="insertPayrollDetailProFund">
+    INSERT INTO payroll_details (
+      payroll_id,
+      payroll_item_id,
+      amount,
+      total_of_months,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{payrollId},
+      10,
+      #{amount},
+      #{monthOfProFund},
+      NOW(),
+      #{userId},
+      1
+    );
+  </insert>
+
+  <insert id="insertOtherPayrollDetail">
+    INSERT INTO payroll_details (
+      payroll_id,
+      payroll_item_id,
+      amount,
+      created,
+      created_by,
+      is_active
+    ) VALUES
+    ( #{payrollId}, 1, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 2, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 3, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 4, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 6, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 7, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 8, 0, NOW(), #{userId}, 1 ),
+    ( #{payrollId}, 9, 0, NOW(), #{userId}, 1 )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.EmployeeSetting">
+    UPDATE employees SET
+      <if test="employeeSetting.applyToUser != null">user_id = #{employeeSetting.applyToUser},</if>
+      <if test="employeeSetting.nameKh != null">name_kh = #{employeeSetting.nameKh},</if>
+      <if test="employeeSetting.nameEn != null">name_en = #{employeeSetting.nameEn},</if>
+      <if test="employeeSetting.telephone != null">telephone = #{employeeSetting.telephone},</if>
+      <if test="employeeSetting.email != null">email = #{employeeSetting.email},</if>
+      <if test="employeeSetting.address != null">address = #{employeeSetting.address},</if>
+      <if test="employeeSetting.profilePhoto != null">photo = #{employeeSetting.profilePhoto},</if>
+      <if test="employeeSetting.dob != null">dob = #{employeeSetting.dob},</if>
+      <if test="employeeSetting.gender != null">gender = #{employeeSetting.gender},</if>
+      <if test="employeeSetting.idCard != null">id_card = #{employeeSetting.idCard},</if>
+      <if test="employeeSetting.aboutMe != null">about_me = #{employeeSetting.aboutMe},</if>
+      <if test="employeeSetting.remark != null">remark = #{employeeSetting.remark},</if>
+      <if test="employeeSetting.reason != null">reason = #{employeeSetting.reason},</if>
+      <if test="employeeSetting.reference != null">emp_reference = #{employeeSetting.reference},</if>
+      <if test="employeeSetting.workExperience != null">work_experience = #{employeeSetting.workExperience},</if>
+      <if test="employeeSetting.departmentId != null">department_id = #{employeeSetting.departmentId},</if>
+      <if test="employeeSetting.positionId != null">position_id = #{employeeSetting.positionId},</if>
+      <if test="employeeSetting.dateOfWork != null">start_working_date = #{employeeSetting.dateOfWork},</if>
+      <if test="employeeSetting.currentSalary != null">current_salary = #{employeeSetting.currentSalary},</if>
+      <if test="employeeSetting.allowance != null">allowance = #{employeeSetting.allowance},</if>
+      <if test="employeeSetting.maritalId != null">marital_id = #{employeeSetting.maritalId},</if>
+      <if test="employeeSetting.paidType != null">paid_by = #{employeeSetting.paidType},</if>
+      <if test="employeeSetting.accountNumber != null">account_number = #{employeeSetting.accountNumber},</if>
+      <if test="employeeSetting.accountId != null">account_id = #{employeeSetting.accountId},</if>
+      <if test="employeeSetting.donate != null">is_donated = #{employeeSetting.donate},</if>
+      <if test="employeeSetting.providenceFund != null">is_provident_fund = #{employeeSetting.providenceFund},</if>
+      <if test="employeeSetting.deposit != null">is_deposit = #{employeeSetting.deposit},</if>
+      <if test="employeeSetting.cashAmount != null">amount_deposit = #{employeeSetting.cashAmount},</if>
+      <if test="employeeSetting.numOfMonth != null">num_month = #{employeeSetting.numOfMonth},</if>
+      <if test="employeeSetting.employeeStatusId != null">employee_status_id = #{employeeSetting.employeeStatusId},</if>
+      modified = NOW(),
+      modified_by = #{employeeSetting.modifiedBy}
+    WHERE id = #{employeeSetting.id};
+
+    UPDATE employee_apply_status SET
+      modified = NOW(),
+      modified_by = #{employeeSetting.modifiedBy},
+      is_active = 2
+    WHERE employee_id = #{employeeSetting.id};
+
+    INSERT INTO employee_apply_status (
+      employee_id,
+      employee_status_id,
+      payroll_type,
+      date,
+      date_to,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeSetting.id},
+      #{employeeSetting.employeeStatusId},
+      #{employeeSetting.payroll},
+      #{employeeSetting.date},
+      #{employeeSetting.dateTo},
+      NOW(),
+      #{employeeSetting.createdBy},
+      1
+    );
+  </update>
+
+  <insert id="updateDocument" parameterType="com.ut.nlSystemAPi.model.EmployeeDocument">
+    INSERT INTO employee_apply_documents (
+      employee_id,
+      file_name,
+      file_path,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeDocument.employeeId},
+      #{employeeDocument.fileDocument},
+      #{employeeDocument.filePath},
+      NOW(),
+      #{employeeDocument.createdBy},
+      1
+    );
+  </insert>
+
+  <select id="checkEmpInPayroll" resultType="java.lang.Long">
+    SELECT COUNT(id) FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND pay_date = '2020-11-25'
+  </select>
+
+  <update id="updateEmpPayroll" parameterType="com.ut.nlSystemAPi.model.PayrollBeginning">
+    UPDATE payrolls SET
+      <if test="payrollBeginning.positionId != null">position_id = #{payrollBeginning.positionId},</if>
+      <if test="payrollBeginning.paidType != null">paid_type = #{payrollBeginning.paidType},</if>
+      <if test="payrollBeginning.accountNumber != null">bank_acc = #{payrollBeginning.accountNumber},</if>
+      <if test="payrollBeginning.accountId != null">bank_id = #{payrollBeginning.accountId},</if>
+      <if test="payrollBeginning.currentSalary != null">old_salary = #{payrollBeginning.currentSalary},</if>
+      <if test="payrollBeginning.increaseSalary != null">increase_salary = #{payrollBeginning.increaseSalary},</if>
+      <if test="payrollBeginning.totalAmount != null">total_amount = #{payrollBeginning.totalAmount},</if>
+      <if test="payrollBeginning.note != null">note = #{payrollBeginning.note},</if>
+      modified = NOW(),
+      modified_by = #{payrollBeginning.modifiedBy}
+    WHERE is_active = 1 AND employee_id = #{payrollBeginning.employeesId} AND pay_date = '2020-11-25';
+  </update>
+
+  <update id="updatePayrollDetailDeposit">
+    UPDATE payroll_details SET
+        amount = #{amount}
+    WHERE payroll_item_id = 5 AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1
+    AND pay_date = '2020-11-25' AND employee_id = #{employeeId});
+  </update>
+
+  <update id="updatePayrollDetailProFund">
+    INSERT INTO payroll_details (
+      payroll_id,
+      payroll_item_id,
+      amount,
+      total_of_months,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      (SELECT id FROM payrolls WHERE is_active = 1 AND pay_date = '2020-11-25' AND employee_id = #{employeeId}),
+      10,
+      #{amount},
+      #{monthOfProFund},
+      NOW(),
+      1,
+      1
+    );
+  </update>
+
+  <update id="deletePayrollDetail" parameterType="com.ut.nlSystemAPi.model.EmployeeAdjustBeginning">
+    DELETE FROM payroll_details WHERE is_active = 1 AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1
+    AND pay_date = '2020-11-25' AND employee_id = #{employeeId})
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE employees SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <delete id="deleteDocument" parameterType="java.lang.Long">
+    UPDATE employee_apply_documents SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <select id="getListApplyEmployees" parameterType="com.ut.nlSystemAPi.model.response.ApplyEmployeesFilter" resultMap="ApplyEmployeesList">
+    SELECT *
+    FROM employees
+    WHERE is_active = 1 AND user_id IS NULL
+    <if test="filter.employeeId != null and filter.employeeId > 0">
+      OR employees.id = #{filter.employeeId}
+    </if>
+  </select>
+
+  <!--  Insert to Employees Increase Salaries-->
+  <insert id="insertEmployeesIncreaseSalary" parameterType="com.ut.nlSystemAPi.model.EmployeesIncreaseSalary" useGeneratedKeys="true" keyProperty="employeesIncreaseSalary.id">
+   INSERT INTO employee_increase_salaries (
+     employee_id,
+     increase_salary,
+     date,
+     created,
+     created_by,
+     is_active
+   ) VALUES (
+     #{employeesIncreaseSalary.employeeId},
+     #{employeesIncreaseSalary.increaseSalary},
+     #{employeesIncreaseSalary.date},
+     NOW(),
+     #{employeesIncreaseSalary.createdBy},
+     #{employeesIncreaseSalary.isActive}
+   );
+  </insert>
+
+  <update id="updateEmployeesIncreaseSalary" parameterType="com.ut.nlSystemAPi.model.EmployeesIncreaseSalary">
+    UPDATE employee_increase_salaries SET
+        increase_salary = #{employeesIncreaseSalary.increaseSalary}
+    WHERE employee_id = #{employeesIncreaseSalary.employeeId} AND date = #{employeesIncreaseSalary.date};
+  </update>
+
+  <select id="checkEmpIncreaseSalary" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employee_increase_salaries
+    WHERE employee_id = #{employeesId} AND date = #{date} AND is_active = 1
+  </select>
+
+  <select id="getEmployeesIncreaseSalary" parameterType="com.ut.nlSystemAPi.model.EmployeeIncreaseSalarytFilter" resultMap="EmployeesIncreaseSalary">
+    SELECT *,
+        employee_id AS employeeId,
+        increase_salary AS increaseSalary,
+        (SELECT name_kh FROM employees WHERE id = employee_id) AS nameKh,
+        (SELECT name_en FROM employees WHERE id = employee_id) AS nameEn
+    FROM employee_increase_salaries
+    WHERE is_active = 1
+    <if test="filter.employeesId != null and filter.employeesId != null">
+      AND employee_id = #{filter.employeesId}
+    </if>
+    <if test="filter.date != null and filter.date != null">
+      AND date = #{filter.date}
+    </if>
+  </select>
+
+  <select id="getOldAdjustBeginningDeposit" resultMap="EmployeeAdjustBeginning">
+    SELECT
+      payrolls.employee_id AS employeeId,
+      DATE_FORMAT(payrolls.created, "%Y-%m-%d") AS date,
+ 	  payroll_details.amount AS amount,
+ 	  payroll_details.total_of_months AS totalOfMonths,
+      payrolls.created AS created,
+      payrolls.created_by AS createdBy
+    FROM payrolls
+      INNER JOIN payroll_details ON payroll_details.payroll_id = payrolls.id AND payroll_details.payroll_item_id = 5
+    WHERE payrolls.is_active = 1 AND payrolls.pay_date = '2020-11-25' AND payroll_details.amount > 0
+  </select>
+
+  <insert id="insertOldAdjustBeginningDeposit" parameterType="com.ut.nlSystemAPi.model.EmployeeAdjustBeginning" useGeneratedKeys="true" keyProperty="employeeAdjustBeginning.id">
+    INSERT INTO employee_adjust_beginnings (
+      employee_id,
+      date,
+      amount,
+      total_of_months,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeAdjustBeginning.employeeId},
+      #{employeeAdjustBeginning.date},
+      #{employeeAdjustBeginning.amount},
+      #{employeeAdjustBeginning.totalOfMonths},
+      #{employeeAdjustBeginning.created},
+      #{employeeAdjustBeginning.createdBy},
+      1
+    );
+  </insert>
+
+  <insert id="insertAdjustBeginningDeposit" parameterType="com.ut.nlSystemAPi.model.EmployeeAdjustBeginning" useGeneratedKeys="true" keyProperty="employeeAdjustBeginning.id">
+    INSERT INTO employee_adjust_beginnings (
+      employee_id,
+      date,
+      amount,
+      total_of_months,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeAdjustBeginning.employeeId},
+      #{employeeAdjustBeginning.date},
+      #{employeeAdjustBeginning.amount},
+      #{employeeAdjustBeginning.totalOfMonths},
+      #{employeeAdjustBeginning.created},
+      #{employeeAdjustBeginning.createdBy},
+      #{employeeAdjustBeginning.isActive}
+    );
+  </insert>
+
+  <update id="updateAdjustBeginningDeposit" parameterType="com.ut.nlSystemAPi.model.EmployeeAdjustBeginning">
+    UPDATE employee_adjust_beginnings SET
+      amount = #{employeeAdjustBeginning.amount},
+      modified = NOW(),
+      modified_by = #{employeeAdjustBeginning.modifiedBy}
+    WHERE is_active = 1 AND employee_id = #{employeeAdjustBeginning.employeeId} AND MONTH(date) = MONTH(#{employeeAdjustBeginning.date}) AND YEAR(date) = YEAR(#{employeeAdjustBeginning.date})
+  </update>
+
+  <select id="checkAdjustBeginningDeposit" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employee_adjust_beginnings
+    WHERE is_active = 1 AND employee_id = #{employeeId} AND MONTH(date) = MONTH(#{date}) AND YEAR(date) = YEAR(#{date})
+  </select>
+
+  <select id="listAdjustBeginningDepositHistory" resultMap="EmployeeAdjustBeginning">
+    SELECT
+      id AS id,
+      employee_id AS employeeId,
+      date AS date,
+      amount AS amount,
+      is_active
+    FROM employee_adjust_beginnings
+    WHERE is_active = 1 AND employee_id = #{id}
+    ORDER BY id DESC
+  </select>
+
+</mapper>

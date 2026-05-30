@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LeadMapper">
+
+    <resultMap id="LeadResponse" type="com.ut.nlSystemAPi.model.response.Lead.LeadResponse">
+        <id property="id" column="id"/>
+        <result property="leadGroupName" column="leadGroupName"/>
+        <result property="leadCode" column="leadCode"/>
+        <result property="leadName" column="leadName"/>
+        <result property="leadNameKh" column="leadNameKh"/>
+        <result property="telephone" column="telephone"/>
+        <result property="mobile" column="mobile"/>
+        <result property="alternateMobile" column="alternateMobile"/>
+        <result property="email" column="email"/>
+        <result property="contactName" column="contactName"/>
+        <result property="lats" column="lats"/>
+        <result property="longs" column="longs"/>
+        <result property="photo" column="photo"/>
+        <result property="address" column="address"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+        <result property="businessTypeId" column="businessTypeId"/>
+        <result property="businessTypeName" column="businessTypeName"/>
+        <result property="businessActivityId" column="businessActivityId"/>
+        <result property="businessActivityName" column="businessActivityName"/>
+        <result property="customerType" column="customerType"/>
+        <result property="countryId" column="countryId"/>
+        <result property="countryName" column="countryName"/>
+        <result property="fax" column="fax"/>
+        <result property="vat" column="vat"/>
+        <result property="paymentTermId" column="paymentTermId"/>
+        <result property="paymentTermName" column="paymentTermName"/>
+        <result property="paymentMonthly" column="paymentMonthly"/>
+        <result property="limitCredit" column="limitCredit"/>
+        <result property="limitNumberInvoice" column="limitNumberInvoice"/>
+        <result property="recurrence" column="recurrence"/>
+        <result property="displayOnInvoice" column="displayOnInvoice"/>
+        <result property="settingInvoiceTax" column="settingInvoiceTax"/>
+        <result property="houseNo" column="houseNo"/>
+        <result property="streetId" column="streetId"/>
+        <result property="streetName" column="streetName"/>
+        <result property="provinceId" column="provinceId"/>
+        <result property="provinceName" column="provinceName"/>
+        <result property="districtId" column="districtId"/>
+        <result property="districtName" column="districtName"/>
+        <result property="communeId" column="communeId"/>
+        <result property="communeName" column="communeName"/>
+        <result property="villageId" column="villageId"/>
+        <result property="villageName" column="villageName"/>
+    </resultMap>
+
+    <resultMap id="LeadDetailResponse" type="com.ut.nlSystemAPi.model.response.Lead.LeadDetailResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="title" column="title"/>
+        <result property="makingProcess" column="makingProcess"/>
+        <result property="url" column="url"/>
+        <result property="created" column="created"/>
+    </resultMap>
+
+    <resultMap id="LeadActivityCardResponse" type="com.ut.nlSystemAPi.model.response.Lead.LeadActivityCardResponse">
+        <id property="id" column="id"/>
+        <result property="date" column="date"/>
+        <result property="statusId" column="statusId"/>
+        <result property="status" column="status"/>
+        <result property="leadContactId" column="leadContactId"/>
+        <result property="contactName" column="contactName"/>
+        <result property="position" column="position"/>
+        <result property="subject" column="subject"/>
+        <result property="result" column="result"/>
+        <result property="other" column="other"/>
+    </resultMap>
+
+</mapper>

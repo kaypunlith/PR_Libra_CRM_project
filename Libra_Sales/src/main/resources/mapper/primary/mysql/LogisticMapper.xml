@@ -1,0 +1,535 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LogisticMapper">
+
+    <sql id="BASE_WHERE_SALES_INVOICE">
+        WHERE
+        <choose>
+            <when test="filter.status == 1">
+                sales_orders.status = 2
+            </when>
+            <when test="filter.status == 2">
+                sales_orders.status = -5
+            </when>
+            <when test="filter.status == 3">
+                sales_orders.status = -5
+            </when>
+            <otherwise>
+                sales_orders.status = 2
+            </otherwise>
+        </choose>
+        AND sales_orders.id NOT IN (
+        SELECT sales_order_id
+        FROM logistic_details
+        INNER JOIN logistics ON logistics.id = logistic_details.logistic_id
+        WHERE logistics.status > 0
+        )
+        <if test="filter.companyId != null">
+            AND sales_orders.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND sales_orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id =  #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+    </sql>
+
+    <sql id="BASE_WHERE_LOGISTIC">
+        WHERE
+        <choose>
+            <when test="filter.status == 1">
+                logistics.status = 1
+            </when>
+            <when test="filter.status == 2">
+                logistics.status = 2
+            </when>
+            <when test="filter.status == 3">
+                logistics.status = 3
+            </when>
+            <otherwise>
+                logistics.status > 0
+            </otherwise>
+        </choose>
+        <if test="filter.companyId != null">
+            AND logistics.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND logistics.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND logistics.customer_id = #{filter.organizationId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.LogisticFilter" resultMap="LogisticResponse">
+        SELECT
+        1 AS type,
+        sales_orders.id AS id,
+        (SELECT `date` FROM deliveries WHERE id = sales_orders.delivery_id) AS deliveryDate,
+        NULL AS logisticDeliveryDate,
+        sales_orders.so_code AS invoiceCode,
+        (SELECT code FROM deliveries WHERE id = sales_orders.delivery_id) AS dnCode,
+        CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+        NULL AS logisticReceiveNumber,
+        sales_orders.status AS statusInvoice,
+        (SELECT status FROM logistics WHERE id IN (SELECT logistic_id FROM logistic_details WHERE sales_order_id = sales_orders.id)) AS statusLogistic,
+        NULL AS createdBy,
+        NULL AS modifiedBy
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        <include refid="BASE_WHERE_SALES_INVOICE"/>
+
+        UNION ALL
+
+        SELECT
+        2 AS type,
+        logistics.id AS id,
+        NULL AS deliveryDate,
+        logistics.date AS logisticDeliveryDate,
+        (SELECT GROUP_CONCAT(so_code SEPARATOR ', ') FROM sales_orders WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id)) AS invoiceCode,
+        (SELECT GROUP_CONCAT(code SEPARATOR ', ') FROM deliveries WHERE id IN (SELECT delivery_id FROM sales_orders WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id))) AS dnCode,
+        CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+        (SELECT GROUP_CONCAT(DISTINCT code SEPARATOR ', ') FROM logistic_receive_results INNER JOIN logistic_receives ON logistic_receive_results.id = logistic_receives.logistic_receive_result_id WHERE logistic_receives.logistic_id = logistics.id) AS logisticReceiveNumber,
+        (SELECT status FROM sales_orders WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id)) AS statusInvoice,
+        logistics.status AS statusLogistic,
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = (SELECT created_by FROM logistic_receives WHERE logistic_id = logistics.id ORDER BY created ASC LIMIT 1)) AS createdBy,
+        (SELECT IF((SELECT COUNT(id) FROM logistic_receives WHERE logistic_id = logistics.id) > 1, (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = (SELECT created_by FROM logistic_receives WHERE logistic_id = logistics.id ORDER BY created DESC LIMIT 1)), '')) AS modifiedBy
+        FROM logistics
+        LEFT JOIN customers ON customers.id = logistics.customer_id
+        <include refid="BASE_WHERE_LOGISTIC"/>
+        ORDER BY COALESCE(deliveryDate, logisticDeliveryDate) ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.LogisticFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+        SELECT sales_orders.id AS id
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        <include refid="BASE_WHERE_SALES_INVOICE"/>
+
+        UNION ALL
+
+        SELECT logistics.id AS id
+        FROM logistics
+        LEFT JOIN customers ON customers.id = logistics.customer_id
+        <include refid="BASE_WHERE_LOGISTIC"/>
+        ) AS result
+    </select>
+
+    <select id="getOne" parameterType="map" resultMap="LogisticResponse">
+        SELECT
+            logistics.id AS id,
+            (SELECT GROUP_CONCAT(so_code SEPARATOR ', ') FROM sales_orders WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id)) AS invoiceCode,
+            customers.id AS organizationId,
+            CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+            (SELECT name FROM location_groups WHERE id IN (SELECT location_group_id FROM sales_orders WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id))) AS warehouseName,
+            logistic_receive_results.note AS note,
+            logistic_receive_results.code AS code,
+            logistic_receive_results.date AS date
+        FROM logistic_receive_results
+        INNER JOIN logistic_receives ON logistic_receive_results.id = logistic_receives.logistic_receive_result_id
+        INNER JOIN logistics ON logistics.id = logistic_receives.logistic_id
+        INNER JOIN customers ON customers.id = logistics.customer_id
+        INNER JOIN users ON users.id = logistic_receive_results.created_by
+        WHERE logistics.id = #{id}
+        GROUP BY logistics.id
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Logistic.Logistics" useGeneratedKeys="true" keyProperty="logistic.id">
+        INSERT INTO logistics (
+            date, company_id, cgroup_id, customer_id, created, created_by
+        ) VALUES (
+                     #{logistic.date}, #{logistic.companyId}, #{logistic.organizationGroupId},
+                     #{logistic.organizationId}, NOW(), #{logistic.createdBy}
+                 )
+    </insert>
+
+    <select id="getSalesInvoiceIds" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT sales_order_id FROM logistic_details WHERE logistic_id = #{logisticId}
+    </select>
+
+    <select id="getSalesInvoiceDetailIds" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT id FROM sales_order_details WHERE sales_order_id IN
+        <foreach item="id" collection="saleInvoiceIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <insert id="insertDetail" parameterType="map">
+        INSERT INTO logistic_details (logistic_id, sales_order_id)
+        VALUES (#{logisticId}, #{salesInvoiceId})
+    </insert>
+
+    <select id="getOneDelivery" parameterType="map" resultMap="LogisticResponse">
+        <choose>
+            <when test="type == 1">
+                SELECT 1 AS type, sales_orders.id AS id, sales_orders.so_code AS invoiceCode,
+                customers.id AS organizationId,
+                CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+                (SELECT name FROM location_groups WHERE id = sales_orders.location_group_id) AS warehouseName
+                FROM sales_orders LEFT JOIN customers ON customers.id = sales_orders.customer_id
+                WHERE sales_orders.id = #{id}
+            </when>
+            <otherwise>
+                SELECT 2 AS type, logistics.id AS id,
+                (SELECT GROUP_CONCAT(so_code SEPARATOR ', ') FROM sales_orders
+                WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id)) AS invoiceCode,
+                customers.id AS organizationId,
+                CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+                (SELECT name FROM location_groups WHERE id IN (SELECT location_group_id FROM sales_orders WHERE id IN (SELECT sales_order_id FROM logistic_details WHERE logistic_id = logistics.id))) AS warehouseName
+                FROM logistics LEFT JOIN customers ON customers.id = logistics.customer_id
+                WHERE logistics.id = #{id}
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="getDetailDelivered" parameterType="map" resultMap="LogisticDetailResponse">
+        SELECT
+        1 AS type,
+        u.id AS uomId,
+        sod.product_id AS itemId,
+        p.name AS itemName,
+        p.code AS sku,
+        p.barcode AS upc,
+        p.small_val_uom AS smallValUom,
+        SUM(lr.qty) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        sod.conversion AS conversion,
+        p.is_expired_date AS isExpiredDate,
+        'Delivered' AS status,
+        lr.received_date AS deliveryDate,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        lr.created AS created
+        FROM sales_orders so
+        INNER JOIN sales_order_details sod ON sod.sales_order_id = so.id
+        INNER JOIN products p ON p.id = sod.product_id
+        INNER JOIN uoms u ON u.id = sod.qty_uom_id
+        INNER JOIN logistic_receives lr ON lr.product_id = sod.product_id
+        INNER JOIN users ON users.id = lr.created_by
+        AND lr.qty_uom_id = sod.qty_uom_id AND lr.sales_order_id = so.id AND lr.status IN (1,2)
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY sod.product_id, sod.qty_uom_id
+        HAVING SUM(lr.qty) >= SUM(sod.qty + sod.qty_free)
+
+        UNION ALL
+
+        SELECT
+        2 AS type,
+        u.id AS uomId,
+        sos.service_id AS itemId,
+        s.name AS itemName,
+        s.sku AS sku,
+        '' AS upc,
+        1 AS smallValUom,
+        SUM(lr.qty) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        1 AS conversion,
+        '' AS isExpiredDate,
+        'Delivered' AS status,
+        lr.received_date AS deliveryDate,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        lr.created AS created
+        FROM sales_orders so
+        INNER JOIN sales_order_services sos ON sos.sales_order_id = so.id
+        INNER JOIN services s ON s.id = sos.service_id
+        INNER JOIN uoms u ON u.id = s.uom_id
+        INNER JOIN logistic_receives lr ON lr.product_id = sos.service_id
+        INNER JOIN users ON users.id = lr.created_by
+        AND lr.qty_uom_id = s.uom_id AND lr.sales_order_id = so.id AND lr.status IN (1,2)
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY sos.service_id, s.uom_id
+        HAVING SUM(lr.qty) >= SUM(sos.qty + sos.qty_free)
+
+        UNION ALL
+
+        SELECT
+        3 AS type,
+        u.id AS uomId,
+        som.id AS itemId,
+        som.description AS itemName,
+        '' AS sku,
+        '' AS upc,
+        1 AS smallValUom,
+        SUM(lr.qty) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        1 AS conversion,
+        '' AS isExpiredDate,
+        'Delivered' AS status,
+        lr.received_date AS deliveryDate,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        lr.created AS created
+        FROM sales_orders so
+        INNER JOIN sales_order_miscs som ON som.sales_order_id = so.id
+        INNER JOIN uoms u ON u.id = som.qty_uom_id
+        INNER JOIN logistic_receives lr ON lr.product_id = som.id
+        INNER JOIN users ON users.id = lr.created_by
+        AND lr.qty_uom_id = som.qty_uom_id AND lr.sales_order_id = so.id AND lr.status IN (1,2)
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY som.id, som.qty_uom_id
+        HAVING SUM(lr.qty) >= SUM(som.qty + som.qty_free)
+    </select>
+
+    <select id="getDetailRemaining" parameterType="map" resultMap="LogisticDetailResponse">
+        SELECT
+        1 AS type,
+        u.id AS uomId,
+        sod.product_id AS itemId,
+        p.name AS itemName,
+        p.code AS sku,
+        p.barcode AS upc,
+        p.small_val_uom AS smallValUom,
+        (SUM(sod.qty + sod.qty_free) - COALESCE(SUM(lr.total_delivered), 0)) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        sod.conversion AS conversion,
+        p.is_expired_date AS isExpiredDate,
+        'To be shipped' AS status
+        FROM sales_orders so
+        INNER JOIN sales_order_details sod ON sod.sales_order_id = so.id
+        INNER JOIN products p ON p.id = sod.product_id
+        INNER JOIN uoms u ON u.id = sod.qty_uom_id
+        LEFT JOIN (
+        SELECT product_id, qty_uom_id, sales_order_id, SUM(qty) as total_delivered
+        FROM logistic_receives WHERE status IN (1,2)
+        GROUP BY product_id, qty_uom_id, sales_order_id
+        ) lr ON lr.product_id = sod.product_id
+        AND lr.qty_uom_id = sod.qty_uom_id AND lr.sales_order_id = so.id
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        AND EXISTS (
+        SELECT 1 FROM logistic_receives lr2
+        WHERE lr2.product_id = sod.product_id
+        AND lr2.qty_uom_id = sod.qty_uom_id
+        AND lr2.sales_order_id = so.id
+        AND lr2.status IN (1,2)
+        )
+        GROUP BY sod.product_id, sod.qty_uom_id
+        HAVING qty > 0
+
+        UNION ALL
+
+        SELECT
+        2 AS type,
+        u.id AS uomId,
+        sos.service_id AS itemId,
+        s.name AS itemName,
+        s.sku AS sku,
+        '' AS upc,
+        1 AS smallValUom,
+        (SUM(sos.qty + sos.qty_free) - COALESCE(SUM(lr.total_delivered), 0)) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        1 AS conversion,
+        '' AS isExpiredDate,
+        'To be shipped' AS status
+        FROM sales_orders so
+        INNER JOIN sales_order_services sos ON sos.sales_order_id = so.id
+        INNER JOIN services s ON s.id = sos.service_id
+        INNER JOIN uoms u ON u.id = s.uom_id
+        LEFT JOIN (
+        SELECT product_id, qty_uom_id, sales_order_id, SUM(qty) as total_delivered
+        FROM logistic_receives WHERE status IN (1,2)
+        GROUP BY product_id, qty_uom_id, sales_order_id
+        ) lr ON lr.product_id = sos.service_id
+        AND lr.qty_uom_id = s.uom_id AND lr.sales_order_id = so.id
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        AND EXISTS (
+        SELECT 1 FROM logistic_receives lr2
+        WHERE lr2.product_id = sos.service_id
+        AND lr2.qty_uom_id = s.uom_id
+        AND lr2.sales_order_id = so.id
+        AND lr2.status IN (1,2)
+        )
+        GROUP BY sos.service_id, s.uom_id
+        HAVING qty > 0
+
+        UNION ALL
+
+        SELECT
+        3 AS type,
+        u.id AS uomId,
+        som.id AS itemId,
+        som.description AS itemName,
+        '' AS sku,
+        '' AS upc,
+        1 AS smallValUom,
+        (SUM(som.qty + som.qty_free) - COALESCE(SUM(lr.total_delivered), 0)) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        1 AS conversion,
+        '' AS isExpiredDate,
+        'To be shipped' AS status
+        FROM sales_orders so
+        INNER JOIN sales_order_miscs som ON som.sales_order_id = so.id
+        INNER JOIN uoms u ON u.id = som.qty_uom_id
+        LEFT JOIN (
+        SELECT product_id, qty_uom_id, sales_order_id, SUM(qty) as total_delivered
+        FROM logistic_receives WHERE status IN (1,2)
+        GROUP BY product_id, qty_uom_id, sales_order_id
+        ) lr ON lr.product_id = som.id
+        AND lr.qty_uom_id = som.qty_uom_id AND lr.sales_order_id = so.id
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        AND EXISTS (
+        SELECT 1 FROM logistic_receives lr2
+        WHERE lr2.product_id = som.id
+        AND lr2.qty_uom_id = som.qty_uom_id
+        AND lr2.sales_order_id = so.id
+        AND lr2.status IN (1,2)
+        )
+        GROUP BY som.id, som.qty_uom_id
+        HAVING qty > 0
+    </select>
+
+    <select id="getDetailNotYetDelivery" parameterType="map" resultMap="LogisticDetailResponse">
+        SELECT
+        1 AS type,
+        u.id AS uomId,
+        sod.product_id AS itemId,
+        p.name AS itemName,
+        p.code AS sku,
+        p.barcode AS upc,
+        p.small_val_uom AS smallValUom,
+        SUM(sod.qty + sod.qty_free) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        sod.conversion AS conversion,
+        p.is_expired_date AS isExpiredDate,
+        'To be shipped' AS status
+        FROM sales_orders so
+        INNER JOIN sales_order_details sod ON sod.sales_order_id = so.id
+        INNER JOIN products p ON p.id = sod.product_id
+        INNER JOIN uoms u ON u.id = sod.qty_uom_id
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        AND NOT EXISTS (
+        SELECT 1 FROM logistic_receives lr WHERE lr.product_id = sod.product_id
+        AND lr.qty_uom_id = sod.qty_uom_id AND lr.sales_order_id = so.id AND lr.status IN (1,2)
+        )
+        GROUP BY sod.product_id, sod.qty_uom_id
+
+        UNION ALL
+
+        SELECT
+        2 AS type,
+        u.id AS uomId,
+        sos.service_id AS itemId,
+        s.name AS itemName,
+        s.sku AS sku,
+        '' AS upc,
+        1 AS smallValUom,
+        SUM(sos.qty + sos.qty_free) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        1 AS conversion,
+        '' AS isExpiredDate,
+        'To be shipped' AS status
+        FROM sales_orders so
+        INNER JOIN sales_order_services sos ON sos.sales_order_id = so.id
+        INNER JOIN services s ON s.id = sos.service_id
+        INNER JOIN uoms u ON u.id = s.uom_id
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        AND NOT EXISTS (
+        SELECT 1 FROM logistic_receives lr WHERE lr.product_id = sos.service_id
+        AND lr.qty_uom_id = s.uom_id AND lr.sales_order_id = so.id AND lr.status IN (1,2)
+        )
+        GROUP BY sos.service_id, s.uom_id
+
+        UNION ALL
+
+        SELECT
+        3 AS type,
+        u.id AS uomId,
+        som.id AS itemId,
+        som.description AS itemName,
+        '' AS sku,
+        '' AS upc,
+        1 AS smallValUom,
+        SUM(som.qty + som.qty_free) AS qty,
+        u.name AS uomName,
+        so.customer_id AS organizationId,
+        1 AS conversion,
+        '' AS isExpiredDate,
+        'To be shipped' AS status
+        FROM sales_orders so
+        INNER JOIN sales_order_miscs som ON som.sales_order_id = so.id
+        INNER JOIN uoms u ON u.id = som.qty_uom_id
+        WHERE so.id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        AND NOT EXISTS (
+        SELECT 1 FROM logistic_receives lr WHERE lr.product_id = som.id
+        AND lr.qty_uom_id = som.qty_uom_id AND lr.sales_order_id = so.id AND lr.status IN (1,2)
+        )
+        GROUP BY som.id, som.qty_uom_id
+    </select>
+
+    <insert id="insertReceiveResult" parameterType="com.ut.nlSystemAPi.model.entity.Logistic.LogisticReceiveResult" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO logistic_receive_results (date, customer_contact_id, note, sales_order_id, created, created_by)
+        VALUES (#{logisticReceiveResult.date}, #{logisticReceiveResult.organizationContactId}, #{logisticReceiveResult.note}, #{logisticReceiveResult.saleInvoiceId}, NOW(), #{logisticReceiveResult.createdBy})
+    </insert>
+
+    <insert id="insertReceive" parameterType="com.ut.nlSystemAPi.model.entity.Logistic.LogisticReceive" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO logistic_receives (
+            logistic_receive_result_id, logistic_id, sales_order_id, sales_order_detail_id,
+            product_id, qty, qty_uom_id, conversion, received_date, type, created, created_by
+        ) VALUES (
+                     #{logisticReceive.logisticReceiveResultId}, #{logisticReceive.logisticId}, #{logisticReceive.saleInvoiceId}, #{logisticReceive.saleInvoiceDetailId},
+                     #{logisticReceive.itemId}, #{logisticReceive.qty}, #{logisticReceive.uomId}, #{logisticReceive.conversion}, #{logisticReceive.deliveryDate}, #{logisticReceive.type}, NOW(), #{logisticReceive.createdBy}
+                 )
+    </insert>
+
+    <select id="getTotalQtyDelivery" parameterType="map" resultType="java.lang.Long">
+        SELECT COALESCE(SUM(qty), 0) AS qty
+        FROM logistic_receives
+        WHERE product_id = #{itemId} AND sales_order_id = #{salesInvoiceId}
+    </select>
+
+    <select id="getTotalQtyOrder" parameterType="map" resultType="java.lang.Long">
+        SELECT COALESCE(SUM(total_qty), 0) AS qty
+        FROM (
+        SELECT SUM(COALESCE(qty, 0) + COALESCE(qty_free, 0)) AS total_qty
+        FROM sales_order_details
+        WHERE product_id = #{itemId} AND sales_order_id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+
+        UNION ALL
+
+        SELECT SUM(COALESCE(qty, 0) + COALESCE(qty_free, 0)) AS total_qty
+        FROM sales_order_services
+        WHERE service_id = #{itemId} AND sales_order_id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+
+        UNION ALL
+
+        SELECT SUM(COALESCE(qty, 0) + COALESCE(qty_free, 0)) AS total_qty
+        FROM sales_order_miscs
+        WHERE id = #{itemId} AND sales_order_id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+        ) AS all_quantities
+    </select>
+
+    <update id="updateStatus" parameterType="map">
+        UPDATE sales_orders SET status = #{status}
+        WHERE id IN
+        <foreach item="id" collection="salesInvoiceIds" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="updateStatusLogistic" parameterType="map">
+        UPDATE logistics SET status = 2 WHERE id = #{logisticId}
+    </update>
+
+
+</mapper>

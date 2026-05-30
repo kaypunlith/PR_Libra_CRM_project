@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.FreedomTypeMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        freedom_types.id AS id,
+        freedom_types.name AS name,
+        freedom_types.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM freedom_types
+        LEFT JOIN price_types ON price_types.id = freedom_types.price_type_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE freedom_types.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                freedom_types.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR price_types.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.FreedomType.FreedomTypeResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                freedom_types.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(freedom_types.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.FreedomType.FreedomTypeResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE freedom_types.is_active = 1
+          AND freedom_types.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.FreedomType.FreedomType" useGeneratedKeys="true" keyProperty="freedomType.id">
+        INSERT INTO freedom_types (
+            name,
+            price_type_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{freedomType.name},
+            #{freedomType.priceTypeId},
+            NOW(),
+            #{freedomType.createdBy},
+            #{freedomType.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.FreedomType.FreedomType">
+        UPDATE freedom_types SET
+        <if test="freedomType.name != null">name = #{freedomType.name},</if>
+        <if test="freedomType.priceTypeId != null">price_type_id = #{freedomType.priceTypeId},</if>
+        modified = NOW(),
+        modified_by = #{freedomType.modifiedBy}
+        WHERE id = #{freedomType.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE freedom_types SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

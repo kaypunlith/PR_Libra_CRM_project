@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TermConditionMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    term_conditions.id AS id,
+    term_conditions.name AS `name`,
+    term_conditions.term_condition_type_id AS typeId,
+    term_condition_types.name AS typeName
+  </sql>
+
+  <sql id="BASE_FROM">
+      FROM term_conditions
+      INNER JOIN term_condition_types ON term_condition_types.id = term_conditions.term_condition_type_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+      WHERE term_conditions.is_active = 1
+      <if test="filter.searchText != null">
+          AND
+            (
+            term_conditions.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR term_condition_types.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+      </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TermConditionFilter" resultMap="TermConditionResponse">
+    SELECT
+     <include refid="BASE_COLUMN_LIST"/>
+     <include refid="BASE_FROM"/>
+     <include refid="BASE_WHERE"/>
+     ORDER BY
+     <choose>
+          <when test="filter.orderBy != null">
+            ${filter.orderBy}
+          </when>
+          <otherwise>
+              term_conditions.id DESC
+          </otherwise>
+     </choose>
+     <if test="filter.page != null and filter.rowsPerPage != null">
+         LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TermConditionFilter" resultType="java.lang.Long">
+    SELECT COUNT(term_conditions.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TermConditionResponse">
+    SELECT
+    description,
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE term_conditions.is_active = 1 AND term_conditions.id = #{id}
+  </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.TermCondition.TermCondition" useGeneratedKeys="true" keyProperty="termCondition.id">
+        INSERT INTO term_conditions (
+            name,
+            term_condition_type_id,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{termCondition.name},
+                     #{termCondition.typeId},
+                     #{termCondition.description},
+                     NOW(),
+                     #{termCondition.createdBy},
+                     #{termCondition.isActive}
+                 )
+    </insert>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM term_conditions
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.TermCondition.TermCondition">
+        UPDATE term_conditions SET
+        <trim suffixOverrides=",">
+            <if test="termCondition.name != null">
+                name = #{termCondition.name},
+            </if>
+            <if test="termCondition.typeId != null">
+                term_condition_type_id = #{termCondition.typeId},
+            </if>
+            <if test="termCondition.description != null">
+                description = #{termCondition.description},
+            </if>
+                modified = NOW(),
+            <if test="termCondition.modifiedBy != null">
+                modified_by = #{termCondition.modifiedBy}
+            </if>
+        </trim>
+        WHERE id = #{termCondition.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="map">
+        UPDATE term_conditions SET
+        is_active = 2,
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

@@ -1,0 +1,44 @@
+package com.ut.nlSystemAPi.model.response.PriceRequestTracking;
+
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class PriceRequestTrackingReportDetailResponse {
+
+    @ApiModelProperty(position = 1)
+    private Long productId;
+
+    @ApiModelProperty(position = 2)
+    private String productName;
+
+    @ApiModelProperty(position = 2)
+    private String productCode;
+
+    @ApiModelProperty(position = 2)
+    private String productBrand;
+
+    @ApiModelProperty(position = 2)
+    private String priceRequestCode;
+
+    @ApiModelProperty(position = 2)
+    private String priceRequestDate;
+
+    @ApiModelProperty(position = 2)
+    private Long quotationStatus;
+
+    @ApiModelProperty(position = 2)
+    private Long quotationProductId;
+
+    @ApiModelProperty(position = 2)
+    private String quotationCode;
+
+    @ApiModelProperty(position = 2)
+    private String quotationDate;
+
+    @ApiModelProperty(position = 2)
+    private Long orderStatus;
+
+}

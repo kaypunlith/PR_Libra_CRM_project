@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ZoneMapper">
+
+    <resultMap id="ZoneResponse" type="com.ut.nlSystemAPi.model.response.Zone.ZoneResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="lats" column="lats"/>
+        <result property="longs" column="longs"/>
+        <result property="radius" column="radius"/>
+    </resultMap>
+
+    <resultMap id="ZoneDetailResponse" type="com.ut.nlSystemAPi.model.response.Zone.ZoneDetailResponse">
+        <id property="id" column="id"/>
+        <result property="lats" column="lats"/>
+        <result property="longs" column="longs"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        customer_zones.id AS id,
+        customer_zones.`name` AS name,
+        customer_zones.lats AS lats,
+        customer_zones.`longs` AS `longs`,
+        customer_zones.radius AS radius,
+        customer_zones.created AS created,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        customer_zones.modified AS modified,
+        CONCAT(editor.first_name, ' ', editor.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM customer_zones
+        LEFT JOIN users ON users.id = customer_zones.created_by
+        LEFT JOIN users AS editor ON editor.id = customer_zones.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE customer_zones.is_active = 1
+        <if test="filter.searchText != null">
+            AND customer_zones.`name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ZoneResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customer_zones.`name` ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(customer_zones.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="ZoneResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE customer_zones.is_active = 1 AND customer_zones.id = #{id}
+    </select>
+
+    <select id="getDetails" parameterType="java.lang.Long" resultMap="ZoneDetailResponse">
+        SELECT
+            customer_zone_details.id AS id,
+            customer_zone_details.lats AS lats,
+            customer_zone_details.`longs` AS `longs`
+        FROM customer_zone_details
+        WHERE customer_zone_details.customer_zone_id = #{zoneId}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Zone.Zone" useGeneratedKeys="true" keyProperty="zone.id">
+        INSERT INTO customer_zones (
+            `name`,
+            lats,
+            `longs`,
+            radius,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{zone.name},
+            #{zone.lats},
+            #{zone.longs},
+            #{zone.radius},
+            NOW(),
+            #{zone.createdBy},
+            #{zone.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Zone.Zone">
+        UPDATE customer_zones SET
+            <if test="zone.name != null">`name` = #{zone.name},</if>
+            <if test="zone.lats != null">lats = #{zone.lats},</if>
+            <if test="zone.longs != null">`longs` = #{zone.longs},</if>
+            <if test="zone.radius != null">radius = #{zone.radius},</if>
+            modified = NOW(),
+            modified_by = #{zone.modifiedBy}
+        WHERE id = #{zone.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE customer_zones SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.Zone.ZoneDetail" useGeneratedKeys="true" keyProperty="detail.id">
+        INSERT INTO customer_zone_details (
+            customer_zone_id,
+            lats,
+            `longs`
+        ) VALUES (
+            #{detail.customerZoneId},
+            #{detail.lats},
+            #{detail.longs}
+        )
+    </insert>
+
+    <delete id="deleteDetails" parameterType="java.lang.Long">
+        DELETE FROM customer_zone_details WHERE customer_zone_id = #{zoneId}
+    </delete>
+</mapper>

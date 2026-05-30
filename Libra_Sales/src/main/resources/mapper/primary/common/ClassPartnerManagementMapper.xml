@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ClassPartnerManagementMapper">
+
+    <resultMap id="ClassPartnerManagementResponse" type="com.ut.nlSystemAPi.model.response.ClassPartnerManagement.ClassPartnerManagementResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="employeeGroupName" column="employeeGroupName"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="created" column="created"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+        <result property="modified" column="modified"/>
+    </resultMap>
+
+    <resultMap id="ClassPartnerManagementTypeNetworkEmployeeResponse" type="com.ut.nlSystemAPi.model.response.ClassPartnerManagement.ClassPartnerManagementTypeNetworkEmployeeResponse">
+        <result property="classId" column="classId"/>
+        <result property="typeNetworkId" column="typeNetworkId"/>
+        <result property="typeNetworkName" column="typeNetworkName"/>
+        <result property="userId" column="userId"/>
+        <result property="employeeName" column="employeeName"/>
+    </resultMap>
+
+</mapper>

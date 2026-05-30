@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_SALES_BY_ITEM_TYPE">
+        WHERE status > 0
+        <if test="filter.searchText != null">
+            AND (
+            code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customer LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND status = #{filter.status}
+        </if>
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+            AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+            AND location_group_id IN (SELECT location_group_id FROM user_location_groups WHERE user_id = #{userId})
+        </if>
+        <if test="filter.productGroupId != null">
+            AND pgroup_id = #{filter.productGroupId}
+        </if>
+        <if test="filter.parentId != null">
+            AND (SELECT parent_id FROM products WHERE id = product_id) = #{filter.parentId}
+        </if>
+        <if test="filter.productId != null">
+            AND product_id = #{filter.productId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND created_by = #{filter.createdBy}
+        </if>
+    </sql>
+
+    <sql id="BASE_WHERE_SALES_BY_ITEM_TYPE_SO">
+        <if test="filter.free != null">
+            <choose>
+                <when test="filter.free == 1">
+                    AND sales_order_details.is_free = 1
+                </when>
+                <otherwise>
+                    AND sales_order_details.is_free = 0
+                </otherwise>
+            </choose>
+        </if>
+        <if test="filter.showWithPos != null">
+            <choose>
+                <when test="filter.showWithPos == 1">
+                    AND sales_orders.is_pos = 1
+                </when>
+                <otherwise>
+                    AND sales_orders.is_pos = 0
+                </otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getListSalesByItemType" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesByItemTypeReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesByItemTypeReportResponse">
+        <if test="filter.type != null">
+            <choose>
+                <when test="filter.type == 1">
+                    SELECT
+                    <choose>
+                        <when test="filter.view == 1">
+                            productGroupName AS itemName,
+                            SUM(qty) AS qty,
+                            SUM(totalPrice) AS totalPrice
+                        </when>
+                        <when test="filter.view == 2">
+                            productGroupName AS parentName,
+                            productName AS itemName,
+                            productCode AS code,
+                            qty,
+                            uomName,
+                            AVG(unitPrice) AS unitPrice,
+                            SUM(totalPrice) AS totalPrice
+                        </when>
+                        <otherwise>
+                            type,
+                            `date` AS date,
+                            invoiceCode,
+                            itemName,
+                            qty,
+                            organizationName,
+                            warehouseName,
+                            uomName,
+                            unitPrice,
+                            totalPrice
+                        </otherwise>
+                    </choose>
+                    FROM (
+                    SELECT
+                    IF(sales_orders.is_pos = 1, 'POS', 'Invoice') AS type,
+                    COALESCE(pgroups.name, 'No Group') AS productGroupName,
+                    CONCAT_WS(' ', products.code, products.name) AS itemName,
+                    products.name AS productName,
+                    products.code AS productCode,
+                    sales_orders.order_date AS `date`,
+                    sales_orders.so_code AS invoiceCode,
+                    CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                    location_groups.name AS warehouseName,
+                    <choose>
+                        <when test="filter.free != null and filter.free == 1">
+                            (sales_order_details.qty + sales_order_details.qty_free) AS qty
+                        </when>
+                        <otherwise>
+                            sales_order_details.qty AS qty
+                        </otherwise>
+                    </choose>,
+                    sales_order_details.conversion,
+                    uoms.name AS uomName,
+                    sales_order_details.unit_price AS unitPrice,
+                    sales_order_details.total_price AS totalPrice
+                    FROM sales_orders
+                    INNER JOIN sales_order_details ON sales_orders.id = sales_order_details.sales_order_id
+                    INNER JOIN products ON sales_order_details.product_id = products.id
+                    LEFT JOIN product_pgroups ON sales_order_details.product_id = product_pgroups.product_id
+                    LEFT JOIN pgroups ON product_pgroups.pgroup_id = pgroups.id AND pgroups.is_active = 1
+                    LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                    LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON sales_order_details.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                    UNION ALL
+
+                    SELECT
+                    'Credit Memo' AS type,
+                    COALESCE(pgroups.name, 'No Group') AS productGroupName,
+                    CONCAT_WS(' ', products.code, products.name) AS itemName,
+                    products.name AS productName,
+                    products.code AS productCode,
+                    credit_memos.order_date AS `date`,
+                    credit_memos.cm_code AS invoiceCode,
+                    CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                    location_groups.name AS warehouseName,
+                    <choose>
+                        <when test="filter.free != null and filter.free == 1">
+                            ((credit_memo_details.qty + credit_memo_details.qty_free) * -1) AS qty
+                        </when>
+                        <otherwise>
+                            (credit_memo_details.qty * -1) AS qty
+                        </otherwise>
+                    </choose>,
+                    credit_memo_details.conversion,
+                    uoms.name AS uomName,
+                    credit_memo_details.unit_price AS unitPrice,
+                    (credit_memo_details.total_price * -1) AS totalPrice
+                    FROM credit_memos
+                    INNER JOIN credit_memo_details ON credit_memos.id = credit_memo_details.credit_memo_id
+                    INNER JOIN products ON credit_memo_details.product_id = products.id
+                    LEFT JOIN product_pgroups ON credit_memo_details.product_id = product_pgroups.product_id
+                    LEFT JOIN pgroups ON product_pgroups.pgroup_id = pgroups.id AND pgroups.is_active = 1
+                    LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                    LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON credit_memo_details.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    ) AS result
+                    <choose>
+                        <when test="filter.view == 1">
+                            GROUP BY productGroupName
+                        </when>
+                        <when test="filter.view == 2">
+                            GROUP BY productName, productCode
+                        </when>
+                    </choose>
+                    ORDER BY itemName, `date` ASC
+                    <if test="filter.page != null and filter.rowsPerPage != null">
+                        LIMIT #{filter.page}, #{filter.rowsPerPage}
+                    </if>
+                </when>
+
+                <when test="filter.type == 2">
+                    SELECT
+                    <choose>
+                        <when test="filter.view == 1">
+                            itemName,
+                            SUM(qty) AS qty,
+                            SUM(totalPrice) AS totalPrice
+                        </when>
+                        <when test="filter.view == 2">
+                            itemName,
+                            NULL AS code,
+                            qty,
+                            AVG(unitPrice) AS unitPrice,
+                            SUM(totalPrice) AS totalPrice
+                        </when>
+                        <otherwise>
+                            type,
+                            `date` AS date,
+                            invoiceCode,
+                            itemName,
+                            qty,
+                            organizationName,
+                            warehouseName,
+                            uomName,
+                            unitPrice,
+                            totalPrice
+                        </otherwise>
+                    </choose>
+                    FROM (
+                    SELECT
+                    IF(sales_orders.is_pos = 1, 'POS', 'Invoice') AS type,
+                    services.name AS itemName,
+                    sales_orders.order_date AS `date`,
+                    sales_orders.so_code AS invoiceCode,
+                    CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                    location_groups.name AS warehouseName,
+                    <choose>
+                        <when test="filter.free != null and filter.free == 1">
+                            (sales_order_services.qty + sales_order_services.qty_free) AS qty
+                        </when>
+                        <otherwise>
+                            sales_order_services.qty AS qty
+                        </otherwise>
+                    </choose>,
+                    NULL AS uomName,
+                    sales_order_services.unit_price AS unitPrice,
+                    sales_order_services.total_price AS totalPrice
+                    FROM sales_orders
+                    INNER JOIN sales_order_services ON sales_orders.id = sales_order_services.sales_order_id
+                    INNER JOIN services ON sales_order_services.service_id = services.id
+                    LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                    LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                    UNION ALL
+
+                    SELECT
+                    'Credit Memo' AS type,
+                    services.name AS itemName,
+                    credit_memos.order_date AS `date`,
+                    credit_memos.cm_code AS invoiceCode,
+                    CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                    location_groups.name AS warehouseName,
+                    <choose>
+                        <when test="filter.free != null and filter.free == 1">
+                            ((credit_memo_services.qty + credit_memo_services.qty_free) * -1) AS qty
+                        </when>
+                        <otherwise>
+                            (credit_memo_services.qty * -1) AS qty
+                        </otherwise>
+                    </choose>,
+                    NULL AS uomName,
+                    credit_memo_services.unit_price AS unitPrice,
+                    (credit_memo_services.total_price * -1) AS totalPrice
+                    FROM credit_memos
+                    INNER JOIN credit_memo_services ON credit_memos.id = credit_memo_services.credit_memo_id
+                    INNER JOIN services ON credit_memo_services.service_id = services.id
+                    LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                    LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    ) AS result
+                    <choose>
+                        <when test="filter.view == 1 or filter.view == 2">
+                            GROUP BY itemName
+                        </when>
+                    </choose>
+                    ORDER BY itemName, `date` ASC
+                    <if test="filter.page != null and filter.rowsPerPage != null">
+                        LIMIT #{filter.page}, #{filter.rowsPerPage}
+                    </if>
+                </when>
+
+                <otherwise>
+                    SELECT
+                    <choose>
+                        <when test="filter.view == 1">
+                            itemName,
+                            SUM(qty) AS qty,
+                            SUM(totalPrice) AS totalPrice
+                        </when>
+                        <when test="filter.view == 2">
+                            itemName,
+                            NULL AS code,
+                            qty,
+                            AVG(unitPrice) AS unitPrice,
+                            SUM(totalPrice) AS totalPrice
+                        </when>
+                        <otherwise>
+                            type,
+                            `date` AS date,
+                            invoiceCode,
+                            itemName,
+                            qty,
+                            organizationName,
+                            warehouseName,
+                            uomName,
+                            unitPrice,
+                            totalPrice
+                        </otherwise>
+                    </choose>
+                    FROM (
+                    SELECT
+                    IF(sales_orders.is_pos = 1, 'POS', 'Invoice') AS type,
+                    sales_order_miscs.description AS itemName,
+                    sales_orders.order_date AS `date`,
+                    sales_orders.so_code AS invoiceCode,
+                    CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                    location_groups.name AS warehouseName,
+                    <choose>
+                        <when test="filter.free != null and filter.free == 1">
+                            (sales_order_miscs.qty + sales_order_miscs.qty_free) AS qty
+                        </when>
+                        <otherwise>
+                            sales_order_miscs.qty AS qty
+                        </otherwise>
+                    </choose>,
+                    uoms.name AS uomName,
+                    sales_order_miscs.unit_price AS unitPrice,
+                    sales_order_miscs.total_price AS totalPrice
+                    FROM sales_orders
+                    INNER JOIN sales_order_miscs ON sales_orders.id = sales_order_miscs.sales_order_id
+                    LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                    LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON sales_order_miscs.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                    UNION ALL
+
+                    SELECT
+                    'Credit Memo' AS type,
+                    credit_memo_miscs.description AS itemName,
+                    credit_memos.order_date AS `date`,
+                    credit_memos.cm_code AS invoiceCode,
+                    CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                    location_groups.name AS warehouseName,
+                    <choose>
+                        <when test="filter.free != null and filter.free == 1">
+                            ((credit_memo_miscs.qty + credit_memo_miscs.qty_free) * -1) AS qty
+                        </when>
+                        <otherwise>
+                            (credit_memo_miscs.qty * -1) AS qty
+                        </otherwise>
+                    </choose>,
+                    uoms.name AS uomName,
+                    credit_memo_miscs.unit_price AS unitPrice,
+                    (credit_memo_miscs.total_price * -1) AS totalPrice
+                    FROM credit_memos
+                    INNER JOIN credit_memo_miscs ON credit_memos.id = credit_memo_miscs.credit_memo_id
+                    LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                    LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON credit_memo_miscs.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    ) AS result
+                    <choose>
+                        <when test="filter.view == 1 or filter.view == 2">
+                            GROUP BY itemName
+                        </when>
+                    </choose>
+                    ORDER BY itemName, `date` ASC
+                    <if test="filter.page != null and filter.rowsPerPage != null">
+                        LIMIT #{filter.page}, #{filter.rowsPerPage}
+                    </if>
+                </otherwise>
+            </choose>
+        </if>
+    </select>
+
+    <select id="countListSalesByItemType" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesByItemTypeReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+        <if test="filter.type != null">
+            <choose>
+                <when test="filter.type == 1">
+                    SELECT
+                    sales_orders.id
+                    FROM sales_orders
+                    INNER JOIN sales_order_details ON sales_orders.id = sales_order_details.sales_order_id
+                    INNER JOIN products ON sales_order_details.product_id = products.id
+                    LEFT JOIN product_pgroups ON sales_order_details.product_id = product_pgroups.product_id
+                    LEFT JOIN pgroups ON product_pgroups.pgroup_id = pgroups.id AND pgroups.is_active = 1
+                    LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                    LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON sales_order_details.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                    UNION ALL
+
+                    SELECT
+                    credit_memos.id
+                    FROM credit_memos
+                    INNER JOIN credit_memo_details ON credit_memos.id = credit_memo_details.credit_memo_id
+                    INNER JOIN products ON credit_memo_details.product_id = products.id
+                    LEFT JOIN product_pgroups ON credit_memo_details.product_id = product_pgroups.product_id
+                    LEFT JOIN pgroups ON product_pgroups.pgroup_id = pgroups.id AND pgroups.is_active = 1
+                    LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                    LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON credit_memo_details.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                </when>
+
+                <when test="filter.type == 2">
+                    SELECT
+                    sales_orders.id
+                    FROM sales_orders
+                    INNER JOIN sales_order_services ON sales_orders.id = sales_order_services.sales_order_id
+                    INNER JOIN services ON sales_order_services.service_id = services.id
+                    LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                    LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                    UNION ALL
+
+                    SELECT
+                    credit_memos.id
+                    FROM credit_memos
+                    INNER JOIN credit_memo_services ON credit_memos.id = credit_memo_services.credit_memo_id
+                    INNER JOIN services ON credit_memo_services.service_id = services.id
+                    LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                    LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                </when>
+
+                <otherwise>
+                    SELECT
+                    sales_orders.id
+                    FROM sales_orders
+                    INNER JOIN sales_order_miscs ON sales_orders.id = sales_order_miscs.sales_order_id
+                    LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                    LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON sales_order_miscs.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                    UNION ALL
+
+                    SELECT
+                    credit_memos.id
+                    FROM credit_memos
+                    INNER JOIN credit_memo_miscs ON credit_memos.id = credit_memo_miscs.credit_memo_id
+                    LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                    LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                    LEFT JOIN uoms ON credit_memo_miscs.qty_uom_id = uoms.id
+                    <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                </otherwise>
+            </choose>
+        </if>
+        ) AS result
+    </select>
+
+        <select id="sumGrandTotalSalesByItemType" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesByItemTypeReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.ReportGrandTotalResponse">
+                SELECT
+                    SUM(qty) AS grandTotalQty,
+                    SUM(totalPrice) AS grandTotalAmount,
+                    COUNT(DISTINCT invoiceCode) AS grandTotalInvoiceCode,
+                    COUNT(DISTINCT organizationName) AS grandTotalOrganization,
+                    COUNT(DISTINCT warehouseName) AS grandTotalWarehouse
+                FROM (
+                    <trim prefixOverrides="UNION ALL">
+                            SELECT
+                                <choose>
+                                    <when test="filter.free != null and filter.free == 1">
+                                        (sales_order_details.qty + sales_order_details.qty_free) AS qty
+                                    </when>
+                                    <otherwise>
+                                        sales_order_details.qty AS qty
+                                    </otherwise>
+                                </choose>,
+                                sales_order_details.total_price AS totalPrice,
+                                sales_orders.so_code AS invoiceCode,
+                                CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                                location_groups.name AS warehouseName
+                            FROM sales_orders
+                            INNER JOIN sales_order_details ON sales_orders.id = sales_order_details.sales_order_id
+                            INNER JOIN products ON sales_order_details.product_id = products.id
+                            LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                            LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                            UNION ALL
+
+                            SELECT
+                                <choose>
+                                    <when test="filter.free != null and filter.free == 1">
+                                        ((credit_memo_details.qty + credit_memo_details.qty_free) * -1) AS qty
+                                    </when>
+                                    <otherwise>
+                                        (credit_memo_details.qty * -1) AS qty
+                                    </otherwise>
+                                </choose>,
+                                (credit_memo_details.total_price * -1) AS totalPrice,
+                                credit_memos.cm_code AS invoiceCode,
+                                CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                                location_groups.name AS warehouseName
+                            FROM credit_memos
+                            INNER JOIN credit_memo_details ON credit_memos.id = credit_memo_details.credit_memo_id
+                            INNER JOIN products ON credit_memo_details.product_id = products.id
+                            LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                            LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+
+                            UNION ALL
+                            SELECT
+                                <choose>
+                                    <when test="filter.free != null and filter.free == 1">
+                                        (sales_order_services.qty + sales_order_services.qty_free) AS qty
+                                    </when>
+                                    <otherwise>
+                                        sales_order_services.qty AS qty
+                                    </otherwise>
+                                </choose>,
+                                sales_order_services.total_price AS totalPrice,
+                                sales_orders.so_code AS invoiceCode,
+                                CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                                location_groups.name AS warehouseName
+                            FROM sales_orders
+                            INNER JOIN sales_order_services ON sales_orders.id = sales_order_services.sales_order_id
+                            INNER JOIN services ON sales_order_services.service_id = services.id
+                            LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                            LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                            UNION ALL
+
+                            SELECT
+                                <choose>
+                                    <when test="filter.free != null and filter.free == 1">
+                                        ((credit_memo_services.qty + credit_memo_services.qty_free) * -1) AS qty
+                                    </when>
+                                    <otherwise>
+                                        (credit_memo_services.qty * -1) AS qty
+                                    </otherwise>
+                                </choose>,
+                                (credit_memo_services.total_price * -1) AS totalPrice,
+                                credit_memos.cm_code AS invoiceCode,
+                                CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                                location_groups.name AS warehouseName
+                            FROM credit_memos
+                            INNER JOIN credit_memo_services ON credit_memos.id = credit_memo_services.credit_memo_id
+                            INNER JOIN services ON credit_memo_services.service_id = services.id
+                            LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                            LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+
+                            UNION ALL
+                            SELECT
+                                <choose>
+                                    <when test="filter.free != null and filter.free == 1">
+                                        (sales_order_miscs.qty + sales_order_miscs.qty_free) AS qty
+                                    </when>
+                                    <otherwise>
+                                        sales_order_miscs.qty AS qty
+                                    </otherwise>
+                                </choose>,
+                                sales_order_miscs.total_price AS totalPrice,
+                                sales_orders.so_code AS invoiceCode,
+                                CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                                location_groups.name AS warehouseName
+                            FROM sales_orders
+                            INNER JOIN sales_order_miscs ON sales_orders.id = sales_order_miscs.sales_order_id
+                            LEFT JOIN customers ON sales_orders.customer_id = customers.id
+                            LEFT JOIN location_groups ON sales_orders.location_group_id = location_groups.id
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE_SO"/>
+
+                            UNION ALL
+
+                            SELECT
+                                <choose>
+                                    <when test="filter.free != null and filter.free == 1">
+                                        ((credit_memo_miscs.qty + credit_memo_miscs.qty_free) * -1) AS qty
+                                    </when>
+                                    <otherwise>
+                                        (credit_memo_miscs.qty * -1) AS qty
+                                    </otherwise>
+                                </choose>,
+                                (credit_memo_miscs.total_price * -1) AS totalPrice,
+                                credit_memos.cm_code AS invoiceCode,
+                                CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+                                location_groups.name AS warehouseName
+                            FROM credit_memos
+                            INNER JOIN credit_memo_miscs ON credit_memos.id = credit_memo_miscs.credit_memo_id
+                            LEFT JOIN customers ON credit_memos.customer_id = customers.id
+                            LEFT JOIN location_groups ON credit_memos.location_group_id = location_groups.id
+                            <include refid="BASE_WHERE_SALES_BY_ITEM_TYPE"/>
+                    </trim>
+                ) AS result
+    </select>
+
+</mapper>
+

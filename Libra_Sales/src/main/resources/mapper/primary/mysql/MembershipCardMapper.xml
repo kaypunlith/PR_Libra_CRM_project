@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.MembershipCardMapper">
+
+    <resultMap id="MembershipCardResponse" type="com.ut.nlSystemAPi.model.response.MembershipCard.MembershipCardResponse">
+        <id property="id" column="id"/>
+        <result property="membershipCardLevelId" column="membershipTypeId"/>
+        <result property="membershipCardLevelName" column="membershipTypeName"/>
+        <result property="membershipCardLevelColor" column="membershipTypeColor"/>
+        <result property="customerId" column="customerId"/>
+        <result property="customerName" column="customerName"/>
+        <result property="customerCode" column="customerCode"/>
+        <result property="cardNo" column="cardId"/>
+        <result property="cardDateStart" column="cardDateStart"/>
+        <result property="cardDateEnd" column="cardDateEnd"/>
+        <result property="currentPoint" column="currentPoint"/>
+        <result property="totalPoint" column="totalPoint"/>
+        <result property="period" column="period"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        membership_cards.id AS id,
+        membership_cards.membership_type_id AS membershipTypeId,
+        membership_card_types.name AS membershipTypeName,
+        membership_card_types.color AS membershipTypeColor,
+        membership_cards.customer_id AS customerId,
+        customers.name AS customerName,
+        customers.customer_code AS customerCode,
+        membership_cards.card_id AS cardId,
+        membership_cards.card_date_start AS cardDateStart,
+        membership_cards.card_date_end AS cardDateEnd,
+        membership_cards.current_point AS currentPoint,
+        membership_cards.total_point AS totalPoint,
+        membership_cards.point_expiration AS `period`,
+        membership_cards.created AS created,
+        CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+        membership_cards.modified AS modified,
+        CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM membership_cards
+        LEFT JOIN membership_card_types ON membership_card_types.id = membership_cards.membership_type_id
+        LEFT JOIN customers ON customers.id = membership_cards.customer_id AND customers.is_active = 1
+        LEFT JOIN users AS creator ON membership_cards.created_by = creator.id
+        LEFT JOIN users AS modifier ON membership_cards.modified_by = modifier.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE membership_cards.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                membership_cards.card_id LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.customer_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR membership_card_types.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="MembershipCardResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                membership_cards.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(membership_cards.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="MembershipCardResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE membership_cards.id = #{id} AND membership_cards.is_active = 1
+    </select>
+
+    <select id="getActiveByCustomerId" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.entity.MembershipCard.MembershipCard">
+        SELECT
+            id,
+            membership_type_id AS membershipTypeId,
+            customer_id AS customerId,
+            current_point AS currentPoint,
+            total_point AS totalPoint,
+            point_expiration AS period
+        FROM membership_cards
+        WHERE customer_id = #{customerId}
+          AND is_active = 1
+        LIMIT 1
+    </select>
+
+    <select id="getActiveMembershipCardType" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.entity.MembershipCardLevel.MembershipCardLevel">
+        SELECT
+            id,
+            amount,
+            point,
+            required_point AS requiredPoint
+        FROM membership_card_types
+        WHERE id = #{id}
+          AND is_active = 1
+        LIMIT 1
+    </select>
+
+    <select id="getUpgradedMembershipTypeId" resultType="java.lang.Long">
+        SELECT id
+        FROM membership_card_types
+        WHERE is_active = 1
+          AND IFNULL(required_point, 0) &lt;= #{totalPoint}
+          AND IFNULL(required_point, 0) &gt; (
+              SELECT IFNULL(required_point, 0)
+              FROM membership_card_types
+              WHERE id = #{membershipTypeId}
+              LIMIT 1
+          )
+        ORDER BY IFNULL(required_point, 0) DESC
+        LIMIT 1
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM membership_cards
+        WHERE is_active = 1 AND card_id = #{cardId}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.MembershipCard.MembershipCard" useGeneratedKeys="true" keyProperty="membershipCard.id">
+        INSERT INTO membership_cards (
+            membership_type_id,
+            customer_id,
+            card_id,
+            card_date_start,
+            card_date_end,
+            current_point,
+            total_point,
+            point_expiration,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{membershipCard.membershipTypeId},
+            #{membershipCard.customerId},
+            #{membershipCard.cardId},
+            #{membershipCard.cardDateStart},
+            #{membershipCard.cardDateEnd},
+            #{membershipCard.currentPoint},
+            #{membershipCard.totalPoint},
+            #{membershipCard.period},
+            NOW(),
+            #{membershipCard.createdBy},
+            #{membershipCard.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.MembershipCard.MembershipCard">
+        UPDATE membership_cards SET
+            <if test="membershipCard.membershipTypeId != null">membership_type_id = #{membershipCard.membershipTypeId},</if>
+            <if test="membershipCard.customerId != null">customer_id = #{membershipCard.customerId},</if>
+            <if test="membershipCard.cardId != null">card_id = #{membershipCard.cardId},</if>
+            <if test="membershipCard.cardDateStart != null">card_date_start = #{membershipCard.cardDateStart},</if>
+            <if test="membershipCard.cardDateEnd != null">card_date_end = #{membershipCard.cardDateEnd},</if>
+            <if test="membershipCard.currentPoint != null">current_point = #{membershipCard.currentPoint},</if>
+            <if test="membershipCard.totalPoint != null">total_point = #{membershipCard.totalPoint},</if>
+            <if test="membershipCard.period != null">point_expiration = #{membershipCard.period},</if>
+            modified = NOW(),
+            modified_by = #{membershipCard.modifiedBy}
+        WHERE id = #{membershipCard.id} AND is_active = 1
+    </update>
+
+    <update id="updateMembershipPoints">
+        UPDATE membership_cards
+        SET
+            current_point = #{currentPoint},
+            total_point = IFNULL(total_point, 0) + #{pointReceive}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <insert id="insertMembershipCardLog">
+        INSERT INTO membership_card_logs (
+            membership_card_id,
+            sales_order_id,
+            total_amount,
+            old_point,
+            point,
+            total_point,
+            expired_date,
+            created
+        )
+        SELECT
+            #{membershipCardId},
+            #{salesOrderId},
+            #{totalAmount},
+            #{oldPoint},
+            #{point},
+            #{totalPoint},
+            CASE
+                WHEN membership_cards.point_expiration IS NOT NULL AND membership_cards.point_expiration > 0
+                    THEN DATE_ADD(CURDATE(), INTERVAL membership_cards.point_expiration MONTH)
+                ELSE NULL
+            END,
+            NOW()
+        FROM membership_cards
+        WHERE membership_cards.id = #{membershipCardId}
+          AND membership_cards.is_active = 1
+    </insert>
+
+    <update id="updateMembershipType">
+        UPDATE membership_cards
+        SET membership_type_id = #{membershipTypeId}
+        WHERE id = #{id}
+          AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE membership_cards SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

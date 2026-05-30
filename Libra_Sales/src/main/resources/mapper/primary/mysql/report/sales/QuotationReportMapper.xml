@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_FROM_QUOTATION">
+        FROM quotations
+        INNER JOIN users ON users.id = quotations.created_by
+        INNER JOIN customers ON customers.id = quotations.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = quotations.currency_center_id
+    </sql>
+
+    <sql id="BASE_WHERE_QUOTATION">
+        WHERE quotations.status > 0
+        <if test="filter.searchText != null">
+            AND (
+            quotations.quotation_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND quotations.quotation_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND quotations.quotation_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.type != null">
+            AND quotations.type = #{filter.type}
+        </if>
+        <if test="filter.organizationId != null">
+            AND quotations.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND quotations.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.productId != null">
+            AND quotations.id IN (SELECT quotation_id FROM quotation_details WHERE product_id = #{filter.productId})
+        </if>
+        <if test="filter.isClose != null">
+            AND quotations.is_close = #{filter.isClose}
+        </if>
+        <if test="filter.isApprove != null">
+            AND quotations.is_approve = #{filter.isApprove}
+        </if>
+        <if test="filter.createdBy != null">
+            AND quotations.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.filterBy != null">
+            AND quotations.is_none_vat = #{filter.filterBy}
+        </if>
+        <if test="filter.salesOrder == 1">
+            AND quotations.id IN (SELECT quotation_id FROM order_quotations WHERE order_id IS NOT NULL)
+        </if>
+    </sql>
+
+
+
+    <!--Detail-->
+    <select id="getListQuotationDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.QuotationReportResponse">
+        SELECT
+        quotations.id AS id,
+        quotations.quotation_date AS quotationDate,
+        quotations.quotation_code AS quotationCode,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName,
+        (SELECT GROUP_CONCAT((SELECT order_code FROM orders WHERE id = order_quotations.order_id AND status > 0)) FROM order_quotations WHERE order_quotations.quotation_id = quotations.id) AS orderCode,
+        quotations.total_amount - IFNULL(quotations.discount, 0) AS totalAmount,
+        IFNULL(quotations.total_vat, 0) AS totalVat,
+        (SELECT CONCAT(DATEDIFF(quotations.modified, quotations.created), ' ', 'day(s)') FROM quotations quot WHERE quot.is_close = 1 AND quot.id = quotations.id) AS aging,
+        quotations.is_close AS isClose,
+        quotations.is_approve AS isApprove,
+        quotations.type AS type,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        currency_centers.symbol AS currencySymbol
+        <include refid="BASE_FROM_QUOTATION"/>
+        <include refid="BASE_WHERE_QUOTATION"/>
+        ORDER BY quotations.quotation_date DESC, quotations.quotation_code DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListQuotationDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(quotations.id)
+        <include refid="BASE_FROM_QUOTATION"/>
+        <include refid="BASE_WHERE_QUOTATION"/>
+    </select>
+
+
+
+    <!--By Product-->
+    <select id="getListQuotationByProduct" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.QuotationReportResponse">
+        SELECT
+        quotations.id AS id,
+        quotations.quotation_date AS quotationDate,
+        quotations.quotation_code AS quotationCode,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName
+        <include refid="BASE_FROM_QUOTATION"/>
+        <include refid="BASE_WHERE_QUOTATION"/>
+        GROUP BY quotations.quotation_date DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListQuotationByProduct" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(quotations.id)
+        <include refid="BASE_FROM_QUOTATION"/>
+        <include refid="BASE_WHERE_QUOTATION"/>
+    </select>
+
+    <select id="getListQuotationByProductDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.QuotationReportDetailResponse">
+        (
+            SELECT
+                1 AS type,
+                products.name AS itemName,
+                products.code AS sku,
+                products.barcode AS upc,
+                quotation_details.qty AS qty,
+                uoms.name AS uomName,
+                quotation_details.unit_price AS unitCost,
+                quotation_details.total_price AS totalCost
+            FROM quotation_details
+                     INNER JOIN products ON products.id = quotation_details.product_id
+                     LEFT JOIN uoms ON uoms.id = quotation_details.qty_uom_id
+            WHERE quotation_details.quotation_id = #{quotationId} AND quotation_details.is_break = 0
+        )
+
+        UNION ALL
+
+        (
+            SELECT
+                2 AS `type`,
+                services.name AS itemName,
+                services.sku AS sku,
+                services.sku AS upc,
+                quotation_services.qty AS qty,
+                NULL AS uomName,
+                quotation_services.unit_price AS unitCost,
+                quotation_services.total_price AS totalCost
+            FROM quotation_services
+                     INNER JOIN services ON services.id = quotation_services.service_id
+            WHERE quotation_services.quotation_id = #{quotationId}
+        )
+    </select>
+
+
+
+    <!--By Product Summary-->
+    <select id="getListQuotationByProductSummary" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.QuotationReportResponse">
+        SELECT
+        products.id AS id,
+        quotations.quotation_date AS quotationDate,
+        quotations.quotation_code AS quotationCode,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName,
+        products.name AS itemName,
+        products.code AS sku,
+        products.barcode AS upc,
+        quotation_details.qty AS qty,
+        uoms.name AS uomName,
+        quotation_details.unit_cost AS unitCost,
+        quotation_details.total_price AS totalCost
+        FROM quotations
+        INNER JOIN users ON users.id = quotations.created_by
+        INNER JOIN customers ON customers.id = quotations.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = quotations.currency_center_id
+        LEFT JOIN quotation_details ON quotation_details.quotation_id = quotations.id
+        LEFT JOIN quotation_services ON quotation_services.quotation_id = quotations.id
+        LEFT JOIN products ON products.id = quotation_details.product_id
+        LEFT JOIN services ON services.id = quotation_services.service_id
+        LEFT JOIN uoms ON uoms.id = quotation_details.qty_uom_id
+        <include refid="BASE_WHERE_QUOTATION"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListQuotationByProductSummary" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.QuotationReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(products.id)
+        FROM quotations
+        INNER JOIN users ON users.id = quotations.created_by
+        INNER JOIN customers ON customers.id = quotations.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = quotations.currency_center_id
+        LEFT JOIN quotation_details ON quotation_details.quotation_id = quotations.id
+        LEFT JOIN quotation_services ON quotation_services.quotation_id = quotations.id
+        LEFT JOIN products ON products.id = quotation_details.product_id
+        LEFT JOIN services ON services.id = quotation_services.service_id
+        LEFT JOIN uoms ON uoms.id = quotation_details.qty_uom_id
+        <include refid="BASE_WHERE_QUOTATION"/>
+    </select>
+
+</mapper>

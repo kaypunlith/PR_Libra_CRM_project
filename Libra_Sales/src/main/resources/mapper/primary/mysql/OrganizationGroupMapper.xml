@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationGroupMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cgroups.id AS id,
+        cgroups.name AS `name`,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM companies WHERE id IN (SELECT company_id FROM cgroup_companies WHERE cgroup_id = cgroups.id)) AS companies,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM price_types WHERE id IN (SELECT price_type_id FROM cgroup_price_types WHERE cgroup_id = cgroups.id)) AS priceTypes,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM egroups WHERE id IN (SELECT egroup_id FROM cgroup_egroups WHERE cgroup_id = cgroups.id)) AS employeeGroups,
+        cgroups.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM cgroups
+        LEFT JOIN users AS modifier ON modifier.id = cgroups.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cgroups.is_active = 1
+        AND cgroups.group_type = 1
+        AND cgroups.id IN (SELECT cgroup_id FROM cgroup_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        <if test="filter.searchText != null">
+            AND cgroups.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="OrganizationGroupResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                cgroups.`id` ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(cgroups.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="OrganizationGroupResponse">
+        SELECT
+        cgroups.id AS id,
+        cgroups.name AS `name`
+        <include refid="BASE_FROM"/>
+        WHERE cgroups.is_active = 1 AND cgroups.group_type = 1 AND cgroups.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM cgroups
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.OrganizationGroup.OrganizationGroup" useGeneratedKeys="true" keyProperty="organizationGroup.id">
+        INSERT INTO cgroups (
+            `name`,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{organizationGroup.name},
+            NOW(),
+            #{organizationGroup.createdBy},
+            #{organizationGroup.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.OrganizationGroup.OrganizationGroup">
+        UPDATE cgroups SET
+            <if test="organizationGroup.name != null">`name` = #{organizationGroup.name},</if>
+            modified = NOW(),
+            modified_by = #{organizationGroup.modifiedBy}
+        WHERE id = #{organizationGroup.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE cgroups SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <select id="getCompany" parameterType="java.lang.Long" resultMap="OrganizationGroupDetailResponse">
+        SELECT
+            cgroup_companies.company_id AS id,
+            companies.name AS name
+        FROM cgroup_companies
+                 INNER JOIN companies ON companies.id = cgroup_companies.company_id
+        WHERE cgroup_id = #{id}
+        GROUP BY cgroup_companies.company_id
+    </select>
+
+    <select id="getEmployeeGroup" parameterType="java.lang.Long" resultMap="OrganizationGroupDetailResponse">
+        SELECT
+            cgroup_egroups.egroup_id AS id,
+            egroups.name AS name
+        FROM cgroup_egroups
+                 INNER JOIN egroups ON egroups.id = cgroup_egroups.egroup_id
+        WHERE cgroup_egroups.cgroup_id = #{id}
+        GROUP BY cgroup_egroups.egroup_id
+    </select>
+
+    <select id="getPriceType" parameterType="java.lang.Long" resultMap="OrganizationGroupDetailResponse">
+        SELECT
+            cgroup_price_types.price_type_id AS id,
+            price_types.name AS name
+        FROM cgroup_price_types
+                 INNER JOIN price_types ON price_types.id = cgroup_price_types.price_type_id
+        WHERE cgroup_price_types.cgroup_id = #{id}
+        GROUP BY cgroup_price_types.price_type_id
+    </select>
+
+    <select id="getOrganization" parameterType="java.lang.Long" resultMap="OrganizationGroupDetailResponse">
+        SELECT
+            customer_cgroups.customer_id AS id,
+            customers.name AS name
+        FROM customer_cgroups
+                 INNER JOIN customers ON customers.id = customer_cgroups.customer_id
+        WHERE customer_cgroups.cgroup_id = #{id}
+        GROUP BY customer_cgroups.customer_id
+    </select>
+
+    <insert id="insertCompany" parameterType="java.lang.Long">
+        INSERT INTO cgroup_companies (
+            company_id,
+            cgroup_id
+        ) VALUES (
+                     #{companyId},
+                     #{organizationGroupId}
+                 )
+    </insert>
+
+    <insert id="insertEmployeeGroup" parameterType="java.lang.Long">
+        INSERT INTO cgroup_egroups (
+            egroup_id,
+            cgroup_id
+        ) VALUES (
+                     #{employeeGroupId},
+                     #{organizationGroupId}
+                 )
+    </insert>
+
+    <insert id="insertPriceType" parameterType="java.lang.Long">
+        INSERT INTO cgroup_price_types (
+            price_type_id,
+            cgroup_id
+        ) VALUES (
+                     #{priceTypeId},
+                     #{organizationGroupId}
+                 )
+    </insert>
+
+    <insert id="insertOrganization" parameterType="java.lang.Long">
+        INSERT INTO customer_cgroups (
+            customer_id,
+            cgroup_id
+        ) VALUES (
+                     #{organizationId},
+                     #{organizationGroupId}
+                 )
+    </insert>
+
+    <delete id="deleteCompany" parameterType="java.lang.Long">
+        DELETE FROM cgroup_companies WHERE cgroup_id = #{organizationGroupId}
+    </delete>
+
+    <delete id="deleteEmployeeGroup" parameterType="java.lang.Long">
+        DELETE FROM cgroup_egroups WHERE cgroup_id = #{organizationGroupId}
+    </delete>
+
+    <delete id="deletePriceType" parameterType="java.lang.Long">
+        DELETE FROM cgroup_price_types WHERE cgroup_id = #{organizationGroupId}
+    </delete>
+
+    <delete id="deleteOrganization" parameterType="java.lang.Long">
+        DELETE FROM customer_cgroups WHERE cgroup_id = #{organizationGroupId}
+    </delete>
+
+
+</mapper>

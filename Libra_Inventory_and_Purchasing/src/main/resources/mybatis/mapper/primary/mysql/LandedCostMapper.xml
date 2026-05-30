@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LandedCostMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        landed_costs.id AS id,
+        landed_costs.code AS code,
+        landed_costs.company_id AS companyId,
+        companies.name AS companyName,
+        landed_costs.date AS `date`,
+        landed_costs.vendor_id AS paidToId,
+        paidTo.name AS paidToName,
+        landed_costs.landed_cost_type_id AS landedCostTypeId,
+        landed_cost_types.name AS landedCostTypeName,
+        landed_costs.reference AS reference,
+        landed_costs.supply_id AS supplyId,
+        supply.name AS supplyName,
+        landed_costs.ap_id AS apId,
+        CONCAT(chart_accounts.account_codes, ' ', chart_accounts.account_description) AS apName,
+        landed_costs.note AS note,
+        landed_costs.total_amount AS totalAmount,
+        landed_costs.balance AS balance,
+        landed_costs.status AS status,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        landed_costs.created AS created,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy,
+        landed_costs.modified AS modified
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM landed_costs
+                INNER JOIN companies ON landed_costs.company_id = companies.id
+                LEFT JOIN vendors AS paidTo ON landed_costs.vendor_id = paidTo.id
+                LEFT JOIN vendors AS supply ON landed_costs.vendor_id = supply.id
+                INNER JOIN currency_centers ON currency_centers.id = landed_costs.currency_center_id
+                INNER JOIN landed_cost_types ON landed_costs.landed_cost_type_id = landed_cost_types.id
+                LEFT JOIN chart_accounts ON landed_costs.ap_id = chart_accounts.id
+                LEFT JOIN users AS users1 ON users1.id = landed_costs.created_by
+                LEFT JOIN users AS users2 ON users2.id = landed_costs.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE landed_costs.status >= 0
+        <if test="filter.date != null">
+            AND landed_costs.date >= #{filter.date}
+        </if>
+        <if test="filter.status != null">
+            AND landed_costs.status = #{filter.status}
+        </if>
+        <if test="filter.vendorId != null">
+            AND landed_costs.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND landed_costs.created_by = #{userId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+            landed_cost_types.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR landed_costs.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR paidTo.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.LandedCostFilter" resultMap="LandedCostResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                landed_costs.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.LandedCostFilter" resultType="java.lang.Long">
+        SELECT COUNT(landed_costs.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="LandedCostResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE landed_costs.status >= 0 AND landed_costs.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM landed_costs
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.LandedCost" useGeneratedKeys="true" keyProperty="landedCost.id">
+        INSERT INTO landed_costs (
+            company_id,
+            `date`,
+            code,
+            vendor_id,
+            currency_center_id,
+            landed_cost_type_id,
+            reference,
+            supply_id,
+            ap_id,
+            note,
+            total_amount,
+            balance,
+            created,
+            created_by,
+            status
+        ) VALUES (
+                     #{landedCost.companyId},
+                     #{landedCost.date},
+                     #{landedCost.code},
+                     #{landedCost.vendorId},
+                     (SELECT currency_center_id FROM companies WHERE id = #{landedCost.companyId}),
+                     #{landedCost.landedCostTypeId},
+                     #{landedCost.reference},
+                     #{landedCost.supplyId},
+                     #{landedCost.apId},
+                     #{landedCost.note},
+                     #{landedCost.totalAmount},
+                     #{landedCost.totalAmount},
+                     NOW(),
+                     #{landedCost.createdBy},
+                     #{landedCost.status}
+                 )
+    </insert>
+
+    <delete id="deleteLandedCostPurchaseBill" parameterType="java.lang.Long">
+        DELETE FROM landed_cost_purchase_orders WHERE landed_cost_id = #{landedCostId};
+    </delete>
+
+    <insert id="insertLandedCostPurchaseBill" parameterType="com.ut.nlSystemAPi.model.LandedCostPurchaseBill">
+        INSERT INTO landed_cost_purchase_orders (
+            landed_cost_id,
+            purchase_order_id
+        ) VALUES (
+                     #{landedCostPurchaseBill.landedCostId},
+                     #{landedCostPurchaseBill.purchaseBillId}
+                 )
+    </insert>
+
+    <update id="deleteGeneralLedger" parameterType="java.lang.Long">
+        UPDATE general_ledgers SET is_active = 2 WHERE landed_cost_id = #{landedCostId};
+    </update>
+
+    <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.GeneralLedger" useGeneratedKeys="true" keyProperty="generalLedger.id">
+        INSERT INTO general_ledgers (
+            landed_cost_id,
+            `date`,
+            reference,
+            created,
+            created_by,
+            is_sys
+        ) VALUES (
+                     #{generalLedger.landedCostId},
+                     #{generalLedger.date},
+                     #{generalLedger.reference},
+                     NOW(),
+                     #{generalLedger.createdBy},
+                     #{generalLedger.isSys}
+                 )
+    </insert>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.GeneralLedgerDetail">
+        INSERT INTO general_ledger_details (
+            general_ledger_id,
+            chart_account_id,
+            company_id,
+            location_id,
+            product_id,
+            type,
+            debit,
+            credit,
+            memo,
+            vendor_id
+        ) VALUES (
+                     #{generalLedgerDetail.generalLedgerId},
+                     #{generalLedgerDetail.chartAccountId},
+                     #{generalLedgerDetail.companyId},
+                     #{generalLedgerDetail.locationId},
+                     #{generalLedgerDetail.productId},
+
+                     #{generalLedgerDetail.type},
+                     #{generalLedgerDetail.debit},
+                     #{generalLedgerDetail.credit},
+                     #{generalLedgerDetail.memo},
+                     #{generalLedgerDetail.vendorId}
+                 )
+    </insert>
+
+    <select id="getDetail" parameterType="java.lang.Long" resultMap="LandedCostDetailResponse">
+        (
+            SELECT
+                1 AS `type`,
+                (SELECT purchase_order_id FROM purchase_order_details WHERE purchase_order_details.id = landed_cost_details.purchase_order_detail_id) AS purchaseBillId,
+                landed_cost_details.purchase_order_detail_id AS purchaseBillDetailId,
+                landed_cost_details.id AS id,
+                landed_cost_details.product_id AS itemId,
+                products.name AS itemName,
+                products.code AS sku,
+                products.barcode AS upc,
+                landed_cost_details.qty AS qty,
+                landed_cost_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                landed_cost_details.unit_cost AS unitCost,
+                landed_cost_details.landed_cost AS landedCost,
+                IFNULL(products.small_val_uom,1) / IFNULL(landed_cost_details.conversion,1) AS conversion,
+                landed_cost_details.small_val_uom AS smallValUom
+            FROM landed_cost_details
+                     LEFT JOIN products ON products.id = landed_cost_details.product_id
+                     LEFT JOIN uoms ON uoms.id = landed_cost_details.qty_uom_id
+            WHERE landed_cost_details.landed_cost_id = #{id}
+        )
+        UNION
+        (
+            SELECT
+                2 AS `type`,
+                NULL AS purchaseBillId,
+                NULL AS purchaseBillDetailId,
+                landed_cost_services.id AS id,
+                landed_cost_services.service_id AS itemId,
+                services.name AS itemName,
+                services.sku AS sku,
+                NULL AS upc,
+                landed_cost_services.qty AS qty,
+                NULL AS uomId,
+                NULL AS uomName,
+                landed_cost_services.unit_cost AS unitCost,
+                landed_cost_services.landed_cost AS landedCost,
+                landed_cost_services.conversion AS conversion,
+                landed_cost_services.small_val_uom AS smallValUom
+            FROM landed_cost_services
+                     LEFT JOIN services ON services.id = landed_cost_services.service_id
+            WHERE landed_cost_services.landed_cost_id = #{id}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <select id="getData" parameterType="java.lang.Long" resultMap="LandedCostDetailResponse">
+        SELECT
+            (SELECT purchase_order_id FROM purchase_order_details WHERE purchase_order_details.id = landed_cost_details.purchase_order_detail_id) AS purchaseBillId,
+            landed_cost_details.purchase_order_detail_id AS purchaseBillDetailId,
+            landed_cost_details.id AS id,
+            landed_cost_details.product_id AS itemId,
+            products.name AS itemName,
+            products.small_val_uom AS smallValUom,
+            landed_cost_details.qty AS qty,
+            landed_cost_details.unit_cost AS unitCost,
+            landed_cost_details.landed_cost AS landedCost,
+            landed_cost_details.conversion AS conversion
+        FROM landed_cost_details
+                 LEFT JOIN products ON products.id = landed_cost_details.product_id
+        WHERE landed_cost_details.landed_cost_id = #{id}
+    </select>
+
+    <select id="getLandedCostPurchaseBill" parameterType="java.lang.Long" resultMap="LandedCostPurchaseBillResponse">
+        SELECT
+            landed_cost_purchase_orders.purchase_order_id AS id,
+            purchase_orders.po_code AS code
+        FROM landed_cost_purchase_orders
+                 LEFT JOIN purchase_orders ON purchase_orders.id = landed_cost_purchase_orders.purchase_order_id
+        WHERE landed_cost_purchase_orders.landed_cost_id = #{id}
+    </select>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.LandedCostDetail">
+        INSERT INTO landed_cost_details (
+            landed_cost_id,
+            purchase_order_detail_id,
+            product_id,
+            qty,
+            qty_uom_id,
+            conversion,
+            small_val_uom,
+            unit_cost,
+            landed_cost
+        )
+        VALUES (
+                   #{landedCostDetail.landedCostId},
+                   #{landedCostDetail.purchaseBillDetailId},
+                   #{landedCostDetail.productId},
+                   #{landedCostDetail.qty},
+                   #{landedCostDetail.uomId},
+                   #{landedCostDetail.conversion},
+                   #{landedCostDetail.smallValUom},
+                   #{landedCostDetail.unitCost},
+                   #{landedCostDetail.landedCost}
+               );
+    </insert>
+
+    <delete id="deleteDetail" parameterType="java.lang.Long">
+        DELETE FROM landed_cost_details WHERE landed_cost_id = #{landedCostId};
+    </delete>
+
+    <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.LandedCostServices">
+        INSERT INTO landed_cost_services (
+            landed_cost_id,
+            service_id,
+            qty,
+            qty_uom_id,
+            conversion,
+            small_val_uom,
+            unit_cost,
+            landed_cost
+        )
+        VALUES (
+                   #{landedCostServices.landedCostId},
+                   #{landedCostServices.serviceId},
+                   #{landedCostServices.qty},
+                   #{landedCostServices.uomId},
+                   #{landedCostServices.conversion},
+                   #{landedCostServices.smallValUom},
+                   #{landedCostServices.unitCost},
+                   #{landedCostServices.landedCost}
+               );
+    </insert>
+
+    <delete id="deleteService" parameterType="java.lang.Long">
+        DELETE FROM landed_cost_services WHERE landed_cost_id = #{landedCostId};
+    </delete>
+
+    <insert id="update" parameterType="com.ut.nlSystemAPi.model.LandedCost" useGeneratedKeys="true" keyProperty="landedCost.id">
+        INSERT INTO landed_costs (
+        <if test="landedCost.companyId != null">company_id,</if>
+        <if test="landedCost.code != null">`code`,</if>
+        <if test="landedCost.date != null">date,</if>
+        <if test="landedCost.vendorId != null">vendor_id,</if>
+        currency_center_id,
+        <if test="landedCost.landedCostTypeId != null">landed_cost_type_id,</if>
+        <if test="landedCost.reference != null">reference,</if>
+        <if test="landedCost.supplyId != null">supply_id,</if>
+        <if test="landedCost.apId != null">ap_id,</if>
+        <if test="landedCost.note != null">note,</if>
+        <if test="landedCost.totalAmount != null">total_amount,</if>
+        <if test="landedCost.totalAmount != null">balance,</if>
+        created,
+        created_by,
+        status
+        )
+        VALUES (
+        <if test="landedCost.companyId != null">#{landedCost.companyId},</if>
+        <if test="landedCost.code != null">#{landedCost.code},</if>
+        <if test="landedCost.date != null">#{landedCost.date},</if>
+        <if test="landedCost.vendorId != null">#{landedCost.vendorId},</if>
+        (SELECT currency_center_id FROM companies WHERE id = #{landedCost.companyId}),
+        <if test="landedCost.landedCostTypeId != null">#{landedCost.landedCostTypeId},</if>
+        <if test="landedCost.reference != null">#{landedCost.reference},</if>
+        <if test="landedCost.supplyId != null">#{landedCost.supplyId},</if>
+        <if test="landedCost.apId != null">#{landedCost.apId},</if>
+        <if test="landedCost.note != null">#{landedCost.note},</if>
+        <if test="landedCost.totalAmount != null">#{landedCost.totalAmount},</if>
+        <if test="landedCost.totalAmount != null">#{landedCost.totalAmount},</if>
+        NOW(),
+        #{landedCost.modifiedBy},
+        #{landedCost.status}
+        )
+    </insert>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE landed_costs SET
+                                status = -1,
+                                edited = NOW(),
+                                edited_by = #{userId},
+                                modified = NOW(),
+                                modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE landed_costs SET
+                                status = 0,
+                                modified = NOW(),
+                                modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="closeStatus" parameterType="java.lang.Long">
+        UPDATE landed_costs SET
+                                status = #{filter.isClose},
+                                modified = NOW(),
+                                modified_by = #{userId}
+        WHERE id = #{filter.id};
+    </update>
+
+    <select id="getCode" resultType="java.lang.String">
+        SELECT code FROM landed_costs WHERE id = #{id}
+    </select>
+
+    <select id="getLastCode" resultType="java.lang.String">
+        SELECT code
+        FROM landed_costs
+        WHERE YEAR(date) = YEAR(NOW()) AND code LIKE '%LC%' ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="getConversionByUomId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT value FROM uom_conversions WHERE from_uom_id = #{uomId} AND is_active = 1 LIMIT 1
+    </select>
+
+    <select id="getLandedCostTypeName" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT name FROM landed_cost_types WHERE id = #{id} AND is_active = 1 LIMIT 1
+    </select>
+
+    <select id="getProductName" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT name FROM products WHERE id = #{id} AND is_active = 1 LIMIT 1
+    </select>
+
+    <select id="getServiceName" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT name FROM services WHERE id = #{id} AND is_active = 1 LIMIT 1
+    </select>
+
+    <update id="updateInventoryValuation">
+        UPDATE inventory_valuations SET cost = cost + #{newCost} WHERE purchase_order_detail_id = #{purchaseBillDetailId};
+    </update>
+
+    <select id="getOrderDate" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT DATE_SUB(order_date, INTERVAL 1 DAY) AS order_date
+        FROM purchase_orders
+        WHERE status > 0 AND id = #{purchaseBillId}
+    </select>
+
+    <insert id="insertInventoryValuationCals">
+        INSERT IGNORE INTO inventory_valuation_cals (
+        `date`,
+        product_id,
+        is_lock,
+        created
+        )
+        VALUES (
+        #{orderDate},
+        #{productId},
+        0,
+        NOW()
+        )
+    </insert>
+
+    <update id="updateProductCost">
+        UPDATE products SET unit_cost = unit_cost + #{unitCost} WHERE id = #{productId};
+    </update>
+
+
+</mapper>

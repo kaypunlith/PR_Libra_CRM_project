@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PermissionMapper">
+
+  <select id="checkPermission" resultType="java.lang.Long">
+      SELECT 1
+  </select>
+
+  <insert id="insert">
+    INSERT INTO permissions (
+      group_id,
+      module_id
+    ) VALUES (
+      #{roleId},
+      #{moduleId}
+    )
+  </insert>
+
+  <insert id="delete">
+    DELETE FROM permissions WHERE group_id = #{roleId}
+  </insert>
+
+</mapper>

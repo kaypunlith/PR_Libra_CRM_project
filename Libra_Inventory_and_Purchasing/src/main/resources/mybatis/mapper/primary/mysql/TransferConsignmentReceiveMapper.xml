@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TransferConsignmentReceiveMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    transfer_orders.id AS id,
+    transfer_orders.from_location_group_id AS fromWarehouseId,
+    lg_from.name AS fromWarehouseName,
+    transfer_orders.to_location_group_id AS toWarehouseId,
+    lg_to.name AS toWarehouseName,
+    transfer_orders.to_code AS toNumber,
+    transfer_orders.order_date AS toDate,
+    transfer_orders.fulfillment_date AS fulfillmentDate,
+    transfer_orders.status AS status,
+    transfer_orders.type AS `type`,
+    transfer_orders.created AS created,
+    transfer_orders.modified AS modified,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM transfer_orders
+    LEFT JOIN location_groups AS lg_from ON lg_from.id = transfer_orders.from_location_group_id
+    LEFT JOIN location_groups AS lg_to ON lg_to.id = transfer_orders.to_location_group_id
+    LEFT JOIN users AS users1 ON users1.id = transfer_orders.created_by
+    LEFT JOIN users AS users2 ON users2.id = transfer_orders.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE transfer_orders.status >= 0 AND transfer_orders.is_approve = 1
+    <if test="filter.searchText != null">
+      AND transfer_orders.to_code LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    <if test="filter.date != null">
+      AND transfer_orders.order_date = #{filter.date}
+    </if>
+    <if test="filter.toType != null">
+      AND transfer_orders.to_type = #{filter.toType}
+    </if>
+    <if test="filter.fromWarehouseId != null">
+      AND transfer_orders.from_location_group_id = #{filter.fromWarehouseId}
+    </if>
+    <if test="filter.toWarehouseId != null">
+      AND transfer_orders.to_location_group_id = #{filter.toWarehouseId}
+    </if>
+    <if test="filter.status != null">
+      AND transfer_orders.status = #{filter.status}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TransferConsignmentFilter" resultMap="TransferConsignmentReceiveResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        transfer_orders.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TransferConsignmentFilter" resultType="java.lang.Long">
+    SELECT COUNT(transfer_orders.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <sql id="BASE_COLUMN_LIST_ONE">
+    transfer_orders.id AS id,
+    transfer_orders.company_id AS companyId,
+    companies.name AS companyName,
+    transfer_orders.from_location_group_id AS fromWarehouseId,
+    lg_from.name AS fromWarehouseName,
+    transfer_orders.to_location_group_id AS toWarehouseId,
+    lg_to.name AS toWarehouseName,
+    transfer_orders.to_code AS toNumber,
+    transfer_orders.order_date AS toDate,
+    transfer_orders.fulfillment_date AS fulfillmentDate,
+    transfer_receive_results.date AS `date`,
+    transfer_receive_results.code AS code,
+    transfer_orders.status AS status,
+    transfer_orders.note AS memo,
+    transfer_orders.type AS `type`,
+    transfer_orders.created AS created,
+    transfer_orders.modified AS modified,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM_ONE">
+    FROM transfer_orders
+    LEFT JOIN transfer_receive_results ON transfer_receive_results.transfer_order_id = transfer_orders.id
+    LEFT JOIN companies ON companies.id = transfer_orders.company_id
+    LEFT JOIN location_groups AS lg_from ON lg_from.id = transfer_orders.from_location_group_id
+    LEFT JOIN location_groups AS lg_to ON lg_to.id = transfer_orders.to_location_group_id
+    LEFT JOIN users AS users1 ON users1.id = transfer_orders.created_by
+    LEFT JOIN users AS users2 ON users2.id = transfer_orders.modified_by
+  </sql>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TransferConsignmentReceiveResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_ONE"/>
+    <include refid="BASE_FROM_ONE"/>
+    WHERE transfer_orders.status >= 0 AND transfer_orders.id = #{id}
+  </select>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE transfer_orders SET
+      status = -1,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <select id="getLastCode" resultType="java.lang.String">
+        SELECT code
+        FROM transfer_receive_results
+        WHERE YEAR(created) = YEAR(NOW()) AND code LIKE CONCAT('%', #{code}, '%')  ORDER BY id DESC LIMIT 1
+  </select>
+
+  <update id="updateRequestStock" parameterType="java.lang.Long">
+    UPDATE request_stocks SET status = 3 WHERE id IN (SELECT request_stock_id FROM transfer_orders WHERE id = #{id});
+  </update>
+
+  <update id="receive" parameterType="com.ut.nlSystemAPi.model.request.Login.TransferConsignment.TransferConsignmentReceiveRequest">
+    UPDATE transfer_orders SET
+         status = 3,
+         is_process = 0,
+         modified = NOW(),
+         modified_by = #{userId}
+    WHERE id = #{request.id};
+  </update>
+
+  <select id="getConversionByUomId" resultType="java.lang.Long">
+    SELECT `value` FROM uom_conversions WHERE from_uom_id = #{uomId} AND is_active = 1 LIMIT 1
+  </select>
+
+  <insert id="insertReceive" parameterType="com.ut.nlSystemAPi.model.TransferConsignmentReceive">
+    INSERT INTO transfer_receives
+    (
+      transfer_order_id,
+      transfer_receive_result_id,
+      transfer_order_detail_id,
+      qty,
+      lots_number,
+      expired_date,
+      product_id,
+      qty_uom_id,
+      conversion,
+      created_by,
+      created,
+      status
+    )
+    VALUES
+      (
+        #{receive.transferOrderId},
+        #{receive.transferReceiveResultId},
+        #{receive.transferOrderDetailId},
+        #{receive.qty},
+        #{receive.lotsNumber},
+        #{receive.expiredDate},
+        #{receive.productId},
+        #{receive.uomId},
+        #{receive.conversion},
+        #{userId},
+        NOW(),
+        1
+      );
+  </insert>
+
+
+  <insert id="insertReceiveResult" parameterType="com.ut.nlSystemAPi.model.TransferConsignmentReceiveResult" useGeneratedKeys="true" keyProperty="receiveResult.id">
+    INSERT INTO transfer_receive_results
+    (
+      transfer_order_id,
+      code,
+      date,
+      created_by,
+      created
+    )
+    VALUES
+      (
+        #{receiveResult.transferOrderId},
+        #{receiveResult.trNumber},
+        #{receiveResult.trDate},
+        #{userId},
+        NOW()
+      );
+  </insert>
+
+  <select id="getTransferConsignmentDetail" resultMap="TransferConsignmentDetailResponse">
+    SELECT
+      transfer_order_details.id AS id,
+      transfer_order_details.transfer_order_id AS transferOrderId,
+      transfer_order_details.po_no AS poNumber,
+      transfer_order_details.product_id AS productId,
+      products.is_expired_date AS isExpiredDate,
+      transfer_order_details.expired_date AS expiredDate,
+      products.name AS productName,
+      products.code AS sku,
+      products.barcode AS upc,
+      products.unit_cost AS unitCost,
+      transfer_order_details.expired_date AS expiryDate,
+      transfer_order_details.location_from_id AS locationFromId,
+      locations_from.`name` AS locationFromName,
+      transfer_order_details.location_to_id AS locationToId,
+      locations_to.`name` AS locationToName,
+      IFNULL(transfer_order_details.qty,0) AS qtyTransfer,
+      IFNULL(transfer_receives.qty,0) AS qtyReceive,
+      IFNULL(transfer_receives.conversion,1) AS conversion,
+      transfer_order_details.qty_uom_id AS uomId,
+      uoms.name AS uomName,
+      IFNULL(transfer_order_details.lots_number,'0') AS lotsNumber
+    FROM transfer_order_details
+           LEFT JOIN transfer_receives ON transfer_order_details.id = transfer_receives.transfer_order_detail_id
+           LEFT JOIN products ON transfer_order_details.product_id = products.id
+           LEFT JOIN locations AS locations_from ON transfer_order_details.location_from_id = locations_from.id
+           LEFT JOIN locations AS locations_to ON transfer_order_details.location_to_id = locations_to.id
+           LEFT JOIN uoms ON transfer_order_details.qty_uom_id = uoms.id
+    WHERE transfer_order_details.transfer_order_id = #{transferConsignmentId}
+  </select>
+
+
+  <select id="getDetail" resultMap="TransferConsignmentDetailResponse">
+    SELECT
+      transfer_order_details.id AS id,
+      transfer_order_details.transfer_order_id AS transferOrderId,
+      transfer_order_details.po_no AS poNumber,
+      transfer_order_details.product_id AS productId,
+      products.unit_cost AS unitCost,
+      transfer_order_details.expired_date AS expiryDate,
+      transfer_order_details.location_from_id AS locationFromId,
+      transfer_order_details.location_to_id AS locationToId,
+      IFNULL(transfer_order_details.qty,0) AS qtyTransfer,
+      IFNULL(transfer_order_details.conversion,1) AS conversion,
+      transfer_order_details.qty_uom_id AS uomId,
+      IFNULL(transfer_order_details.lots_number,'0') AS lotsNumber
+    FROM transfer_order_details
+           LEFT JOIN products ON transfer_order_details.product_id = products.id
+    WHERE transfer_order_details.transfer_order_id = #{transferConsignmentId}
+  </select>
+
+</mapper>

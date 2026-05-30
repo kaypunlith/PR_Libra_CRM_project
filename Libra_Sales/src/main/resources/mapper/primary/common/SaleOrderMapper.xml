@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SaleOrderMapper">
+
+  <resultMap id="SaleOrderResponse" type="com.ut.nlSystemAPi.model.response.SaleOrder.SaleOrderResponse">
+
+  </resultMap>
+
+  <resultMap id="SaleOrderDetailResponse" type="com.ut.nlSystemAPi.model.response.SaleOrder.SaleOrderDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="CRMPercentResponse" type="com.ut.nlSystemAPi.model.response.Quotation.CRMPercentResponse">
+
+  </resultMap>
+
+  <resultMap id="QuotationCreator" type="com.ut.nlSystemAPi.model.response.Quotation.QuotationCreator">
+
+  </resultMap>
+
+</mapper>

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DropdownMapper">
+
+  <resultMap id="ZoneDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ZoneDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="NationalityDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.NationalityDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="GroupApiDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.GroupApiDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="UserDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.UserDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="CompanyDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.CompanyDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ChartAccountTypeDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ChartAccountTypeDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ChartAccountGroupDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ChartAccountGroupDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ChartAccountDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ChartAccountDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ClassDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ClassDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ProductDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="AccountTypeDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.AccountTypeDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="getListChartAccount" type="com.ut.nlSystemAPi.model.response.Dropdown.ChartAccountDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="UserDropdownRResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.UserDropdownRResponse">
+
+  </resultMap>
+
+  <resultMap id="RegionDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.RegionDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="IconDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.IconDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="TempleGroupDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.TempleGroupDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="TempleDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.TempleDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ProvinceDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ProvinceDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ModuleTypeDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ModuleTypeDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="PurposeOfVisitDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.PurposeOfVisitDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="TransportationDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.TransportationDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="TypeOfFeedbackDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.TypeOfFeedbackDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="DeleteReasonResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.DeleteReasonResponse">
+
+  </resultMap>
+
+  <resultMap id="CustomerDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.CustomerDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="EmployeeDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.EmployeeDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="VendorDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.VendorDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="ARScheduleInvoiceDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.ARScheduleInvoiceDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleInvoiceDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.APScheduleInvoiceDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="LocationDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.LocationDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="AssetDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.AssetDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="DateFormatResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.DateFormatResponse">
+
+  </resultMap>
+
+  <resultMap id="reconcile" type="com.ut.nlSystemAPi.model.response.Dropdown.ReconcileDropDownResponse">
+
+  </resultMap>
+
+  <resultMap id="Branch" type="com.ut.nlSystemAPi.model.response.Dropdown.BranchDropDownResponse">
+
+  </resultMap>
+
+  <resultMap id="BranchType" type="com.ut.nlSystemAPi.model.response.Dropdown.BranchTypeDropDownResponse">
+
+  </resultMap>
+
+  <resultMap id="Warehouse" type="com.ut.nlSystemAPi.model.response.Dropdown.WarehouseDropDownResponse">
+
+  </resultMap>
+
+  <resultMap id="Countries" type="com.ut.nlSystemAPi.model.response.Dropdown.CountriesDropDownResponse">
+
+  </resultMap>
+
+
+  <resultMap id="ExchangeRate" type="com.ut.nlSystemAPi.model.response.Dropdown.ExchangeRateDropDownResponse">
+
+  </resultMap>
+
+
+  <resultMap id="PurchaseOrderDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.PurchaseOrderDropdownResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseOrderDetailDropdownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.PurchaseOrderDetailDropdownResponse">
+
+  </resultMap>
+
+
+  <resultMap id="WarehouseDropDownResponse" type="com.ut.nlSystemAPi.model.response.Dropdown.WarehouseDropDownResponse">
+
+  </resultMap>
+
+
+
+
+
+</mapper>

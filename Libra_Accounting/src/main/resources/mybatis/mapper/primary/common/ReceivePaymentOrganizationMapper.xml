@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReceivePaymentOrganizationMapper">
+
+  <resultMap id="ReceivePaymentOrganizationResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePaymentOrganization.ReceivePaymentOrganizationResponse">
+
+  </resultMap>
+
+  <resultMap id="ReceivePaymentOrganizationTmpResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePaymentOrganization.ReceivePaymentOrganizationTmpResponse">
+
+  </resultMap>
+
+  <resultMap id="ReceivePaymentResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePayment.ReceivePaymentResponse">
+
+  </resultMap>
+
+  <resultMap id="ReceivePaymentDetailResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePayment.ReceivePaymentDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="ReceivePaymentFileResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePayment.ReceivePaymentFileResponse">
+
+  </resultMap>
+
+  <resultMap id="ReceivePaymentCreditResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePayment.ReceivePaymentCreditResponse">
+
+  </resultMap>
+
+</mapper>

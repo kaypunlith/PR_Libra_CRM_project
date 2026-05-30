@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportBankPaidMapper">
+
+    <select id="listDepatment" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="PayrollDepartmentList">
+        SELECT *
+        FROM departments
+        WHERE is_active = 1 AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 2
+        AND id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})))
+        <choose>
+          <when test="filter.groupId != null and filter.departmentId != null ">
+              AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 2 AND
+              id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})))
+              AND departments.id = #{filter.departmentId} AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 2)
+          </when>
+          <when test="filter.groupId != null and filter.groupId != ''">
+              AND id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate}))
+              AND id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+              OR (user_apply = 0 AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 2
+              AND id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate}))))
+              AND group_id = #{filter.groupId}
+          </when>
+          <otherwise>
+          </otherwise>
+        </choose>
+        ORDER BY id ASC
+    </select>
+
+    <select id="getListBankPaid" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="PayrollBankPaid">
+        SELECT *,
+            employee_code AS idCard,
+            gender AS sex,
+            name_en AS fullName,
+            account_id AS accountId,
+            account_number AS accountNumber,
+            (SELECT ordering FROM positions WHERE id = position_id) AS positionOrdering,
+            (SELECT total_amount FROM payrolls WHERE is_active = 1 AND employee_id = employees.id
+            AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})) AS totalSalary
+        FROM employees
+        WHERE  is_active = 1
+            AND paid_by = 2
+            AND department_id = #{departmentId}
+            AND id IN (
+                SELECT employee_id FROM payrolls
+                WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})
+            )
+            AND (
+                id IN (
+                    SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1 AND eas.employee_status_id NOT IN(4,5,6)
+                )
+                OR
+                id IN (
+                    SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1
+                      AND eas.employee_status_id IN (4,5,6)
+                      AND MONTH(eas.date) > MONTH(#{payDate}) AND YEAR(eas.date) >= YEAR(#{payDate})
+                )
+                OR id IN (
+                    SELECT employee_id FROM payrolls WHERE is_active = 1 AND employee_id = employees.id AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})
+                )
+            )
+        ORDER BY positionOrdering ASC
+    </select>
+    
+</mapper>

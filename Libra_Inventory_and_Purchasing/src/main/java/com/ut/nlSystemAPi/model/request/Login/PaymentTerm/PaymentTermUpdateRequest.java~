@@ -1,0 +1,19 @@
+package com.ut.nlSystemAPi.model.request.Login.PaymentTerm;
+
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+@Data
+public class PaymentTermUpdateRequest {
+    @ApiModelProperty(position = 1)
+    private Long id;
+
+    @ApiModelProperty(position = 2)
+    private Long paymentTypes;
+
+    @ApiModelProperty(position = 3)
+    private String name;
+
+    @ApiModelProperty(position = 4)
+    private Long netDay;
+}

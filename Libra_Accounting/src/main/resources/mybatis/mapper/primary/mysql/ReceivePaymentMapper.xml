@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReceivePaymentMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    sales_orders.id AS id,
+    sales_orders.order_date AS `date`,
+    sales_orders.so_code AS soCode,
+    branches.id AS branchId,
+    branches.name AS branchName,
+    sales_orders.memo AS memo,
+    customers.id AS customerId,
+    CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS customerName,
+    sales_orders.customer_contact_id AS customerContactId,
+    sales_orders.total_amount AS totalAmount,
+    sales_orders.balance AS amountDue,
+    sales_orders.balance AS balance,
+    sales_orders.payment_term_id AS paymentTermId,
+    COALESCE(sales_orders.due_date, '') AS aging,
+    DATE_FORMAT(sales_orders.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(sales_orders.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM sales_orders
+    LEFT JOIN customers ON customers.id = sales_orders.customer_id
+    LEFT JOIN branches  ON branches.id = sales_orders.branch_id
+    LEFT JOIN users AS users1 ON users1.id = sales_orders.created_by
+    LEFT JOIN users AS users2 ON users2.id = sales_orders.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+      WHERE sales_orders.status > 0 AND sales_orders.balance > 0
+        AND sales_orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+      <if test="filter.groupId != null and filter.groupId != ''">
+          AND sales_orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id= #{filter.groupId})
+      </if>
+      <if test="filter.organizationId != null and filter.organizationId != ''">
+          AND sales_orders.customer_id = #{filter.organizationId}
+      </if>
+      <if test="filter.contactId != null and filter.contactId != ''">
+          AND sales_orders.customer_contact_id = #{filter.contactId}
+      </if>
+      <if test="filter.branchId != null and filter.branchId != ''">
+          AND sales_orders.branch_id = #{filter.branchId}
+      </if>
+      <if test="filter.type == 1">
+          AND sales_orders.total_vat > 0
+      </if>
+      <if test="filter.type == 2">
+          AND sales_orders.total_vat &lt; 1
+      </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentFilter" resultMap="ReceivePaymentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY sales_orders.order_date
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentFilter" resultType="java.lang.Long">
+    SELECT COUNT(sales_orders.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getCreditStatement" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentFilter" resultMap="ReceivePaymentCreditStatementResponse">
+        SELECT
+            id AS customerId,
+            customers.name AS customerName,
+            customers.address AS customerAddress,
+            customers.main_number AS customerPhoneNumber,
+            customers.customer_code AS customerAtt,
+            DATE(NOW()) AS `date`,
+            (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = #{filter.userId}) AS prepareBy,
+            (SELECT telephone FROM users WHERE id = #{filter.userId}) AS prepareByTel,
+            (SELECT email FROM users WHERE id = #{filter.userId}) AS prepareByGmail
+        FROM customers
+        WHERE id = #{filter.organizationId}
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_PRINT">
+        receive_payments.id AS id,
+        (SELECT name FROM companies WHERE id = receive_payments.company_id) AS `companyName`,
+        receive_payments.date AS `date`,
+        receive_payments.reference AS reference,
+        customers.name AS customerName,
+        customers.id AS customerId,
+        branches.id AS branchId,
+        branches.name AS branchName,
+        customers.main_number AS customerTel,
+        customers.address AS customerAddress,
+        receive_payments.gl_id AS glId,
+        CONCAT(receive_payments.account_codes, ' - ', receive_payments.account_description) AS chartAccountName,
+        receive_payments.total_amount AS totalAmount,
+        (SELECT GROUP_CONCAT(so_code) FROM sales_orders WHERE id = receive_payment_details.sales_order_id) AS invoiceCode,
+        receive_payments.note AS note,
+        IFNULL(receive_payments.exchange_rate, 0) AS exchangeRate,
+        receive_payments.cheque_number AS chequeNumber,
+        CASE
+        WHEN ((SELECT vat_percent FROM sales_orders WHERE id = receive_payment_details.sales_order_id) > 0) THEN 1
+        ELSE 0
+        END AS isVat,
+        COALESCE((SELECT contact_name FROM customer_contacts WHERE id = receive_payments.customer_contact_id), '') AS attn,
+        receive_payments.account_codes AS accountCode
+    </sql>
+
+    <sql id="BASE_FROM_PRINT">
+        FROM receive_payments
+        LEFT JOIN receive_payment_details ON receive_payment_details.receive_payment_id = receive_payments.id
+        LEFT JOIN customers ON customers.id = receive_payments.customer_id
+        LEFT JOIN branches ON branches.id = receive_payments.branch_id
+    </sql>
+
+    <sql id="BASE_WHERE_PRINT">
+        WHERE receive_payments.is_active = 1
+        <if test="filter.reference != null and filter.reference != ''">
+            AND (receive_payments.reference LIKE CONCAT("%", #{filter.reference}, "%"))
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != ''">
+            AND receive_payments.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateTo != null">
+            AND DATE(receive_payments.date) >= DATE(#{filter.dateFrom}) AND DATE(receive_payments.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+    </sql>
+
+    <select id="getListPrint" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentPrintFilter" resultMap="ReceivePaymentResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRINT"/>
+        <include refid="BASE_FROM_PRINT"/>
+        <include refid="BASE_WHERE_PRINT"/>
+        GROUP BY receive_payments.id
+        ORDER BY receive_payments.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getReceivePaymentDetail" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentPrintFilter" resultMap="ReceivePaymentDetailResponse">
+        SELECT
+            (SELECT name FROM companies WHERE id = (SELECT company_id FROM receive_payments WHERE id = receive_payment_details.receive_payment_id)) AS receivedBy,
+            (SELECT so_code FROM sales_orders WHERE id = receive_payment_details.sales_order_id) invoiceCode,
+            description AS memo,
+            paid AS totalAmount
+        FROM receive_payment_details WHERE receive_payment_id = #{receivePaymentId}
+    </select>
+
+    <select id="countListPrint" parameterType="com.ut.nlSystemAPi.model.filter.ReceivePaymentPrintFilter" resultType="java.lang.Long">
+        SELECT COUNT(receive_payments.id)
+        <include refid="BASE_FROM_PRINT"/>
+        <include refid="BASE_WHERE_PRINT"/>
+    </select>
+
+    <select id="find" parameterType="java.lang.Long" resultMap="ReceivePaymentResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRINT"/>
+        <include refid="BASE_FROM_PRINT"/>
+        WHERE receive_payments.id = #{id}
+            AND receive_payments.is_active = 1
+        GROUP BY receive_payments.id
+    </select>
+
+    <select id="getGeneralLedgerDetail" parameterType="java.lang.Long" resultMap="ReceivePaymentDetailResponse">
+        SELECT
+            COALESCE(general_ledger_details.memo, '') AS memo,
+            general_ledger_details.credit AS totalAmount,
+            COALESCE(general_ledgers.reference, '') AS invoiceCode
+        FROM general_ledger_details
+        LEFT JOIN general_ledgers ON general_ledgers.id = general_ledger_details.general_ledger_id
+        WHERE general_ledger_details.general_ledger_id = #{glId} ORDER BY general_ledger_details.id LIMIT 1
+    </select>
+
+    <select id="getGlFile" parameterType="java.lang.Long" resultMap="ReceivePaymentFileResponse">
+        SELECT file_name AS fileName, file_url AS fileUrl FROM general_ledger_files WHERE general_ledger_id = #{glId};
+    </select>
+
+   <insert id="insertReceivedPayment" parameterType="com.ut.nlSystemAPi.model.ReceivePayment" useGeneratedKeys="true" keyProperty="receivePayment.receivePaymentId">
+    INSERT INTO receive_payments(
+      sys_code,
+      date,
+     `company_id`,
+      branch_id,
+      cgroup_id,
+      customer_id,
+      deposit_to,
+      total_amount,
+      reference,
+      note,
+      exchange_rate,
+      cheque_number,
+      account_codes,
+      account_description,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+              UUID(),
+               #{receivePayment.date},
+               #{receivePayment.companyId},
+               #{receivePayment.branchId},
+               #{receivePayment.cGroupId},
+               #{receivePayment.customerId},
+               #{receivePayment.depositTo},
+               #{receivePayment.totalAmount},
+               #{receivePayment.reference},
+               #{receivePayment.note},
+               #{receivePayment.exchangeRate},
+               #{receivePayment.chequeNumber},
+               #{receivePayment.accountCode},
+               #{receivePayment.accountDescription},
+               NOW(),
+               #{receivePayment.createdBy},
+               #{receivePayment.isActive}
+             );
+  </insert>
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.ReceivePayment" useGeneratedKeys="true" keyProperty="receivePayment.glId">
+    INSERT INTO general_ledgers(
+        sys_code,
+        sales_order_id,
+        sales_order_receipt_id,
+        receive_payment_id,
+      `date`,
+      `ar_aging_id`,
+      reference,
+      is_sys,
+      is_adj,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+       UUID(),
+       #{receivePayment.saleOrderId},
+       #{receivePayment.saleOrderReceiptId},
+       #{receivePayment.receivePaymentId},
+       #{receivePayment.date},
+       #{receivePayment.arId},
+       #{receivePayment.reference},
+       1,
+       0,
+       NOW(),
+       #{receivePayment.createdBy},
+       #{receivePayment.isActive}
+     );
+  </insert>
+
+  <insert id="insertReceivedPaymentDetail" parameterType="com.ut.nlSystemAPi.model.ReceiveDetailPayment">
+    INSERT INTO receive_payment_details(
+        `receive_payment_id`,
+        `sales_order_id`,
+        amount_due,
+        paid,
+        balance,
+        description
+    ) VALUES (
+         #{receiveDetailPayment.receivePaymentId},
+         #{receiveDetailPayment.saleOrderId},
+         #{receiveDetailPayment.amountDue},
+         #{receiveDetailPayment.amountPaid},
+         #{receiveDetailPayment.balance},
+         #{receiveDetailPayment.memo}
+     );
+  </insert>
+
+  <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+    INSERT INTO general_ledger_details(
+        `general_ledger_id`,
+        `chart_account_id`,
+        company_id,
+        branch_id,
+        `type`,
+        debit,
+        credit,
+        memo,
+        customer_id,
+        employee_id,
+        class_id
+    ) VALUES (
+         #{journalEntryDetail.generalLedgerId},
+         #{journalEntryDetail.chartAccountId},
+         #{journalEntryDetail.companyId},
+         #{journalEntryDetail.branchId},
+         #{journalEntryDetail.type},
+         #{journalEntryDetail.debit},
+         #{journalEntryDetail.credit},
+         #{journalEntryDetail.memo},
+         #{journalEntryDetail.customerId},
+         #{journalEntryDetail.employeeId},
+         #{journalEntryDetail.classId}
+     );
+  </insert>
+
+    <select id="getReLastReceivePaymentCode" resultType="java.lang.String">
+        SELECT reference
+        FROM general_ledgers
+        WHERE is_active = 1 AND YEAR(date) = YEAR(NOW()) AND `reference` LIKE '%OR%'
+        ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="getReLastSalesOrderReceiptCode" resultType="java.lang.String">
+        SELECT receipt_code
+        FROM sales_order_receipts
+        WHERE YEAR(created) = YEAR(NOW()) AND `receipt_code` LIKE '%INR%' ORDER BY id DESC LIMIT 1
+    </select>
+
+    <update id="updateSalesOrderBalance">
+        UPDATE sales_orders SET modified_by = #{userId}, balance = #{request.balance} WHERE id = #{request.id};
+    </update>
+
+    <insert id="insertSaleReceipt" parameterType="com.ut.nlSystemAPi.model.ReceivePayment" useGeneratedKeys="true" keyProperty="receivePayment.saleOrderReceiptId">
+        INSERT INTO sales_order_receipts(
+            sys_code,
+            `sales_order_id`,
+            `chart_account_id`,
+            receipt_code,
+            amount_us,
+            total_amount,
+            balance,
+            `change`,
+            pay_date,
+            due_date,
+            created,
+            modified,
+            created_by
+        ) VALUES (
+                     UUID(),
+                     #{receivePayment.saleOrderId},
+                     #{receivePayment.chartAccountId},
+                     #{receivePayment.invoicerReference},
+                     #{receivePayment.amountPaid},
+                     #{receivePayment.totalAmount},
+                     #{receivePayment.balance},
+                     0,
+                     #{receivePayment.date},
+                     NOW(),
+                     NOW(),
+                     NOW(),
+                    #{receivePayment.createdBy}
+                 );
+    </insert>
+
+    <select id="getChartAccountReceived" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT chart_account_id FROM account_types WHERE id = #{accountTypeId};
+    </select>
+
+</mapper>

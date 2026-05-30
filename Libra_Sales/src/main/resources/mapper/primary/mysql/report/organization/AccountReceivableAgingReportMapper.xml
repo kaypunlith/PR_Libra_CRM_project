@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+
+    <sql id="BASE_WHERE_AR_AGING">
+        WHERE gl.is_active = 1
+        AND gld.chart_account_id IN (
+        SELECT id FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types
+        WHERE name = 'Accounts Receivable'
+        )
+        )
+        AND gld.company_id IN (
+        SELECT company_id FROM user_companies WHERE user_id = #{userId}
+        )
+        <if test="filter.date != null">
+            AND gl.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.customerId != null">
+            AND gld.customer_id = #{filter.customerId}
+        </if>
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.cgroupId != null">
+            AND gld.customer_id IN (
+                SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.cgroupId}
+            )
+        </if>
+    </sql>
+
+    <select id="getListAccountReceivableAging" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.AccountReceivableAgingReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.AccountReceivableAgingReportResponse">
+        SELECT DISTINCT
+        gld.customer_id AS organizationId,
+        customers.name AS organizationName,
+        IFNULL(classes.name, 'All') AS className
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        INNER JOIN customers ON customers.id = gld.customer_id
+        LEFT JOIN classes ON classes.id = gld.class_id
+        <include refid="BASE_WHERE_AR_AGING"/>
+        ORDER BY organizationName ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListAccountReceivableAging" parameterType="map" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT gld.customer_id)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        INNER JOIN customers ON customers.id = gld.customer_id
+        LEFT JOIN classes ON classes.id = gld.class_id
+        <include refid="BASE_WHERE_AR_AGING"/>
+    </select>
+
+    <select id="getCurrentAmount" parameterType="map" resultType="java.lang.Double">
+        SELECT COALESCE(
+        SUM(
+        CASE
+        WHEN gld.debit > 0 AND gl.credit_memo_receipt_id IS NULL THEN gld.debit
+        ELSE 0
+        END
+        ) +
+        SUM(
+        CASE
+        WHEN gld.debit > 0 AND gl.credit_memo_id IN (
+        SELECT credit_memo_id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND date = #{filter.date}
+        AND credit > 0
+        AND sales_order_id IS NULL
+        AND main_gl_id IS NULL
+        ) THEN gld.debit
+        ELSE 0
+        END
+        ) -
+        SUM(
+        CASE
+        WHEN gld.credit > 0 AND (
+        gl.sales_order_id IN (
+        SELECT sales_order_id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND date = #{filter.date}
+        AND debit > 0
+        AND credit_memo_receipt_id IS NULL
+        )
+        OR gld.main_gl_id IN (
+        SELECT id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND date = #{filter.date}
+        AND debit > 0
+        AND credit_memo_receipt_id IS NULL
+        )
+        ) THEN gld.credit
+        ELSE 0
+        END
+        ) -
+        SUM(
+        CASE
+        WHEN gld.credit > 0 AND gl.sales_order_id IS NULL AND gld.main_gl_id IS NULL
+        THEN gld.credit
+        ELSE 0
+        END
+        ), 0
+        ) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_active = 1
+        AND gld.chart_account_id IN (
+        SELECT id FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types
+        WHERE name = 'Accounts Receivable'
+        )
+        )
+        AND gld.company_id IN (
+        SELECT company_id FROM user_companies WHERE user_id = #{userId}
+        )
+        AND gld.customer_id = #{customerId}
+        AND gl.date = #{filter.date}
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </select>
+
+    <select id="getAgingAmount" parameterType="map" resultType="java.lang.Double">
+        SELECT COALESCE(
+        SUM(
+        CASE
+        WHEN gld.debit > 0 AND gl.credit_memo_receipt_id IS NULL THEN gld.debit
+        ELSE 0
+        END
+        ) +
+        SUM(
+        CASE
+        WHEN gld.debit > 0 AND gl.credit_memo_id IN (
+        SELECT credit_memo_id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, date) BETWEEN #{fromDays} AND #{toDays}
+        AND credit > 0
+        AND sales_order_id IS NULL
+        AND main_gl_id IS NULL
+        ) THEN gld.debit
+        ELSE 0
+        END
+        ) -
+        SUM(
+        CASE
+        WHEN gld.credit > 0 AND (
+        gl.sales_order_id IN (
+        SELECT sales_order_id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, date) BETWEEN #{fromDays} AND #{toDays}
+        AND debit > 0
+        AND credit_memo_receipt_id IS NULL
+        )
+        OR gld.main_gl_id IN (
+        SELECT id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, date) BETWEEN #{fromDays} AND #{toDays}
+        AND debit > 0
+        AND credit_memo_receipt_id IS NULL
+        )
+        ) THEN gld.credit
+        ELSE 0
+        END
+        ) -
+        SUM(
+        CASE
+        WHEN gld.credit > 0 AND gl.sales_order_id IS NULL AND gld.main_gl_id IS NULL
+        THEN gld.credit
+        ELSE 0
+        END
+        ), 0
+        ) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_active = 1
+        AND gld.chart_account_id IN (
+        SELECT id FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types
+        WHERE name = 'Accounts Receivable'
+        )
+        )
+        AND gld.company_id IN (
+        SELECT company_id FROM user_companies WHERE user_id = #{userId}
+        )
+        AND gld.customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, gl.date) BETWEEN #{fromDays} AND #{toDays}
+        AND gl.date &lt;= #{filter.date}
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </select>
+
+    <select id="getOverAgingAmount" parameterType="map" resultType="java.lang.Double">
+        SELECT COALESCE(
+        SUM(
+        CASE
+        WHEN gld.debit > 0 AND gl.credit_memo_receipt_id IS NULL THEN gld.debit
+        ELSE 0
+        END
+        ) +
+        SUM(
+        CASE
+        WHEN gld.debit > 0 AND gl.credit_memo_id IN (
+        SELECT credit_memo_id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, date) > #{throughDays}
+        AND credit > 0
+        AND sales_order_id IS NULL
+        AND main_gl_id IS NULL
+        ) THEN gld.debit
+        ELSE 0
+        END
+        ) -
+        SUM(
+        CASE
+        WHEN gld.credit > 0 AND (
+        gl.sales_order_id IN (
+        SELECT sales_order_id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, date) > #{throughDays}
+        AND debit > 0
+        AND credit_memo_receipt_id IS NULL
+        )
+        OR gld.main_gl_id IN (
+        SELECT id FROM general_ledgers
+        WHERE is_active = 1
+        AND customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, date) > #{throughDays}
+        AND debit > 0
+        AND credit_memo_receipt_id IS NULL
+        )
+        ) THEN gld.credit
+        ELSE 0
+        END
+        ) -
+        SUM(
+        CASE
+        WHEN gld.credit > 0 AND gl.sales_order_id IS NULL AND gld.main_gl_id IS NULL
+        THEN gld.credit
+        ELSE 0
+        END
+        ), 0
+        ) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_active = 1
+        AND gld.chart_account_id IN (
+        SELECT id FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types
+        WHERE name = 'Accounts Receivable'
+        )
+        )
+        AND gld.company_id IN (
+        SELECT company_id FROM user_companies WHERE user_id = #{userId}
+        )
+        AND gld.customer_id = #{customerId}
+        AND DATEDIFF(#{filter.date}, gl.date) > #{throughDays}
+        AND gl.date &lt;= #{filter.date}
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </select>
+
+</mapper>

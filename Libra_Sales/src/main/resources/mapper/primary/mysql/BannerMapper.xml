@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BannerMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        banners.id AS id,
+        banners.image AS imageUrl,
+        banners.image_name AS imageName,
+        banners.main_description AS mainDescription,
+        banners.sub_description AS subDescription,
+        banners.main_description_kh AS mainDescriptionKh,
+        banners.sub_description_kh AS subDescriptionKh,
+        banners.promotion_id AS promotionId,
+        promotionals.title AS promotionName,
+        banners.product_id AS productId,
+        products.name AS productName,
+        banners.is_active AS isActive,
+        banners.created AS created,
+        CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+        banners.modified AS modified,
+        CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM banners
+        LEFT JOIN promotionals ON promotionals.id = banners.promotion_id
+        LEFT JOIN products ON products.id = banners.product_id
+        LEFT JOIN users AS creator ON creator.id = banners.created_by
+        LEFT JOIN users AS modifier ON modifier.id = banners.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE banners.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+            banners.main_description LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR banners.sub_description LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR banners.main_description_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR banners.sub_description_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR promotionals.title LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR products.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.Banner.BannerResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                banners.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(banners.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Banner.BannerResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE banners.is_active = 1 AND banners.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Banner.Banner" useGeneratedKeys="true" keyProperty="banner.id">
+        INSERT INTO banners (
+            image,
+            image_name,
+            main_description,
+            sub_description,
+            main_description_kh,
+            sub_description_kh,
+            promotion_id,
+            product_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{banner.imageUrl},
+            #{banner.imageName},
+            #{banner.mainDescription},
+            #{banner.subDescription},
+            #{banner.mainDescriptionKh},
+            #{banner.subDescriptionKh},
+            #{banner.promotionId},
+            #{banner.productId},
+            NOW(),
+            #{banner.createdBy},
+            #{banner.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Banner.Banner">
+        UPDATE banners SET
+            <if test="banner.imageUrl != null">image = #{banner.imageUrl},</if>
+            <if test="banner.imageName != null">image_name = #{banner.imageName},</if>
+            <if test="banner.mainDescription != null">main_description = #{banner.mainDescription},</if>
+            <if test="banner.subDescription != null">sub_description = #{banner.subDescription},</if>
+            <if test="banner.mainDescriptionKh != null">main_description_kh = #{banner.mainDescriptionKh},</if>
+            <if test="banner.subDescriptionKh != null">sub_description_kh = #{banner.subDescriptionKh},</if>
+            <choose>
+                <when test="banner.productId != null">
+                    product_id = #{banner.productId},
+                    promotion_id = NULL,
+                </when>
+                <when test="banner.promotionId != null">
+                    promotion_id = #{banner.promotionId},
+                    product_id = NULL,
+                </when>
+            </choose>
+            modified = NOW(),
+            modified_by = #{banner.modifiedBy}
+        WHERE id = #{banner.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE banners SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+</mapper>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InventoryValuationMapper">
+
+    <resultMap id="InventoryValuationCalcDTOMap" type="com.ut.nlSystemAPi.helper.valuation.InventoryValuationCalcDTO">
+        <result column="product_id" property="productId"/>
+        <result column="date" property="date"/>
+    </resultMap>
+
+    <resultMap id="InventoryValuationDTOMap" type="com.ut.nlSystemAPi.helper.valuation.InventoryValuationDTO">
+        <result column="id" property="id"/>
+        <result column="is_var_cost" property="isVarCost"/>
+        <result column="is_adjust_value" property="isAdjustValue"/>
+        <result column="pid" property="pid"/>
+        <result column="sales_order_id" property="salesOrderId"/>
+        <result column="small_qty" property="smallQty"/>
+        <result column="qty" property="qty"/>
+        <result column="date" property="date"/>
+        <result column="cost" property="cost"/>
+        <result column="price" property="price"/>
+        <result column="on_hand" property="onHand"/>
+        <result column="on_hand_small" property="onHandSmall"/>
+        <result column="avg_cost" property="avgCost"/>
+        <result column="asset_value" property="assetValue"/>
+        <result column="small_val_uom" property="smallValUom"/>
+    </resultMap>
+
+    <resultMap id="ProductDTOMap" type="com.ut.nlSystemAPi.helper.valuation.ProductDTO">
+        <result column="id" property="id"/>
+        <result column="default_cost" property="defaultCost"/>
+    </resultMap>
+
+    <select id="getInventoryValuationCalcs" resultMap="InventoryValuationCalcDTOMap">
+        SELECT product_id, date
+        FROM inventory_valuation_cals
+        WHERE 1=1
+        ORDER BY created
+    </select>
+
+    <select id="getInventoryValuationCalcsFallback" resultMap="InventoryValuationCalcDTOMap">
+        SELECT inv.pid AS product_id,
+               MIN(inv.date) AS date
+        FROM inventory_valuations inv
+                 INNER JOIN general_ledger_details gld ON gld.inventory_valuation_id = inv.id
+        WHERE inv.is_active = 1
+          AND inv.is_var_cost = 1
+          AND IFNULL(gld.debit, 0) = 0
+          AND IFNULL(gld.credit, 0) = 0
+        GROUP BY inv.pid
+        ORDER BY MIN(inv.date)
+    </select>
+
+    <update id="updateValuationCalcLock">
+        UPDATE inventory_valuation_cals
+        SET is_lock = 1, runing_date = #{runningDate}
+        WHERE date = #{date}
+          AND product_id = #{productId}
+          AND is_lock = 0
+    </update>
+
+    <select id="getInitialInventoryValuation" resultMap="InventoryValuationDTOMap">
+        SELECT pid, on_hand, on_hand_small, avg_cost, asset_value, sales_order_id
+        FROM inventory_valuations
+        WHERE is_active = 1
+          AND date &lt; #{calDate}
+          AND pid = #{productId}
+        ORDER BY date DESC, created DESC, id DESC
+            LIMIT 1
+    </select>
+
+    <select id="getInventoryValuationsForCalculation" resultMap="InventoryValuationDTOMap">
+        SELECT inv.id, inv.is_var_cost, inv.is_adjust_value, inv.pid,
+               inv.sales_order_id, inv.small_qty, inv.qty, inv.date, inv.cost, inv.price,
+               inv.on_hand, inv.on_hand_small, inv.avg_cost, inv.asset_value,
+               p.small_val_uom
+        FROM inventory_valuations inv
+            INNER JOIN products p ON p.id = inv.pid
+        WHERE inv.is_active = 1
+          AND inv.date >= #{calDate}
+          AND inv.pid = #{productId}
+        ORDER BY inv.date, inv.created, inv.id
+    </select>
+
+    <select id="getProductDefaultCost" resultMap="ProductDTOMap">
+        SELECT id, default_cost
+        FROM products
+        WHERE id = #{productId}
+    </select>
+
+    <update id="updateInventoryValuation">
+        UPDATE inventory_valuations
+        SET on_hand = #{onHand},
+            on_hand_small = #{onHandSmall},
+            cost = #{cost},
+            avg_cost = #{avgCost},
+            asset_value = #{assetValue}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateGeneralLedgerCredit">
+        UPDATE general_ledger_details
+        SET credit = ABS(#{credit}), debit = 0
+        WHERE inventory_valuation_id = #{inventoryValuationId}
+          AND inventory_valuation_is_debit = 0
+          AND credit != ABS(#{credit})
+    </update>
+
+    <update id="updateGeneralLedgerCogsCredit">
+        UPDATE general_ledger_details
+        SET credit = ABS(#{credit}), debit = 0
+        WHERE inventory_valuation_id = #{inventoryValuationId}
+          AND inventory_valuation_is_debit = 1
+          AND credit != ABS(#{credit})
+    </update>
+
+    <update id="updateGeneralLedgerCogsDebit">
+        UPDATE general_ledger_details
+        SET debit = ABS(#{debit}), credit = 0
+        WHERE inventory_valuation_id = #{inventoryValuationId}
+          AND inventory_valuation_is_debit = 1
+          AND debit != ABS(#{debit})
+    </update>
+
+    <update id="updateGeneralLedgerCogsZero">
+        UPDATE general_ledger_details
+        SET debit = 0, credit = 0
+        WHERE inventory_valuation_id = #{inventoryValuationId}
+          AND inventory_valuation_is_debit = 1
+          AND debit != 0
+    </update>
+
+    <delete id="deleteValuationCalc">
+        DELETE FROM inventory_valuation_cals
+        WHERE date = #{date}
+          AND product_id = #{productId}
+          AND is_lock = 1
+    </delete>
+
+</mapper>

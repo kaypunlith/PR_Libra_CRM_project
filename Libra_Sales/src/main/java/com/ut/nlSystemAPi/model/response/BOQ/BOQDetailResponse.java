@@ -1,0 +1,68 @@
+package com.ut.nlSystemAPi.model.response.BOQ;
+
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+@Data
+public class BOQDetailResponse {
+
+    @ApiModelProperty(position = 1)
+    private Long id;
+
+    @ApiModelProperty(position = 2)
+    private Integer type;
+
+    @ApiModelProperty(position = 3)
+    private Long productId;
+
+    @ApiModelProperty(position = 4)
+    private String productName;
+
+    @ApiModelProperty(position = 5)
+    private String sku;
+
+    @ApiModelProperty(position = 6)
+    private String upc;
+
+    @ApiModelProperty(position = 6)
+    private String spec;
+
+    @ApiModelProperty(position = 6)
+    private String productBrand;
+
+    @ApiModelProperty(position = 6)
+    private String productPhotoUrl;
+
+    @ApiModelProperty(position = 6)
+    private String productPhotoName;
+
+    @ApiModelProperty(position = 7)
+    private Double qty;
+
+    @ApiModelProperty(position = 8)
+    private Double conversion;
+
+    @ApiModelProperty(position = 9)
+    private Long uomId;
+
+    @ApiModelProperty(position = 10)
+    private String uomName;
+
+    @ApiModelProperty(position = 11)
+    private String uomAbbr;
+
+    @ApiModelProperty(position = 12)
+    private Double unitCost;
+
+    @ApiModelProperty(position = 13)
+    private Double totalCost;
+
+    @ApiModelProperty(position = 14)
+    private Double unitPrice;
+
+    @ApiModelProperty(position = 15)
+    private Double totalPrice;
+
+    @ApiModelProperty(position = 16)
+    private String remark;
+}

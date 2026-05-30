@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PositionMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    *,
+    DATE_FORMAT(created, "%d-%b-%Y") AS modifiedDate
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM positions
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+        AND positions.name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PositionResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+          ordering ASC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="PositionResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE is_active = 1 AND id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM positions
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.request.PositionRequest" keyProperty="positionRequest.id">
+    INSERT INTO positions (
+      name,
+      description,
+      ordering,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{positionRequest.name},
+      #{positionRequest.description},
+      #{positionRequest.ordering},
+      NOW(),
+      #{positionRequest.createdBy},
+      #{positionRequest.isActive}
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.request.PositionUpdateRequest">
+    UPDATE positions SET
+    <if test="positionUpdateRequest.name != null">name = #{positionUpdateRequest.name},</if>
+    <if test="positionUpdateRequest.description != null">description = #{positionUpdateRequest.description},</if>
+    <if test="positionUpdateRequest.ordering != null">ordering = #{positionUpdateRequest.ordering},</if>
+    modified = NOW(),
+    modified_by = #{positionUpdateRequest.modifiedBy}
+    WHERE id = #{positionUpdateRequest.id}
+  </update>
+
+  <update id="updateOrdering" parameterType="com.ut.nlSystemAPi.model.request.PositionOrderingRequest">
+    UPDATE positions SET ordering = #{positionOrderingRequest.ordering} WHERE id = #{positionOrderingRequest.id} AND is_active = 1
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE positions SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+</mapper>

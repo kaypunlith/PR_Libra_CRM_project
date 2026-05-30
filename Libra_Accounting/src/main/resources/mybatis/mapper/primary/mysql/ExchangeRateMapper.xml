@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ExchangeRateMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    exchange_rates.id AS id,
+    exchange_rates.company_id AS companyId,
+    companies.name AS companyName,
+    (SELECT CONCAT(currency_centers.name, "(", currency_centers.symbol, ")") FROM currency_centers WHERE id = 1) AS currencyFrom,
+    exchange_rates.currency_center_id AS currencyToId,
+    CONCAT(currency_centers.name,"(", currency_centers.symbol, ")") AS currencyTo,
+    exchange_rates.rate_to_sell AS rateForSell,
+    exchange_rates.rate_to_change AS rateForChange,
+    exchange_rates.rate_to_purchase AS rateForPurchase,
+    DATE_FORMAT(exchange_rates.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(exchange_rates.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM exchange_rates
+    LEFT JOIN users AS users1 ON users1.id = exchange_rates.created_by
+    LEFT JOIN users AS users2 ON users2.id = exchange_rates.modified_by
+    LEFT JOIN companies ON companies.id = exchange_rates.company_id
+    LEFT JOIN currency_centers ON currency_centers.id = exchange_rates.currency_center_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE exchange_rates.is_active = 1
+    <if test="filter.companyId != null">
+      AND exchange_rates.company_id = #{filter.companyId}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ExchangeRateResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        exchange_rates.created DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(exchange_rates.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" resultMap="ExchangeRateResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE exchange_rates.id = #{id} AND exchange_rates.is_active = 1
+  </select>
+
+  <insert id="insertExchangeRate" parameterType="com.ut.nlSystemAPi.model.ExchangeRate" useGeneratedKeys="true" keyProperty="exchangeRate.exchangeRateId">
+    INSERT INTO exchange_rates(
+      `company_id`,
+      currency_center_id,
+      rate_to_sell,
+      rate_to_change,
+      rate_to_purchase,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+         #{exchangeRate.companyId},
+         #{exchangeRate.currencyCenterId},
+         #{exchangeRate.rateForSell},
+         #{exchangeRate.rateForChange},
+         #{exchangeRate.rateForPurchase},
+         NOW(),
+         #{exchangeRate.createdBy},
+         #{exchangeRate.isActive}
+       );
+  </insert>
+
+  <update id="updateExchangeRate" parameterType="com.ut.nlSystemAPi.model.ExchangeRate">
+    UPDATE exchange_rates AS ex
+    SET ex.modified = NOW(),
+        ex.modified_by = #{exchangeRate.modifiedBy}
+    WHERE ex.id = (
+      SELECT id
+      FROM (
+             SELECT id
+             FROM exchange_rates
+             WHERE currency_center_id = #{exchangeRate.currencyCenterId}
+             ORDER BY id DESC
+               LIMIT 1
+           ) AS temp
+    );
+  </update>
+
+  <update id="updateCompanyCurrency" parameterType="com.ut.nlSystemAPi.model.ExchangeRate">
+    UPDATE company_currencies SET
+    <if test="exchangeRate.exchangeRateId != null"> `exchange_rate_id` = #{exchangeRate.exchangeRateId},</if>
+    <if test="exchangeRate.rateForSell != null"> `rate_to_sell` = #{exchangeRate.rateForSell},</if>
+    <if test="exchangeRate.rateForChange != null"> `rate_to_change` = #{exchangeRate.rateForChange},</if>
+    <if test="exchangeRate.rateForPurchase != null"> `rate_to_purchase` = #{exchangeRate.rateForPurchase},</if>
+    modified = NOW(),
+    modified_by = #{exchangeRate.modifiedBy}
+    WHERE id = #{exchangeRate.id}
+  </update>
+
+  <!--  Find exchange rate-->
+
+  <sql id="EXCHANGE_BASE_COLUMN_LIST">
+    exchange_rates.id AS id,
+    exchange_rates.company_id AS companyId,
+    companies.name AS companyName,
+    (SELECT CONCAT(currency_centers.name, "(", currency_centers.symbol, ")") FROM currency_centers WHERE id = 1) AS currencyFrom,
+    1.00 AS rate,
+    exchange_rates.currency_center_id AS currencyToId,
+    CONCAT(currency_centers.name,"(", currency_centers.symbol, ")") AS currencyTo,
+
+    exchange_rates.rate_to_sell AS rateForSell,
+    exchange_rates.rate_to_change AS rateForChange,
+    exchange_rates.rate_to_purchase AS rateForPurchase,
+    DATE_FORMAT(exchange_rates.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(exchange_rates.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="EXCHANGE_BASE_FROM">
+    FROM exchange_rates
+    LEFT JOIN users AS users1 ON users1.id = exchange_rates.created_by
+    LEFT JOIN users AS users2 ON users2.id = exchange_rates.modified_by
+    LEFT JOIN companies ON companies.id = exchange_rates.company_id
+    LEFT JOIN currency_centers ON currency_centers.id = exchange_rates.currency_center_id
+  </sql>
+
+  <sql id="EXCHANGE_BASE_WHERE">
+    WHERE exchange_rates.is_active = 1 AND exchange_rates.company_id = #{filter.companyId} AND exchange_rates.currency_center_id = #{filter.currencyId}
+    <if test="filter.searchText != null">
+      AND currency_centers.`name` LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </sql>
+
+  <select id="getExchangeRateList" parameterType="com.ut.nlSystemAPi.model.filter.ExchangeRateFilter" resultMap="ExchangeRateResponse">
+    SELECT
+    <include refid="EXCHANGE_BASE_COLUMN_LIST"/>
+    <include refid="EXCHANGE_BASE_FROM"/>
+    <include refid="EXCHANGE_BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        exchange_rates.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countListExchangeRate" parameterType="com.ut.nlSystemAPi.model.filter.ExchangeRateFilter" resultType="java.lang.Long">
+    SELECT COUNT(exchange_rates.id)
+    <include refid="EXCHANGE_BASE_FROM"/>
+    <include refid="EXCHANGE_BASE_WHERE"/>
+  </select>
+
+</mapper>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LandedCostMapper">
+
+  <resultMap id="LandedCostResponse" type="com.ut.nlSystemAPi.model.response.LandedCost.LandedCostResponse">
+
+  </resultMap>
+
+  <resultMap id="LandedCostDetailResponse" type="com.ut.nlSystemAPi.model.response.LandedCost.LandedCostDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="LandedCostPurchaseBillResponse" type="com.ut.nlSystemAPi.model.response.LandedCost.LandedCostPurchaseBillResponse">
+
+  </resultMap>
+
+</mapper>

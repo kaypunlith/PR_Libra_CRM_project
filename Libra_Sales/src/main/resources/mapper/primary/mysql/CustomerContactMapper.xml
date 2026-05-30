@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CustomerContactMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        customer_contacts.id AS id,
+        customers.id AS organizationId,
+        customers.name AS organizationName,
+        customer_contacts.photo AS photo,
+        customer_contacts.sex AS gender,
+        customer_contacts.contact_name AS contactName,
+        customer_contacts.position AS `position`,
+        customer_contacts.contact_telephone AS contactTelephone,
+        customer_contacts.contact_email AS contactEmail,
+        customer_contacts.note AS note,
+        customer_contacts.is_apply AS isApply,
+        customer_contacts.age AS age,
+        customer_contact_familys.id AS familyId,
+        customer_contact_familys.name AS familyName,
+        customer_contact_locations.id AS locationId,
+        customer_contact_locations.name AS locationName,
+        employee_personalities.id AS characterId,
+        employee_personalities.name AS characterName,
+        customer_contacts.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        customer_contacts.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM customer_contacts
+        LEFT JOIN users AS creator ON creator.id = customer_contacts.created_by
+        LEFT JOIN users AS modifier ON modifier.id = customer_contacts.modified_by
+        LEFT JOIN customers ON customers.id = customer_contacts.customer_id AND customers.is_active = 1
+        LEFT JOIN customer_contact_familys ON customer_contact_familys.id = customer_contacts.family_id AND customer_contact_familys.is_active = 1
+        LEFT JOIN customer_contact_locations ON customer_contact_locations.id = customer_contacts.location_id AND customer_contact_locations.is_active = 1
+        LEFT JOIN employee_personalities ON employee_personalities.id = customer_contacts.character_id AND employee_personalities.is_active = 1
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE customer_contacts.is_active = 1
+        <if test="employeeId != null">
+            AND customers.id IN (
+            SELECT customer_id
+            FROM customer_cgroups
+            WHERE cgroup_id IN (
+            SELECT cgroup_id
+            FROM cgroup_egroups
+            WHERE egroup_id IN (
+            SELECT egroup_id
+            FROM employee_egroups
+            WHERE employee_id = #{employeeId}
+            )
+            )
+            )
+        </if>
+        <if test="employeeId == null">
+            AND customers.id IN (
+            SELECT customer_id
+            FROM cgroups
+            INNER JOIN customer_cgroups ON cgroups.id = customer_cgroups.cgroup_id
+            WHERE cgroups.is_active = 1
+            AND (
+            cgroups.user_apply = 0
+            OR (
+            cgroups.user_apply = 1
+            AND cgroups.id IN (
+            SELECT cgroup_id
+            FROM user_cgroups
+            WHERE user_id = #{userId}
+            )
+            )
+            )
+            )
+            AND customers.id IN (
+            SELECT customer_id
+            FROM customer_companies
+            WHERE company_id IN (
+            SELECT company_id
+            FROM user_companies
+            WHERE user_id = #{userId}
+            )
+            )
+        </if>
+        <if test="filter.organizationId != null">
+            AND customers.id = #{filter.organizationId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_email LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+             )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.CustomerContactFilter" resultMap="CustomerContactResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customer_contacts.contact_name ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.CustomerContactFilter" resultType="java.lang.Long">
+        SELECT COUNT(customer_contacts.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="CustomerContactResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE customer_contacts.is_active = 1 AND customer_contacts.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM customer_contacts
+        WHERE is_active = 1 AND contact_name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.CustomerContact.CustomerContact" useGeneratedKeys="true" keyProperty="customerContact.id">
+        INSERT INTO customer_contacts (
+            `photo`,
+            `customer_id`,
+            `contact_name`,
+            `sex`,
+            `contact_telephone`,
+            `contact_email`,
+            `position`,
+            `note`,
+            `family_id`,
+            `age`,
+            `dob`,
+            `location_id`,
+            `character_id`,
+            `created`,
+            `created_by`
+        ) VALUES (
+                     #{customerContact.photo},
+                     #{customerContact.organizationId},
+                     #{customerContact.contactName},
+                     #{customerContact.gender},
+                     #{customerContact.contactTelephone},
+                     #{customerContact.contactEmail},
+                     #{customerContact.position},
+                     #{customerContact.note},
+                     #{customerContact.familyId},
+                     #{customerContact.age},
+                     #{customerContact.dob},
+                     #{customerContact.locationId},
+                     #{customerContact.characterId},
+                     NOW(),
+                     #{customerContact.createdBy}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.CustomerContact.CustomerContact">
+        UPDATE customer_contacts SET
+        <if test="customerContact.photo != null">`photo` = #{customerContact.photo},</if>
+        <if test="customerContact.organizationId != null">`customer_id` = #{customerContact.organizationId},</if>
+        <if test="customerContact.contactName != null">`contact_name` = #{customerContact.contactName},</if>
+        <if test="customerContact.gender != null">`sex` = #{customerContact.gender},</if>
+        <if test="customerContact.contactTelephone != null">`contact_telephone` = #{customerContact.contactTelephone},</if>
+        <if test="customerContact.contactEmail != null">`contact_email` = #{customerContact.contactEmail},</if>
+        <if test="customerContact.position != null">`position` = #{customerContact.position},</if>
+        <if test="customerContact.note != null">`note` = #{customerContact.note},</if>
+        <if test="customerContact.familyId != null">`family_id` = #{customerContact.familyId},</if>
+        <if test="customerContact.age != null">`age` = #{customerContact.age},</if>
+        <if test="customerContact.dob != null">`dob` = #{customerContact.dob},</if>
+        <if test="customerContact.locationId != null">`location_id` = #{customerContact.locationId},</if>
+        <if test="customerContact.characterId != null">`character_id` = #{customerContact.characterId},</if>
+        modified = NOW(),
+        modified_by = #{customerContact.modifiedBy}
+        WHERE id = #{customerContact.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE customer_contacts SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <select id="getEmployeeId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT id FROM employees WHERE is_active = 1 AND user_id = #{userId}
+    </select>
+
+    <insert id="insertDescription">
+        INSERT INTO customer_contact_descriptions (
+            `customer_contact_id`,
+            `customer_description_type_id`,
+            `description`
+        ) VALUES (
+                     #{customerContactId},
+                     #{typeId},
+                     #{description}
+                 )
+    </insert>
+
+    <select id="getDescription" resultType="com.ut.nlSystemAPi.model.response.CustomerContact.CustomerContactDetailResponse">
+        SELECT
+            `customer_description_type_id` AS id,
+            `customer_contact_description_types`.name,
+            `description`
+        FROM customer_contact_descriptions
+        INNER JOIN customer_contact_description_types ON customer_contact_descriptions.customer_description_type_id = customer_contact_description_types.id AND customer_contact_description_types.is_active = 1
+        WHERE `customer_contact_id` = #{customerContactId}
+    </select>
+
+    <delete id="deleteDescription">
+        DELETE FROM customer_contact_descriptions WHERE `customer_contact_id` = #{customerContactId}
+    </delete>
+
+    <insert id="insertProgress">
+        INSERT INTO customer_contact_pregress (
+            `customer_contact_id`,
+            `customer_progress_detail_id`,
+            `percent`
+        ) VALUES (
+                     #{customerContactId},
+                     #{id},
+                     #{percent}
+                 )
+    </insert>
+
+    <select id="getProgress" resultType="com.ut.nlSystemAPi.model.response.CustomerContact.CustomerContactDetailResponse">
+        SELECT
+            customer_contact_pregress.`customer_progress_detail_id` AS id,
+            customer_contact_pregress_details.name AS name,
+            customer_contact_progress_types.id AS typeId,
+            customer_contact_progress_types.name AS typeName,
+            customer_contact_pregress.`percent` AS percent
+        FROM customer_contact_pregress
+        INNER JOIN customer_contact_pregress_details ON customer_contact_pregress.customer_progress_detail_id = customer_contact_pregress_details.id AND customer_contact_pregress_details.is_active = 1
+        INNER JOIN customer_contact_progress_types ON customer_contact_pregress_details.customer_progress_type_id = customer_contact_progress_types.id AND customer_contact_progress_types.is_active = 1
+        WHERE `customer_contact_id` = #{customerContactId}
+    </select>
+
+    <delete id="deleteProgress">
+        DELETE FROM customer_contact_pregress WHERE `customer_contact_id` = #{customerContactId}
+    </delete>
+
+    <insert id="insertContactList">
+        INSERT INTO customer_contact_lists (
+            `customer_contact_id`,
+            `customer_list_detail_id`
+        ) VALUES (
+                     #{customerContactId},
+                     #{id}
+                 )
+    </insert>
+
+    <select id="getContactList" resultType="com.ut.nlSystemAPi.model.response.CustomerContact.CustomerContactDetailResponse">
+        SELECT
+            `customer_contact_lists`.customer_list_detail_id AS id,
+            `customer_contact_list_details`.name AS name,
+            `customer_contact_list_types`.id AS typeId,
+            `customer_contact_list_types`.name AS typeName
+        FROM customer_contact_lists
+        INNER JOIN customer_contact_list_details ON customer_contact_lists.customer_list_detail_id = customer_contact_list_details.id AND customer_contact_list_details.is_active = 1
+        INNER JOIN customer_contact_list_types ON customer_contact_list_details.customer_list_type_id = customer_contact_list_types.id AND customer_contact_list_types.is_active = 1
+        WHERE `customer_contact_id` = #{customerContactId}
+    </select>
+
+    <delete id="deleteContactList">
+        DELETE FROM customer_contact_lists WHERE `customer_contact_id` = #{customerContactId}
+    </delete>
+
+    <insert id="insertNps">
+        INSERT INTO customer_contact_nps (
+             company_id,
+            `customer_id`,
+            `customer_contact_id`,
+            `score`,
+             created,
+             created_by
+        ) VALUES (
+                     (SELECT company_id FROM customer_companies WHERE customer_id IN (SELECT customer_id FROM customer_contacts WHERE id = #{customerContactId}) LIMIT 1),
+                     (SELECT customer_id FROM customer_contacts WHERE id = #{customerContactId}),
+                     #{customerContactId},
+                     #{score},
+                     NOW(),
+                     #{userId}
+                 )
+    </insert>
+
+    <update id="apply" parameterType="java.lang.Long">
+        UPDATE customer_contacts SET is_apply = 1 WHERE is_active = 1 AND id = #{id}
+    </update>
+
+</mapper>

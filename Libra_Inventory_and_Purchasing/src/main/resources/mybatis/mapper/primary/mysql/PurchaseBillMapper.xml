@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PurchaseBillMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        purchase_orders.id AS id,
+        purchase_orders.po_code AS purchaseBillNo,
+        purchase_orders.purchase_request_id AS purchaseOrderId,
+        purchase_requests.pr_code AS poNo,
+        pv_requests.code AS erNumber,
+        pv_requests.status AS erStatus,
+        purchase_orders.company_id AS companyId,
+        companies.name AS companyName,
+        purchase_orders.vendor_id AS vendorId,
+        vendors.name AS vendorName,
+        purchase_orders.location_id AS locationId,
+        locations.name AS locationName,
+        purchase_orders.location_group_id AS warehouseId,
+        location_groups.name AS warehouseName,
+        purchase_orders.order_date AS purchaseBillDate,
+        purchase_orders.ap_id AS apId,
+        CONCAT(chart_accounts.account_codes, ' ', chart_accounts.account_description) AS apName,
+        purchase_orders.invoice_code AS invoiceNo,
+        purchase_orders.invoice_date AS invoiceDate,
+        purchase_orders.note AS note,
+        purchase_orders.payment_term_id AS paymentTermId,
+        payment_terms.name AS paymentTermName,
+        payment_terms.payment_type_id AS paymentTypeId,
+        payment_types.name AS paymentTypeName,
+        purchase_orders.shipment_id AS shipmentId,
+        shipments.name AS shipmentName,
+        purchase_orders.total_amount - IFNULL(purchase_orders.discount_amount,0) AS subTotal,
+        purchase_orders.discount_amount AS discountAmount,
+        purchase_orders.discount_percent AS discountPercent,
+        purchase_orders.vat_setting_id AS vatSettingId,
+        vat_settings.name AS vatSettingName,
+        purchase_orders.total_vat AS totalVat,
+        purchase_orders.vat_percent AS vatPercentage,
+        purchase_orders.total_deposit AS depositAmount,
+        (purchase_orders.total_amount - IFNULL(purchase_orders.discount_amount,0) + IFNULL(purchase_orders.total_vat,0)) AS totalAmount,
+        purchase_orders.balance AS balance,
+        purchase_orders.status AS status,
+        purchase_orders.po_type AS poType,
+        purchase_orders.is_approve AS isApproved,
+        purchase_orders.approved AS approved,
+        CONCAT(users3.first_name, ' ', users3.last_name) AS approvedBy,
+        purchase_orders.created AS created,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        purchase_orders.modified AS modified,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM purchase_orders
+            LEFT JOIN purchase_requests ON purchase_orders.purchase_request_id = purchase_requests.id
+            LEFT JOIN pv_requests ON purchase_orders.pv_request_id = pv_requests.id
+            LEFT JOIN companies ON purchase_orders.company_id = companies.id
+            LEFT JOIN vendors ON purchase_orders.vendor_id = vendors.id
+            LEFT JOIN locations ON purchase_orders.location_id = locations.id
+            LEFT JOIN location_groups ON purchase_orders.location_group_id = location_groups.id
+            LEFT JOIN chart_accounts ON purchase_orders.ap_id = chart_accounts.id
+            LEFT JOIN payment_terms ON purchase_orders.payment_term_id = payment_terms.id
+            LEFT JOIN payment_types ON payment_terms.payment_type_id = payment_types.id
+            LEFT JOIN shipments ON purchase_orders.shipment_id = shipments.id
+            LEFT JOIN vat_settings ON purchase_orders.vat_setting_id = vat_settings.id
+            LEFT JOIN users AS users1 ON users1.id = purchase_orders.created_by
+            LEFT JOIN users AS users2 ON users2.id = purchase_orders.modified_by
+            LEFT JOIN users AS users3 ON users3.id = purchase_orders.approved_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE purchase_orders.status >= 0
+        <if test="filter.searchText != null">
+            AND (
+            purchase_orders.po_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR purchase_requests.pr_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR pv_requests.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR payment_terms.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR vendors.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND purchase_orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND purchase_orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND purchase_orders.status = #{filter.status}
+        </if>
+        <if test="filter.vendorId != null">
+            AND purchase_orders.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.poType != null">
+            AND purchase_orders.po_type = #{filter.poType}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND purchase_orders.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND purchase_orders.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND purchase_orders.created_by = #{userId}
+        </if>
+        <if test="filter.type != null">
+            <choose>
+                <when test="filter.type == 1">
+                    AND purchase_orders.balance > 0
+                </when>
+                <when test="filter.type == 2">
+                    AND purchase_orders.balance = 0
+                </when>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseBillFilter" resultMap="PurchaseBillResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                purchase_orders.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultType="java.lang.Long">
+        SELECT COUNT(purchase_orders.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="PurchaseBillResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE purchase_orders.status >= 0 AND purchase_orders.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM purchase_requests
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.PurchaseBill" useGeneratedKeys="true" keyProperty="purchaseBill.id">
+        INSERT INTO purchase_orders (
+            po_type,
+            purchase_request_id,
+            exchange_rate_id,
+            currency_center_id,
+            vat_chart_account_id,
+            vat_calculate,
+            pv_request_id,
+            company_id,
+            vendor_id,
+            location_group_id,
+            payment_term_id,
+            location_id,
+            invoice_code,
+            note,
+            po_code,
+            ap_id,
+            shipment_id,
+            order_date,
+            invoice_date,
+            total_amount,
+            discount_percent,
+            discount_amount,
+            vat_setting_id,
+            total_deposit,
+            balance,
+            total_vat,
+            vat_percent,
+            status,
+            created,
+            created_by
+        ) VALUES (
+                     #{purchaseBill.poType},
+                     #{purchaseBill.purchaseOrderId},
+                     #{purchaseBill.exchangeRateId},
+                     #{purchaseBill.currencyCenterId},
+                     #{purchaseBill.vatChartAccountId},
+                     #{purchaseBill.vatCalculate},
+                     #{purchaseBill.pvRequestId},
+                     #{purchaseBill.companyId},
+                     #{purchaseBill.vendorId},
+                     #{purchaseBill.warehouseId},
+                     #{purchaseBill.paymentTermId},
+                     #{purchaseBill.locationId},
+                     #{purchaseBill.invoiceNo},
+                     #{purchaseBill.note},
+                     #{purchaseBill.poCode},
+                     #{purchaseBill.apId},
+                     #{purchaseBill.shipmentId},
+                     #{purchaseBill.purchaseBillDate},
+                     #{purchaseBill.invoiceDate},
+            #{purchaseBill.subTotal},
+            #{purchaseBill.discountPercent},
+            #{purchaseBill.discountAmount},
+            #{purchaseBill.vatSettingId},
+            #{purchaseBill.depositAmount},
+            #{purchaseBill.balance},
+            #{purchaseBill.totalVat},
+            #{purchaseBill.vatPercentage},
+                     1,
+                     NOW(),
+                     #{purchaseBill.createdBy}
+                 )
+    </insert>
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.GeneralLedger" useGeneratedKeys="true" keyProperty="generalLedger.id">
+    INSERT INTO general_ledgers (
+      purchase_order_id,
+      date,
+      reference,
+      created,
+      created_by,
+      is_sys
+    ) VALUES (
+               #{generalLedger.purchaseOrderId},
+               #{generalLedger.date},
+               #{generalLedger.reference},
+               NOW(),
+               #{generalLedger.createdBy},
+               #{generalLedger.isSys}
+             )
+  </insert>
+
+  <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.GeneralLedgerDetail">
+    INSERT INTO general_ledger_details (
+      general_ledger_id,
+      chart_account_id,
+      company_id,
+      location_id,
+      type,
+      debit,
+      credit,
+      memo,
+      product_id,
+      service_id,
+      class_id,
+      vendor_id
+    ) VALUES (
+               #{generalLedgerDetail.generalLedgerId},
+               #{generalLedgerDetail.chartAccountId},
+               #{generalLedgerDetail.companyId},
+               #{generalLedgerDetail.locationId},
+               #{generalLedgerDetail.type},
+               #{generalLedgerDetail.debit},
+               #{generalLedgerDetail.credit},
+               #{generalLedgerDetail.memo},
+               #{generalLedgerDetail.productId},
+               #{generalLedgerDetail.serviceId},
+               #{generalLedgerDetail.classId},
+               #{generalLedgerDetail.vendorId}
+             )
+  </insert>
+
+  <select id="getClassByLocationGroupId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT class_id FROM location_group_classese WHERE company_id = #{companyId} AND location_group_id = #{locationGroupId} LIMIT 1
+  </select>
+
+    <select id="getDetail" parameterType="java.lang.Long" resultMap="PurchaseBillDetailResponse">
+        (
+            SELECT
+                1 AS `type`,
+                purchase_order_details.id AS id,
+                purchase_order_details.product_id  AS itemId,
+                products.name AS itemName,
+                IFNULL(products.small_val_uom, 1) / IFNULL(purchase_order_details.conversion, 1) AS conversion,
+                products.code AS sku,
+                products.barcode AS upc,
+                products.is_expired_date AS isExpiredDate,
+                purchase_order_details.date_expired AS expiredDate,
+                purchase_order_details.qty_free AS foc,
+                purchase_order_details.qty AS qty,
+                purchase_order_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                purchase_order_details.unit_cost AS unitCost,
+                purchase_order_details.total_cost AS totalCost,
+                purchase_order_details.note AS note,
+                purchase_order_details.discount_amount AS discountAmount,
+                purchase_order_details.discount_percent AS discountPercent
+            FROM purchase_order_details
+            INNER JOIN products ON products.id = purchase_order_details.product_id
+            INNER JOIN uoms ON uoms.id = purchase_order_details.qty_uom_id
+            WHERE purchase_order_details.purchase_order_id = #{id}
+        )
+        UNION
+        (
+            SELECT
+                2 AS `type`,
+                purchase_order_services.id AS id,
+                purchase_order_services.service_id AS itemId,
+                services.name AS itemName,
+                1 AS conversion,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS isExpiredDate,
+                NULL AS expiredDate,
+                purchase_order_services.qty_free AS foc,
+                purchase_order_services.qty AS qty,
+                NULL AS uomId,
+                NULL AS uomName,
+                purchase_order_services.unit_cost AS unitCost,
+                purchase_order_services.total_cost AS totalCost,
+                purchase_order_services.note AS note,
+                purchase_order_services.discount_amount AS discountAmount,
+                purchase_order_services.discount_percent AS discountPercent
+            FROM purchase_order_services
+                     LEFT JOIN services ON services.id = purchase_order_services.service_id
+            WHERE purchase_order_services.purchase_order_id = #{id}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+  <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.PurchaseBillDetail" useGeneratedKeys="true" keyProperty="purchaseBillDetail.id">
+    INSERT INTO purchase_order_details (
+      purchase_order_id,
+      product_id,
+      note,
+      date_expired,
+      qty,
+      qty_free,
+      qty_uom_id,
+      conversion,
+      unit_cost,
+      new_unit_cost,
+      default_cost,
+      total_cost,
+      discount_id,
+      discount_amount,
+      discount_percent
+    )
+    VALUES (
+             #{purchaseBillDetail.purchaseBillId},
+             #{purchaseBillDetail.itemId},
+             #{purchaseBillDetail.note},
+             #{purchaseBillDetail.expiredDate},
+             #{purchaseBillDetail.qty},
+             #{purchaseBillDetail.foc},
+             #{purchaseBillDetail.uomId},
+             #{purchaseBillDetail.conversion},
+             #{purchaseBillDetail.unitCost},
+             #{purchaseBillDetail.newCost},
+             #{purchaseBillDetail.defaultCost},
+             #{purchaseBillDetail.totalCost},
+             #{purchaseBillDetail.discountId},
+             #{purchaseBillDetail.discountAmount},
+             #{purchaseBillDetail.discountPercent}
+           );
+  </insert>
+
+  <delete id="deleteDetail" parameterType="java.lang.Long">
+    DELETE FROM purchase_order_details WHERE purchase_order_id = #{purchaseOrderId};
+  </delete>
+
+    <delete id="deleteInventoryValuation" parameterType="java.lang.Long">
+        UPDATE inventory_valuations SET is_active = 2 WHERE purchase_order_id = #{purchaseBillId};
+    </delete>
+
+    <delete id="deleteGeneralLedger" parameterType="java.lang.Long">
+        UPDATE general_ledgers SET is_active = 2 WHERE purchase_order_id = #{purchaseBillId};
+    </delete>
+
+    <insert id="insertInventoryValuation" parameterType="com.ut.nlSystemAPi.model.InventoryValuation" useGeneratedKeys="true" keyProperty="inventoryValuation.id">
+        INSERT INTO inventory_valuations (
+            purchase_order_id,
+            purchase_order_detail_id,
+            `date`,
+            `type`,
+            company_id,
+            pid,
+            small_qty,
+            qty,
+            reference,
+            cost,
+            created
+        ) VALUES (
+                     #{inventoryValuation.purchaseBillId},
+                     #{inventoryValuation.purchaseBillDetailId},
+                     #{inventoryValuation.date},
+                     #{inventoryValuation.type},
+                     #{inventoryValuation.companyId},
+                     #{inventoryValuation.pid},
+                     #{inventoryValuation.smallQty},
+                     #{inventoryValuation.qty},
+                     #{inventoryValuation.reference},
+                     #{inventoryValuation.cost},
+                     CONCAT(CURDATE(), ' 00:00:00')
+                 )
+    </insert>
+
+  <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.PurchaseBillServices">
+    INSERT INTO purchase_order_services (
+      purchase_order_id,
+      service_id,
+      note,
+      qty,
+      qty_free,
+      total_cost,
+      unit_cost,
+      discount_id,
+      discount_amount,
+      discount_percent
+    )
+    VALUES (
+             #{purchaseBillServices.purchaseBillId},
+             #{purchaseBillServices.itemId},
+             #{purchaseBillServices.note},
+             #{purchaseBillServices.qty},
+             #{purchaseBillServices.foc},
+             #{purchaseBillServices.totalCost},
+             #{purchaseBillServices.unitCost},
+             #{purchaseBillServices.discountId},
+             #{purchaseBillServices.discountAmount},
+             #{purchaseBillServices.discountPercent}
+           );
+  </insert>
+
+  <delete id="deleteService" parameterType="java.lang.Long">
+    DELETE FROM purchase_order_services WHERE purchase_order_id = #{purchaseOrderId};
+  </delete>
+
+  <insert id="insertMisc" parameterType="com.ut.nlSystemAPi.model.PurchaseBillMisc">
+        INSERT INTO purchase_order_miscs (
+            purchase_order_id,
+            discount_id,
+            discount_percent,
+            discount_amount,
+            description,
+            qty,
+            qty_uom_id,
+            qty_free,
+            unit_cost,
+            total_cost
+        ) VALUES (
+                     #{purchaseBillMisc.purchaseBillId},
+                     #{purchaseBillMisc.discountId},
+                     #{purchaseBillMisc.discountPercent},
+                     #{purchaseBillMisc.discountAmount},
+                     #{purchaseBillMisc.description},
+                     #{purchaseBillMisc.qty},
+                     #{purchaseBillMisc.qtyUomId},
+                     #{purchaseBillMisc.qtyFree},
+                     #{purchaseBillMisc.unitCost},
+                     #{purchaseBillMisc.totalCost}
+                 )
+    </insert>
+
+    <delete id="deleteMisc" parameterType="java.lang.Long">
+        DELETE FROM purchase_order_miscs WHERE purchase_order_id = #{purchaseOrderId};
+    </delete>
+
+    <insert id="insertFile" parameterType="com.ut.nlSystemAPi.model.PurchaseOrderFile" useGeneratedKeys="true" keyProperty="purchaseOrderFile.id">
+        INSERT INTO purchase_order_files (
+            purchase_order_id,
+            file_url,
+            file_name
+        ) VALUES (
+            #{purchaseOrderFile.purchaseOrderId},
+            #{purchaseOrderFile.fileUrl},
+            #{purchaseOrderFile.fileName}
+        )
+    </insert>
+
+    <delete id="deleteFiles" parameterType="java.lang.Long">
+        DELETE FROM purchase_order_files WHERE purchase_order_id = #{purchaseOrderId};
+    </delete>
+
+    <select id="getFiles" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.PurchaseBill.PurchaseBillFileResponse">
+        SELECT
+            file_url AS url,
+            file_name AS name
+        FROM purchase_order_files
+        WHERE purchase_order_id = #{purchaseOrderId}
+    </select>
+
+    <insert id="update" parameterType="com.ut.nlSystemAPi.model.PurchaseBill" useGeneratedKeys="true" keyProperty="purchaseBill.id">
+        INSERT INTO purchase_orders (
+        <if test="purchaseBill.purchaseOrderId != null">purchase_request_id,</if>
+        <if test="purchaseBill.poCode != null">po_code,</if>
+        <if test="purchaseBill.pvRequestId != null">pv_request_id,</if>
+        <if test="purchaseBill.exchangeRateId != null">exchange_rate_id,</if>
+        <if test="purchaseBill.currencyCenterId != null">currency_center_id,</if>
+        <if test="purchaseBill.vatCalculate != null">vat_calculate,</if>
+        <if test="purchaseBill.vatChartAccountId != null">vat_chart_account_id,</if>
+        <if test="purchaseBill.companyId != null">company_id,</if>
+        <if test="purchaseBill.vendorId != null">vendor_id,</if>
+        <if test="purchaseBill.warehouseId != null">location_group_id,</if>
+        <if test="purchaseBill.paymentTermId != null">payment_term_id,</if>
+        <if test="purchaseBill.locationId != null">location_id,</if>
+        <if test="purchaseBill.invoiceNo != null">invoice_code,</if>
+        <if test="purchaseBill.note != null">note,</if>
+        <if test="purchaseBill.apId != null">ap_id,</if>
+        <if test="purchaseBill.shipmentId != null">shipment_id,</if>
+        <if test="purchaseBill.purchaseBillDate != null">order_date,</if>
+        <if test="purchaseBill.invoiceDate != null">invoice_date,</if>
+        <if test="purchaseBill.subTotal != null">total_amount,</if>
+        <if test="purchaseBill.discountPercent != null">discount_percent,</if>
+        <if test="purchaseBill.discountAmount != null">discount_amount,</if>
+        <if test="purchaseBill.vatSettingId != null">vat_setting_id,</if>
+        <if test="purchaseBill.depositAmount != null">total_deposit,</if>
+        <if test="purchaseBill.balance != null">balance,</if>
+        <if test="purchaseBill.totalVat != null">total_vat,</if>
+        <if test="purchaseBill.vatPercentage != null">vat_percent,</if>
+        created,
+        created_by
+        ) VALUES (
+        <if test="purchaseBill.purchaseOrderId != null">#{purchaseBill.purchaseOrderId},</if>
+        <if test="purchaseBill.poCode != null">#{purchaseBill.poCode},</if>
+        <if test="purchaseBill.pvRequestId != null">#{purchaseBill.pvRequestId},</if>
+        <if test="purchaseBill.exchangeRateId != null">#{purchaseBill.exchangeRateId},</if>
+        <if test="purchaseBill.currencyCenterId != null">#{purchaseBill.currencyCenterId},</if>
+        <if test="purchaseBill.vatCalculate != null">#{purchaseBill.vatCalculate},</if>
+        <if test="purchaseBill.vatChartAccountId != null">#{purchaseBill.vatChartAccountId},</if>
+        <if test="purchaseBill.companyId != null">#{purchaseBill.companyId},</if>
+        <if test="purchaseBill.vendorId != null">#{purchaseBill.vendorId},</if>
+        <if test="purchaseBill.warehouseId != null">#{purchaseBill.warehouseId},</if>
+        <if test="purchaseBill.paymentTermId != null">#{purchaseBill.paymentTermId},</if>
+        <if test="purchaseBill.locationId != null">#{purchaseBill.locationId},</if>
+        <if test="purchaseBill.invoiceNo != null">#{purchaseBill.invoiceNo},</if>
+        <if test="purchaseBill.note != null">#{purchaseBill.note},</if>
+        <if test="purchaseBill.apId != null">#{purchaseBill.apId},</if>
+        <if test="purchaseBill.shipmentId != null">#{purchaseBill.shipmentId},</if>
+        <if test="purchaseBill.purchaseBillDate != null">#{purchaseBill.purchaseBillDate},</if>
+        <if test="purchaseBill.invoiceDate != null">#{purchaseBill.invoiceDate},</if>
+        <if test="purchaseBill.subTotal != null">#{purchaseBill.subTotal},</if>
+        <if test="purchaseBill.discountPercent != null">#{purchaseBill.discountPercent},</if>
+        <if test="purchaseBill.discountAmount != null">#{purchaseBill.discountAmount},</if>
+        <if test="purchaseBill.vatSettingId != null">#{purchaseBill.vatSettingId},</if>
+        <if test="purchaseBill.depositAmount != null">#{purchaseBill.depositAmount},</if>
+        <if test="purchaseBill.balance != null">#{purchaseBill.balance},</if>
+        <if test="purchaseBill.totalVat != null">#{purchaseBill.totalVat},</if>
+        <if test="purchaseBill.vatPercentage != null">#{purchaseBill.vatPercentage},</if>
+        NOW(),
+        #{purchaseBill.modifiedBy}
+        )
+    </insert>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE purchase_orders SET
+           status = -1,
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE id = #{id} AND status >= 0
+    </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE purchase_orders SET
+      status = 0,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="approve" parameterType="java.lang.Long">
+    UPDATE purchase_orders SET
+        is_approve = #{status},
+        approved = NOW(),
+        approved_by = #{userId}
+    WHERE id = #{id} AND status >= 0
+  </update>
+
+  <select id="getPoCode" resultType="java.lang.String">
+    SELECT po_code
+    FROM purchase_orders
+    WHERE id = #{id}
+  </select>
+
+  <select id="getLastCode" resultType="java.lang.String">
+    SELECT po_code
+    FROM purchase_orders
+    WHERE YEAR(created) = YEAR(NOW()) AND po_code LIKE CONCAT('%', #{code}, '%') ORDER BY id DESC LIMIT 1
+  </select>
+
+  <select id="getConversionByUomId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT value FROM uom_conversions WHERE from_uom_id = #{uomId} AND is_active = 1 LIMIT 1
+  </select>
+
+  <select id="getERByPo" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT pv_request_id FROM purchase_requests WHERE id = #{purchaseOrderId}
+  </select>
+
+  <update id="updateProduct">
+    UPDATE products SET unit_cost = #{unitCost} WHERE id = #{id};
+  </update>
+
+    <update id="updateIsClosePo">
+         UPDATE purchase_requests SET is_close = #{isClose} WHERE id = #{purchaseOrderId};
+    </update>
+
+    <select id="getCalculateCog" resultType="java.lang.Long">
+        SELECT calculate_cogs FROM setting_options
+    </select>
+
+    <select id="getProductIncomeChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COALESCE(
+                       (SELECT chart_account_id
+                        FROM accounts
+                        WHERE product_id = #{id}
+                          AND account_type_id = 1),
+                       (SELECT chart_account_id
+                        FROM pgroup_accounts
+                        WHERE pgroup_id = (
+                            SELECT pgroup_id
+                            FROM product_pgroups
+                            WHERE product_id = #{id}
+                            ORDER BY id DESC
+                       LIMIT 1
+                   )
+         AND account_type_id = 1),
+        (SELECT chart_account_id
+         FROM account_types
+         WHERE id = 1)
+    ) AS chart_account_id
+    </select>
+
+    <select id="getProductCOGSChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COALESCE(
+                       (SELECT chart_account_id
+                        FROM accounts
+                        WHERE product_id = #{id}
+                          AND account_type_id = 2),
+                       (SELECT chart_account_id
+                        FROM pgroup_accounts
+                        WHERE pgroup_id = (
+                            SELECT pgroup_id
+                            FROM product_pgroups
+                            WHERE product_id = #{id}
+                            ORDER BY id DESC
+                       LIMIT 1
+                   )
+         AND account_type_id = 2),
+        (SELECT chart_account_id
+         FROM account_types
+         WHERE id = 2)
+    ) AS chart_account_id
+    </select>
+
+    <select id="getServiceChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COALESCE(
+                       (SELECT chart_account_id
+                        FROM services
+                        WHERE id = #{id}),
+        (SELECT chart_account_id
+         FROM account_types
+         WHERE id = 9)
+    ) AS chart_account_id
+    </select>
+
+    <select id="getMiscChartAccountId" resultType="java.lang.Long">
+        SELECT chart_account_id FROM account_types WHERE id = 10
+    </select>
+
+    <select id="getCurrencyCenterId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT currency_center_id FROM companies WHERE id = #{companyId}
+    </select>
+
+    <select id="getVatCalculate" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT vat_calculate FROM companies WHERE id = #{companyId}
+    </select>
+
+    <select id="getDiscountChartAccountId" resultType="java.lang.Long">
+        SELECT chart_account_id FROM account_types WHERE id = 15
+    </select>
+
+    <select id="getProductName" resultType="java.lang.String">
+        SELECT name FROM products WHERE id = #{id}
+    </select>
+
+    <select id="getServiceName" resultType="java.lang.String">
+        SELECT name FROM services WHERE id = #{id}
+    </select>
+
+    <select id="getPurchaseRequestId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT purchase_request_id FROM purchase_orders WHERE id = #{purchaseBillId}
+    </select>
+
+    <select id="getVatChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT chart_account_id FROM vat_settings WHERE id = #{vatSettingId}
+    </select>
+
+    <select id="checkPoInGoodReceiptNote" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT
+            CASE
+                WHEN status = 2 THEN 1
+                ELSE 0
+                END
+        FROM purchase_receive_results
+        WHERE purchase_request_id = #{purchaseOrderId} AND type = 2 AND status = 2 LIMIT 1
+    </select>
+
+    <update id="updateInventoryValuationPurchaseBillId">
+        UPDATE inventory_valuations
+        SET purchase_order_id = #{purchaseBillId}
+        WHERE purchase_order_id = #{purchaseOrderId}
+          AND is_active = 1
+          AND type = 'Bill'
+    </update>
+
+    <update id="autoFulfilled">
+        UPDATE purchase_orders SET status = 3 WHERE id = #{purchaseBillId};
+    </update>
+
+    <select id="getPbRelatedPo" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT id FROM purchase_orders WHERE purchase_request_id = #{purchaseOrderId} AND status > 0
+    </select>
+
+    <select id="getQtyPo" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT SUM(qty) FROM
+            (
+
+                SELECT SUM(qty * conversion) AS qty
+                FROM purchase_request_details
+                WHERE purchase_request_id = #{purchaseOrderId}
+
+                UNION
+
+                SELECT IFNULL(SUM(qty),0) AS qty
+                FROM purchase_request_services
+                WHERE purchase_request_id = #{purchaseOrderId}
+
+            ) AS combined
+    </select>
+
+    <select id="getQtyPb" parameterType="java.lang.Long" resultType="java.lang.Long">
+        <choose>
+            <when test="purchaseBillIds != null and purchaseBillIds.size > 0">
+                SELECT SUM(qty) FROM
+                (
+
+                SELECT SUM(qty * conversion) AS qty
+                FROM purchase_order_details
+                WHERE purchase_order_id IN
+                <foreach item="purchaseBillId" collection="purchaseBillIds" open="(" separator="," close=")">
+                    #{purchaseBillId}
+                </foreach>
+
+                UNION
+
+                SELECT IFNULL(SUM(qty),0) AS qty
+                FROM purchase_order_services
+                WHERE purchase_order_id IN
+                <foreach item="purchaseBillId" collection="purchaseBillIds" open="(" separator="," close=")">
+                    #{purchaseBillId}
+                </foreach>
+
+                ) AS combined
+            </when>
+            <otherwise>
+                SELECT 0 AS qty
+            </otherwise>
+        </choose>
+    </select>
+
+    <update id="updateStatusPo">
+        UPDATE purchase_requests SET status = 3 WHERE id = #{purchaseOrderId};
+    </update>
+
+</mapper>

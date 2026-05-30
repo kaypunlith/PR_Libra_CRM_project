@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+
+    <sql id="AR_ACCOUNT_CONDITION">
+        gld.chart_account_id IN (
+        SELECT id FROM chart_accounts
+        WHERE is_active = 1
+        AND chart_account_type_id IN (
+        SELECT id FROM chart_account_types
+        WHERE name = 'Accounts Receivable'
+        )
+        )
+    </sql>
+
+    <select id="getListStatement" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.StatementReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.StatementReportResponse">
+        SELECT
+        gld.customer_id AS organizationId,
+        CONCAT_WS(' ', customers.customer_code, '-', customers.name) AS organizationName,
+        gl.date AS `date`,
+        CONCAT(gld.type, ' - ', gl.reference) AS `transaction`,
+        CASE WHEN gld.debit > 0 THEN gld.debit ELSE gld.credit * -1 END AS amount,
+        (
+            SELECT COALESCE(SUM(CASE WHEN gld2.debit > 0 THEN gld2.debit ELSE gld2.credit * -1 END), 0)
+            FROM general_ledgers gl2
+            INNER JOIN general_ledger_details gld2 ON gl2.id = gld2.general_ledger_id
+            WHERE gl2.is_approve = 1
+            AND gl2.is_active = 1
+            AND gld2.customer_id = gld.customer_id
+            AND gld2.chart_account_id IN (
+                SELECT id FROM chart_accounts
+                WHERE is_active = 1
+                AND chart_account_type_id IN (
+                    SELECT id FROM chart_account_types WHERE name = 'Accounts Receivable'
+                )
+            )
+            <if test="filter.dateFrom != null">
+                AND gl2.date &gt;= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null">
+                AND gl2.date &lt;= #{filter.dateTo}
+            </if>
+            AND (gl2.date &lt; gl.date OR (gl2.date = gl.date AND gl2.id &lt;= gl.id))
+        ) AS balance
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        INNER JOIN customers ON gld.customer_id = customers.id
+        WHERE gl.is_approve = 1
+        AND gl.is_active = 1
+        AND <include refid="AR_ACCOUNT_CONDITION"/>
+        <if test="filter.dateFrom != null">
+            AND gl.date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.organizationId != null">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        ORDER BY gld.customer_id ASC, gl.date ASC, gl.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListStatement" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.StatementReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(gl.id)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        INNER JOIN customers ON gld.customer_id = customers.id
+        WHERE gl.is_approve = 1
+        AND gl.is_active = 1
+        AND <include refid="AR_ACCOUNT_CONDITION"/>
+        <if test="filter.dateFrom != null">
+            AND gl.date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.organizationId != null">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+    </select>
+
+    <select id="getCurrentAmountStatement" parameterType="map" resultType="java.lang.Double">
+        SELECT COALESCE(
+        SUM(
+            CASE
+                WHEN gld.debit > 0 AND gl.credit_memo_receipt_id IS NULL THEN gld.debit
+                ELSE 0
+            END
+        ) +
+        SUM(
+            CASE
+                WHEN gld.debit > 0 AND gl.credit_memo_id IN (
+                    SELECT credit_memo_id FROM general_ledgers
+                    WHERE is_active = 1
+                    AND customer_id = #{customerId}
+                    AND date = #{filter.dateTo}
+                    AND credit > 0
+                    AND sales_order_id IS NULL
+                    AND main_gl_id IS NULL
+                ) THEN gld.debit
+                ELSE 0
+            END
+        ) -
+        SUM(
+            CASE
+                WHEN gld.credit > 0 AND (
+                    gl.sales_order_id IN (
+                        SELECT sales_order_id FROM general_ledgers
+                        WHERE is_active = 1
+                        AND customer_id = #{customerId}
+                        AND date = #{filter.dateTo}
+                        AND debit > 0
+                        AND credit_memo_receipt_id IS NULL
+                    )
+                    OR gld.main_gl_id IN (
+                        SELECT id FROM general_ledgers
+                        WHERE is_active = 1
+                        AND customer_id = #{customerId}
+                        AND date = #{filter.dateTo}
+                        AND debit > 0
+                        AND credit_memo_receipt_id IS NULL
+                    )
+                ) THEN gld.credit
+                ELSE 0
+            END
+        ) -
+        SUM(
+            CASE
+                WHEN gld.credit > 0 AND gl.sales_order_id IS NULL AND gld.main_gl_id IS NULL THEN gld.credit
+                ELSE 0
+            END
+        ), 0
+        ) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_active = 1
+        AND <include refid="AR_ACCOUNT_CONDITION"/>
+        AND gld.customer_id = #{customerId}
+        AND gl.date = #{filter.dateTo}
+    </select>
+
+    <select id="getAgingAmountStatement" parameterType="map" resultType="java.lang.Double">
+        SELECT COALESCE(
+        SUM(
+            CASE
+                WHEN gld.debit > 0 AND gl.credit_memo_receipt_id IS NULL THEN gld.debit
+                ELSE 0
+            END
+        ) +
+        SUM(
+            CASE
+                WHEN gld.debit > 0 AND gl.credit_memo_id IN (
+                    SELECT credit_memo_id FROM general_ledgers
+                    WHERE is_active = 1
+                    AND customer_id = #{customerId}
+                    AND DATEDIFF(#{filter.dateTo}, date) BETWEEN #{fromDays} AND #{toDays}
+                    AND credit > 0
+                    AND sales_order_id IS NULL
+                    AND main_gl_id IS NULL
+                ) THEN gld.debit
+                ELSE 0
+            END
+        ) -
+        SUM(
+            CASE
+                WHEN gld.credit > 0 AND (
+                    gl.sales_order_id IN (
+                        SELECT sales_order_id FROM general_ledgers
+                        WHERE is_active = 1
+                        AND customer_id = #{customerId}
+                        AND DATEDIFF(#{filter.dateTo}, date) BETWEEN #{fromDays} AND #{toDays}
+                        AND debit > 0
+                        AND credit_memo_receipt_id IS NULL
+                    )
+                    OR gld.main_gl_id IN (
+                        SELECT id FROM general_ledgers
+                        WHERE is_active = 1
+                        AND customer_id = #{customerId}
+                        AND DATEDIFF(#{filter.dateTo}, date) BETWEEN #{fromDays} AND #{toDays}
+                        AND debit > 0
+                        AND credit_memo_receipt_id IS NULL
+                    )
+                ) THEN gld.credit
+                ELSE 0
+            END
+        ) -
+        SUM(
+            CASE
+                WHEN gld.credit > 0 AND gl.sales_order_id IS NULL AND gld.main_gl_id IS NULL THEN gld.credit
+                ELSE 0
+            END
+        ), 0
+        ) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_active = 1
+        AND <include refid="AR_ACCOUNT_CONDITION"/>
+        AND gld.customer_id = #{customerId}
+        AND DATEDIFF(#{filter.dateTo}, gl.date) BETWEEN #{fromDays} AND #{toDays}
+        AND gl.date &lt;= #{filter.dateTo}
+    </select>
+
+    <select id="getOverAgingAmountStatement" parameterType="map" resultType="java.lang.Double">
+        SELECT COALESCE(
+        SUM(
+            CASE
+                WHEN gld.debit > 0 AND gl.credit_memo_receipt_id IS NULL THEN gld.debit
+                ELSE 0
+            END
+        ) +
+        SUM(
+            CASE
+                WHEN gld.debit > 0 AND gl.credit_memo_id IN (
+                    SELECT credit_memo_id FROM general_ledgers
+                    WHERE is_active = 1
+                    AND customer_id = #{customerId}
+                    AND DATEDIFF(#{filter.dateTo}, date) > #{throughDays}
+                    AND credit > 0
+                    AND sales_order_id IS NULL
+                    AND main_gl_id IS NULL
+                ) THEN gld.debit
+                ELSE 0
+            END
+        ) -
+        SUM(
+            CASE
+                WHEN gld.credit > 0 AND (
+                    gl.sales_order_id IN (
+                        SELECT sales_order_id FROM general_ledgers
+                        WHERE is_active = 1
+                        AND customer_id = #{customerId}
+                        AND DATEDIFF(#{filter.dateTo}, date) > #{throughDays}
+                        AND debit > 0
+                        AND credit_memo_receipt_id IS NULL
+                    )
+                    OR gld.main_gl_id IN (
+                        SELECT id FROM general_ledgers
+                        WHERE is_active = 1
+                        AND customer_id = #{customerId}
+                        AND DATEDIFF(#{filter.dateTo}, date) > #{throughDays}
+                        AND debit > 0
+                        AND credit_memo_receipt_id IS NULL
+                    )
+                ) THEN gld.credit
+                ELSE 0
+            END
+        ) -
+        SUM(
+            CASE
+                WHEN gld.credit > 0 AND gl.sales_order_id IS NULL AND gld.main_gl_id IS NULL THEN gld.credit
+                ELSE 0
+            END
+        ), 0
+        ) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_active = 1
+        AND <include refid="AR_ACCOUNT_CONDITION"/>
+        AND gld.customer_id = #{customerId}
+        AND DATEDIFF(#{filter.dateTo}, gl.date) > #{throughDays}
+        AND gl.date &lt;= #{filter.dateTo}
+    </select>
+
+</mapper>

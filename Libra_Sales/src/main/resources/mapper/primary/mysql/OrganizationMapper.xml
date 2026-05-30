@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        customers.id AS id,
+        (SELECT GROUP_CONCAT(cgroups.name SEPARATOR ', ') FROM cgroups WHERE id IN (SELECT cgroup_id FROM customer_cgroups WHERE customer_id = customers.id GROUP BY cgroup_id)) AS organizationGroupName,
+        customer_code AS organizationCode,
+        customers.name AS organizationName,
+        customers.shop_name AS shopName,
+        customers.is_freedom AS isFreedom,
+        customers.is_sync AS isSync,
+        main_number AS telephone,
+        customers.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        payment_terms.name AS paymentTermName,
+        (SELECT GROUP_CONCAT(contact_name SEPARATOR ', ') FROM customer_contacts WHERE customer_contacts.customer_id = customers.id) AS contactName,
+        customers.latitude AS lats,
+        customers.longitude AS longs,
+        customers.created AS created
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM customers
+        LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
+        LEFT JOIN price_types ON price_types.id = customers.price_type_id
+        INNER JOIN customer_cgroups ON customer_cgroups.customer_id = customers.id
+        INNER JOIN cgroups ON cgroups.id = customer_cgroups.cgroup_id
+        INNER JOIN users AS creator ON creator.id = customers.created_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE customers.is_active = 1
+        AND customers.customer_type = 1
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        <if test="filter.searchText != null">
+            AND (
+                customers.customer_code LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND customers.created_by = #{userId}
+        </if>
+        <if test="filter.createdBy != null and filter.viewByUser != 1">
+            AND customers.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.companyId != null">
+            AND customers.id IN (
+            SELECT customer_id FROM customer_companies
+            WHERE company_id = #{filter.companyId}
+            )
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND customers.id IN (
+            SELECT customer_id FROM customer_cgroups
+            WHERE cgroup_id = #{filter.organizationGroupId}
+            )
+        </if>
+        <if test="filter.activeStatus != null">
+            <choose>
+                <when test="filter.activeStatus == 1">
+                    AND customers.id IN (
+                    SELECT customer_id FROM customer_contacts
+                    INNER JOIN crm_activities_cards ON customer_contacts.id = crm_activities_cards.customer_contact_id
+                    WHERE crm_activities_cards.is_active = 1
+                    GROUP BY customer_contacts.customer_id
+                    )
+                </when>
+                <otherwise>
+                    AND customers.id NOT IN (
+                    SELECT customer_id FROM customer_contacts
+                    INNER JOIN crm_activities_cards ON customer_contacts.id = crm_activities_cards.customer_contact_id
+                    WHERE crm_activities_cards.is_active = 1
+                    GROUP BY customer_contacts.customer_id
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        <if test="filter.havingBalance == 1">
+            AND customers.id IN (SELECT customer_id FROM sales_orders WHERE status > 0 AND balance > 0)
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.OrganizationFilter" resultMap="OrganizationResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY customers.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customers.customer_code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.OrganizationFilter" resultType="java.lang.Long">
+        SELECT COUNT(customers.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="countListActivityCard" parameterType="java.lang.Long" resultMap="OrganizationActivityCardResponse">
+        SELECT
+            COUNT(crm_activities_cards.id) AS totalRecord,
+            (SELECT issue_date FROM crm_activities_cards WHERE crm_activities_cards.customer_contact_id IN (SELECT id FROM customer_contacts WHERE customer_id = #{organizationId}) ORDER BY issue_date DESC LIMIT 1) AS latestDate,
+            (SELECT CONCAT(users.first_name, ' ', users.last_name)
+            FROM crm_activities_cards
+            INNER JOIN users ON users.id = crm_activities_cards.created_by
+            WHERE crm_activities_cards.is_active = 1
+              AND crm_activities_cards.customer_contact_id IN (
+                SELECT id FROM customer_contacts WHERE customer_id = #{organizationId}
+              )
+            ORDER BY crm_activities_cards.issue_date DESC LIMIT 1) AS createdBy
+        FROM crm_activities_cards
+        WHERE crm_activities_cards.is_active = 1
+          AND crm_activities_cards.customer_contact_id IN (
+            SELECT id FROM customer_contacts WHERE customer_id = #{organizationId}
+        )
+    </select>
+
+    <select id="getListActivityCard" parameterType="com.ut.nlSystemAPi.model.filter.OrganizationActivityCardFilter" resultMap="OrganizationActivityCardResponse">
+        SELECT
+            crm_activities_cards.id AS id,
+            crm_activities_cards.issue_date AS `date`,
+            (SELECT name FROM crm_activities_status WHERE id = crm_activities_cards.action_status) AS status,
+            CASE
+                WHEN crm_activities_cards.type = 0 THEN 'TYPE_ISSUE'
+                WHEN crm_activities_cards.type = 1 THEN 'TYPE_WIN'
+                WHEN crm_activities_cards.type = 2 THEN 'TYPE_LOSS'
+                END AS type,
+            customer_contacts.contact_name AS contactName,
+            crm_activities_cards.position AS `position`,
+            crm_activities_cards.subject AS subject,
+            crm_activities_cards.result_action AS `result`,
+            crm_activities_cards.other AS other
+        FROM crm_activities_cards
+        LEFT JOIN customer_contacts ON customer_contacts.id = crm_activities_cards.customer_contact_id
+        WHERE crm_activities_cards.is_active = 1
+        AND crm_activities_cards.customer_contact_id IN (
+            SELECT id FROM customer_contacts WHERE customer_id = #{filter.id}
+        )
+        <if test="filter.searchText != null">
+            AND (
+            customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR (SELECT name FROM crm_activities_status WHERE id = crm_activities_cards.action_status) LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR crm_activities_cards.subject LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR crm_activities_cards.result_action LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR crm_activities_cards.other LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR crm_activities_cards.position LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        GROUP BY crm_activities_cards.id
+        ORDER BY crm_activities_cards.issue_date DESC
+    </select>
+
+    <insert id="addActivityCard" parameterType="com.ut.nlSystemAPi.model.entity.Organization.OrganizationActivityCard">
+        INSERT INTO crm_activities_cards (
+            customer_contact_id,
+            position,
+            action_status,
+            issue_date,
+            subject,
+            result_action,
+            other,
+            created,
+            created_by
+        ) VALUES (
+                     #{activityCard.organizationContactId},
+                     #{activityCard.position},
+                     #{activityCard.actionStatusId},
+                     #{activityCard.issueDate},
+                     #{activityCard.subject},
+                     #{activityCard.resultAction},
+                     #{activityCard.other},
+                     NOW(),
+                     #{activityCard.createdBy}
+                 )
+    </insert>
+
+    <sql id="BASE_COLUMN_ONE">
+        customers.id AS id,
+        customers.photo AS photo,
+        customer_code AS organizationCode,
+        customers.customer_type_id AS businessTypeId,
+        customer_types.name AS businessTypeName,
+        customers.customer_activity_id AS businessActivityId,
+        customer_activities.name AS businessActivityName,
+        customers.type AS customerType,
+        customers.is_freedom AS isFreedom,
+        freedom_types.id AS freedomTypeId,
+        freedom_types.name AS freedomTypeName,
+        customers.`name` AS organizationName,
+        customers.name_kh AS organizationNameKh,
+        customers.shop_name AS shopName,
+        customers.country_id AS countryId,
+        countries.name AS countryName,
+        customers.house_no AS houseNo,
+        customers.street_id AS streetId,
+        streets.name AS streetName,
+        customers.province_id AS provinceId,
+        provinces.name AS provinceName,
+        customers.district_id AS districtId,
+        districts.name AS districtName,
+        customers.commune_id AS communeId,
+        communes.name AS communeName,
+        customers.village_id AS villageId,
+        villages.name AS villageName,
+        customers.address,
+        customers.latitude AS lats,
+        customers.longitude AS longs,
+        customers.main_number AS telephone,
+        customers.mobile_number AS mobile,
+        customers.other_number AS alternateMobile,
+        customers.email AS email,
+        customers.fax AS fax,
+        customers.vat AS vat,
+        customers.payment_term_id AS paymentTermId,
+        payment_terms.name AS paymentTermName,
+        customers.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        customers.payment_every AS paymentMonthly,
+        customers.limit_balance AS limitCredit,
+        customers.limit_total_invoice AS limitNumberInvoice,
+        customers.limit_total_invoice AS limitCredit,
+        customers.payment_from AS periodFrom,
+        customers.payment_to AS periodTo,
+        customers.recurrence AS recurrence,
+        customers.display_term_invoice AS displayOnInvoice,
+        customers.customer_name_in AS settingInvoiceTax,
+        customers.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        customers.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM_ONE">
+        FROM customers
+        LEFT JOIN freedom_types ON freedom_types.id = customers.freedom_type_id
+        LEFT JOIN customer_types ON customer_types.id = customers.customer_type_id
+        LEFT JOIN customer_activities ON customer_activities.id = customers.customer_activity_id
+        LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
+        LEFT JOIN price_types ON price_types.id = customers.price_type_id
+        LEFT JOIN countries ON countries.id = customers.country_id
+        LEFT JOIN provinces ON provinces.id = customers.province_id
+        LEFT JOIN streets ON streets.id = customers.street_id
+        LEFT JOIN districts ON districts.id = customers.district_id
+        LEFT JOIN communes ON communes.id = customers.commune_id
+        LEFT JOIN villages ON villages.id = customers.village_id
+        LEFT JOIN users AS creator ON creator.id = customers.created_by
+        LEFT JOIN users AS modifier ON modifier.id = customers.modified_by
+    </sql>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="OrganizationResponse">
+        SELECT
+        <include refid="BASE_COLUMN_ONE"/>
+        <include refid="BASE_FROM_ONE"/>
+        WHERE customers.is_active = 1
+        AND customers.customer_type = 1
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        AND customers.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization" useGeneratedKeys="true" keyProperty="organization.id">
+        INSERT INTO customers (
+            photo,
+            customer_type_id,
+            customer_activity_id,
+            type,
+            is_freedom,
+            freedom_type_id,
+            `name`,
+            name_kh,
+            shop_name,
+            country_id,
+            house_no,
+            street_id,
+            province_id,
+            district_id,
+            commune_id,
+            village_id,
+            address,
+            latitude,
+            longitude,
+            main_number,
+            mobile_number,
+            other_number,
+            email,
+            fax,
+            vat,
+            payment_term_id,
+            price_type_id,
+            payment_every,
+            limit_balance,
+            limit_total_invoice,
+            payment_from,
+            payment_to,
+            recurrence,
+            display_term_invoice,
+            customer_name_in,
+            created,
+            created_by
+        ) VALUES (
+                     #{organization.photo},
+                     #{organization.businessTypeId},
+                     #{organization.businessActivityId},
+                     #{organization.customerType},
+                     #{organization.isFreedom},
+                     #{organization.freedomType},
+                     #{organization.name},
+                     #{organization.nameKh},
+                     #{organization.shopName},
+                     #{organization.countryId},
+                     #{organization.houseNo},
+                     #{organization.streetId},
+                     #{organization.provinceId},
+                     #{organization.districtId},
+                     #{organization.communeId},
+                     #{organization.villageId},
+                     #{organization.address},
+                     #{organization.lats},
+                     #{organization.longs},
+                     #{organization.telephone},
+                     #{organization.mobile},
+                     #{organization.alternateMobile},
+                     #{organization.email},
+                     #{organization.fax},
+                     #{organization.vat},
+                     #{organization.paymentTermId},
+                     #{organization.priceTypeId},
+                     #{organization.paymentMonthly},
+                     #{organization.limitCredit},
+                     #{organization.limitNumberInvoice},
+                     #{organization.periodFrom},
+                     #{organization.periodTo},
+                     #{organization.recurrence},
+                     #{organization.displayOnInvoice},
+                     #{organization.settingInvoiceTax},
+                     NOW(),
+                     #{organization.createdBy}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        UPDATE customers SET
+        <if test="organization.photo != null">photo = #{organization.photo},</if>
+        <if test="organization.organizationCode != null">customer_code = #{organization.organizationCode},</if>
+        <if test="organization.businessTypeId != null">customer_type_id = #{organization.businessTypeId},</if>
+        <if test="organization.businessActivityId != null">customer_activity_id = #{organization.businessActivityId},</if>
+        <if test="organization.customerType != null">type = #{organization.customerType},</if>
+        <if test="organization.freedomType != null">freedom_type_id = #{organization.freedomType},</if>
+        <if test="organization.isFreedom != null">is_freedom = #{organization.isFreedom},</if>
+        <if test="organization.name != null">`name` = #{organization.name},</if>
+        <if test="organization.nameKh != null">name_kh = #{organization.nameKh},</if>
+        <if test="organization.shopName != null">shop_name = #{organization.shopName},</if>
+        <if test="organization.countryId != null">country_id = #{organization.countryId},</if>
+        <if test="organization.houseNo != null">house_no = #{organization.houseNo},</if>
+        <if test="organization.streetId != null">street_id = #{organization.streetId},</if>
+        <if test="organization.provinceId != null">province_id = #{organization.provinceId},</if>
+        <if test="organization.districtId != null">district_id = #{organization.districtId},</if>
+        <if test="organization.communeId != null">commune_id = #{organization.communeId},</if>
+        <if test="organization.villageId != null">village_id = #{organization.villageId},</if>
+        <if test="organization.address != null">address = #{organization.address},</if>
+        <if test="organization.lats != null">latitude = #{organization.lats},</if>
+        <if test="organization.longs != null">longitude = #{organization.longs},</if>
+        <if test="organization.telephone != null">main_number = #{organization.telephone},</if>
+        <if test="organization.mobile != null">mobile_number = #{organization.mobile},</if>
+        <if test="organization.alternateMobile != null">other_number = #{organization.alternateMobile},</if>
+        <if test="organization.email != null">email = #{organization.email},</if>
+        <if test="organization.fax != null">fax = #{organization.fax},</if>
+        <if test="organization.vat != null">vat = #{organization.vat},</if>
+        <if test="organization.paymentTermId != null">payment_term_id = #{organization.paymentTermId},</if>
+        <if test="organization.priceTypeId != null">price_type_id = #{organization.priceTypeId},</if>
+        <if test="organization.paymentMonthly != null">payment_every = #{organization.paymentMonthly},</if>
+        <if test="organization.limitCredit != null">limit_balance = #{organization.limitCredit},</if>
+        <if test="organization.limitNumberInvoice != null">limit_total_invoice = #{organization.limitNumberInvoice},</if>
+        <if test="organization.periodFrom != null">payment_from = #{organization.periodFrom},</if>
+        <if test="organization.periodTo != null">payment_to = #{organization.periodTo},</if>
+        <if test="organization.recurrence != null">recurrence = #{organization.recurrence},</if>
+        <if test="organization.displayOnInvoice != null">display_term_invoice = #{organization.displayOnInvoice},</if>
+        <if test="organization.settingInvoiceTax != null">customer_name_in = #{organization.settingInvoiceTax},</if>
+        modified = NOW(),
+        <if test="organization.modifiedBy != null">modified_by = #{organization.modifiedBy}</if>
+        WHERE id = #{organization.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE customers SET
+             is_active = 2,
+             modified = NOW(),
+             modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <insert id="insertCustomerCompanies" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        INSERT INTO customer_companies(
+            customer_id,
+            company_id
+        ) VALUES (
+            #{organization.id},
+            #{organization.companyId}
+        )
+    </insert>
+
+    <insert id="insertCustomerCgroups" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        INSERT INTO customer_cgroups(
+            customer_id,
+            cgroup_id
+        ) VALUES (
+                     #{organization.id},
+                     #{organization.organizationGroupId}
+                 )
+    </insert>
+
+    <insert id="insertCustomerContact" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        UPDATE customer_contacts SET customer_id = #{organization.id} WHERE id = #{organization.organizationContactId}
+    </insert>
+
+    <insert id="insertCustomerContracts" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        INSERT INTO customer_contracts(
+            customer_id,
+            contract_name,
+            contract_url,
+            created
+        ) VALUES (
+                     #{organization.id},
+                     #{organization.customerContract},
+                     #{organization.customerContractUrl},
+                     NOW()
+                 )
+    </insert>
+
+    <insert id="insertCustomerTerminates" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        INSERT INTO customer_terminates(
+            customer_id,
+            terminate_name,
+            terminate_url,
+            created
+        ) VALUES (
+                     #{organization.id},
+                     #{organization.customerTerminate},
+                     #{organization.customerTerminateUrl},
+                     NOW()
+                 )
+    </insert>
+
+    <insert id="insertCustomerSurveys" parameterType="com.ut.nlSystemAPi.model.entity.Organization.Organization">
+        INSERT INTO customer_surveys(
+            customer_id,
+            survey_name,
+            survey_url,
+            created
+        ) VALUES (
+                     #{organization.id},
+                     #{organization.customerSurvey},
+                     #{organization.customerSurveyUrl},
+                     NOW()
+                 )
+    </insert>
+
+    <insert id="insertDivisionInformation" parameterType="com.ut.nlSystemAPi.model.entity.Organization.OrganizationDivision" useGeneratedKeys="true" keyProperty="division.id">
+        INSERT INTO customer_lead_divisions(
+            customer_id,
+            title,
+            making_process
+        ) VALUES (
+                     #{division.organizationId},
+                     #{division.title},
+                     #{division.makingProcess}
+                 )
+    </insert>
+
+    <insert id="insertDivisionInformationDetail" parameterType="com.ut.nlSystemAPi.model.entity.Organization.OrganizationDivision">
+        INSERT INTO customer_lead_devision_negotiations(
+            customer_lead_division_id,
+            customer_lead_negotiation_id
+        ) VALUES (
+                     #{division.id},
+                     #{division.negotiationId}
+                 )
+    </insert>
+
+    <delete id="deleteCustomerCompanies">
+        DELETE FROM customer_companies WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteCustomerCgroups">
+        DELETE FROM customer_cgroups WHERE customer_id = #{organizationId}
+    </delete>
+
+    <update id="deleteCustomerContacts">
+        UPDATE customer_contacts
+        SET customer_id = NULL
+        WHERE customer_id = #{organizationId}
+    </update>
+
+    <delete id="deleteCustomerContracts">
+        DELETE FROM customer_contracts WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteCustomerTerminates">
+        DELETE FROM customer_terminates WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteCustomerSurveys">
+        DELETE FROM customer_surveys WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteDivisionInformation">
+        DELETE FROM customer_lead_divisions WHERE customer_id = #{organizationId}
+    </delete>
+
+    <delete id="deleteDivisionInformationDetail">
+        DELETE FROM customer_lead_devision_negotiations WHERE customer_lead_division_id IN (SELECT id FROM customer_lead_divisions WHERE customer_id = #{organizationId})
+    </delete>
+
+    <select id="getCustomerCompanies" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            company_id AS id,
+            (SELECT name FROM companies WHERE id = company_id) AS name
+        FROM customer_companies
+        WHERE customer_id = #{organizationId}
+    </select>
+
+    <select id="getCustomerCgroups" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            cgroup_id AS id,
+            (SELECT name FROM cgroups WHERE id = cgroup_id) AS name
+        FROM customer_cgroups
+        WHERE customer_id = #{organizationId}
+        GROUP BY cgroup_id
+    </select>
+
+    <select id="getCustomerContact" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            id AS id,
+            contact_name AS name
+        FROM customer_contacts
+        WHERE customer_id = #{organizationId}
+    </select>
+
+    <select id="getCustomerContracts" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            id AS id,
+            contract_name AS name,
+            contract_url AS url,
+            created AS created
+        FROM customer_contracts
+        WHERE customer_id = #{organizationId}
+    </select>
+
+    <select id="getCustomerTerminates" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            id AS id,
+            terminate_name AS name,
+            terminate_url AS url,
+            created AS created
+        FROM customer_terminates
+        WHERE customer_id = #{organizationId}
+    </select>
+
+    <select id="getCustomerSurveys" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            id AS id,
+            survey_name AS name,
+            survey_url AS url,
+            created AS created
+        FROM customer_surveys
+        WHERE customer_id = #{organizationId}
+    </select>
+
+    <select id="getDivisionInformation" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            id AS id,
+            title AS title,
+            making_process AS makingProcess
+        FROM customer_lead_divisions
+        WHERE customer_id = #{organizationId}
+    </select>
+
+    <select id="getDivisionInformationDetail" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationDetailResponse">
+        SELECT
+            customer_lead_negotiation_id AS id,
+            (SELECT name FROM customer_lead_negotiations WHERE is_active = 1 AND id = customer_lead_negotiation_id) AS name
+        FROM customer_lead_devision_negotiations
+        WHERE customer_lead_division_id = #{divisionId}
+    </select>
+
+    <select id="getListZone" resultType="com.ut.nlSystemAPi.model.response.Organization.OrganizationZoneResponse">
+        SELECT
+           zones.id AS id,
+           zones.name AS name,
+           zone_details.latitude AS lats,
+           zone_details.longitude AS longs
+        FROM zones
+        INNER JOIN zone_details ON zones.id = zone_details.zone_id
+        WHERE zones.is_active = 1
+    </select>
+
+    <select id="getBusinessActivityAbbr" resultType="java.lang.String">
+        SELECT abbr FROM customer_activities WHERE is_active = 1 AND id = #{id}
+    </select>
+
+    <select id="getLocationAddressParts" resultType="map">
+        SELECT
+            (SELECT name FROM streets WHERE id = #{streetId}) AS streetName,
+            (SELECT name FROM provinces WHERE id = #{provinceId}) AS provinceName,
+            (SELECT name FROM districts WHERE id = #{districtId}) AS districtName,
+            (SELECT name FROM communes WHERE id = #{communeId}) AS communeName,
+            (SELECT name FROM villages WHERE id = #{villageId}) AS villageName
+    </select>
+
+    <select id="getIsFreedom" parameterType="java.lang.Long" resultType="java.lang.Integer">
+        SELECT is_freedom FROM customers WHERE id = #{id}
+    </select>
+
+    <select id="getIsSync" parameterType="java.lang.Long" resultType="java.lang.Integer">
+        SELECT is_sync FROM customers WHERE id = #{id}
+    </select>
+
+    <update id="markCustomerSyncedToFreedom">
+        UPDATE customers SET is_sync = 1 WHERE id = #{id}
+    </update>
+
+    <update id="updateCustomerContact">
+        UPDATE customer_contacts
+        SET customer_id = #{newId}
+        WHERE is_active = 1 AND customer_id = #{oldId}
+    </update>
+
+</mapper>

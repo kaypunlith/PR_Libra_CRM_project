@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+    <sql id="BASE_WHERE_CUSTOMER_ADDRESS">
+        WHERE customers.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+            address LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customer_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.provinceId != null">
+            AND customers.province_id = #{filter.provinceId}
+        </if>
+        <if test="filter.districtId != null">
+            AND customers.district_id = #{filter.districtId}
+        </if>
+        <if test="filter.villageId != null">
+            AND customers.village_id = #{filter.villageId}
+        </if>
+        <if test="filter.communeId != null">
+            AND customers.commune_id = #{filter.communeId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND customers.id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND customers.id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.createdBy != null">
+            AND customers.created_by = #{filter.createdBy}
+        </if>
+    </sql>
+
+    <select id="getListCustomerAddress" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerAddressReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.CustomerAddressReportResponse">
+        SELECT
+        cgroups.id AS groupId,
+        cgroups.name AS groupName,
+        customers.id AS id,
+        customers.customer_code AS code,
+        customers.`name` AS `name`,
+        customers.sex AS gender,
+        customers.address AS address
+        FROM customers
+        LEFT JOIN customer_cgroups ON customers.id = customer_cgroups.customer_id
+        LEFT JOIN cgroups ON customer_cgroups.cgroup_id = cgroups.id AND cgroups.is_active = 1
+        <include refid="BASE_WHERE_CUSTOMER_ADDRESS"/>
+        GROUP BY customers.id
+        ORDER BY cgroups.name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListCustomerAddress" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerAddressReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(cgroups.id)
+        FROM cgroups
+        WHERE is_active = 1 AND id IN (SELECT cgroup_id FROM customer_cgroups WHERE customer_id IS NOT NULL)
+    </select>
+
+
+</mapper>

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DepartmentMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    *,
+    CONCAT('{"workLocationId": "', department_code, '"}') AS code,
+    province_id AS provinceId,
+    (SELECT `name` FROM `provinces` WHERE `is_active` = 1 AND `id` = province_id LIMIT 1) AS provinceName,
+    DATE_FORMAT(created, "%d-%b-%Y") AS modifiedDate,
+    (SELECT name FROM egroups WHERE egroups.id = group_id) AS settingGroupName
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM departments
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE is_active = 1
+    <if test="filter.searchText != null">AND departments.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DepartmentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="listUser" resultMap="UserDepartment">
+    SELECT
+    employees.id AS id,
+    employees.name AS name
+    FROM user_departments
+    INNER JOIN employees ON employees.id = user_departments.user_id
+    WHERE user_departments.department_id = #{departmentId}
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="DepartmentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    FROM departments
+    WHERE id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM departments
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Department" useGeneratedKeys="true" keyProperty="department.id">
+    INSERT INTO departments (
+      name,
+      province_id,
+      description,
+      department_code,
+      lats,
+      longs,
+      radius,
+      group_id,
+      user_apply,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{department.name},
+               #{department.provinceId},
+               #{department.description},
+               #{department.code},
+               #{department.lats},
+               #{department.longs},
+               #{department.radius},
+               #{department.settingGroupId},
+               #{department.userApply},
+               NOW(),
+               #{department.createdBy},
+               #{department.isActive}
+             );
+  </insert>
+
+  <insert id="insertDepartmentUser">
+    INSERT INTO user_departments (
+      user_id,
+      department_id
+    ) VALUES (
+               #{userId},
+               #{departmentId}
+             );
+  </insert>
+
+  <select id="getDepartmentId" parameterType="java.lang.String" resultMap="Department">
+    SELECT id
+    FROM departments
+    WHERE is_active = 1 AND name = #{name} LIMIT 1
+  </select>
+
+  <insert id="deleteDepartmentUser">
+    DELETE FROM user_departments WHERE department_id = #{departmentId}
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Department">
+    UPDATE departments SET
+    <if test="department.name != null">name = #{department.name},</if>
+    <if test="department.provinceId != null">province_id = #{department.provinceId},</if>
+    <if test="department.description != null">description = #{department.description},</if>
+    <if test="department.lats != null">lats = #{department.lats},</if>
+    <if test="department.longs != null">longs = #{department.longs},</if>
+    <if test="department.radius != null">radius = #{department.radius},</if>
+    <if test="department.settingGroupId != null">group_id = #{department.settingGroupId},</if>
+    <if test="department.userApply != null">user_apply = #{department.userApply},</if>
+    modified = NOW(),
+    modified_by = #{department.modifiedBy}
+    WHERE id = #{department.id}
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE departments SET
+                         is_active = 2,
+                         modified = NOW(),
+                         modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <select id="getGroupList" resultMap="GroupResponse">
+    SELECT
+      id AS id,
+      name AS name
+    FROM egroups WHERE is_active = 1 AND id IN (SELECT group_id FROM departments WHERE is_active = 1 AND id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId}))
+  </select>
+
+  <select id="getDepartmentList" resultMap="DepartmentListResponse">
+    SELECT * FROM departments WHERE is_active = 1 AND group_id = #{settingGroupId} AND id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+  </select>
+
+  <insert id="insertDepartmentDetail" parameterType="com.ut.nlSystemAPi.model.DepartmentDetail" useGeneratedKeys="true" keyProperty="departmentDetail.id">
+    INSERT INTO department_details (
+      department_id,
+      lats,
+      longs,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{departmentDetail.departmentId},
+               #{departmentDetail.lats},
+               #{departmentDetail.longs},
+               NOW(),
+               #{departmentDetail.createdBy},
+               #{departmentDetail.isActive}
+             );
+  </insert>
+
+  <select id="listDepartmentDetails" resultMap="LocationPointResponse">
+    SELECT id, lats, longs
+    FROM department_details
+    WHERE is_active = 1 AND department_id = #{departmentId}
+  </select>
+
+  <!-- <update id="updateDepartmentDetail" parameterType="com.ut.nlSystemAPi.model.Department">
+    UPDATE department_details SET
+      <if test="department.lats != null">lats = #{department.lats},</if>
+      <if test="department.longs != null">longs = #{department.longs},</if>
+      <if test="department.settingGroupId != null">group_id = #{department.settingGroupId},</if>
+      <if test="department.userApply != null">user_apply = #{department.userApply},</if>
+      modified = NOW(),
+      modified_by = #{department.modifiedBy}
+      WHERE id = #{department.id}
+  </update> -->
+
+  <delete id="deleteDepartmentDetails" parameterType="java.lang.Long">
+    UPDATE department_details SET
+      is_active = 2
+    WHERE department_id = #{departmentId}
+  </delete>
+
+
+</mapper>

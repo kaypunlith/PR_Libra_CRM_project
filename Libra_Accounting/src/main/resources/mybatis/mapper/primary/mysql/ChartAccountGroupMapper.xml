@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ChartAccountGroupMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    chart_account_groups.id AS id,
+    chart_account_groups.name AS name,
+    chart_account_groups.chart_account_type_id AS accountTypeId,
+    chart_account_types.name AS accountTypeName,
+    chart_account_groups.is_active AS status,
+    is_depreciation AS expense,
+    DATE_FORMAT(chart_account_groups.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(chart_account_groups.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM chart_account_groups
+    LEFT JOIN chart_account_types ON chart_account_types.id = chart_account_groups.chart_account_type_id
+    LEFT JOIN users AS users1 ON users1.id = chart_account_groups.created_by
+    LEFT JOIN users AS users2 ON users2.id = chart_account_groups.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE chart_account_groups.is_active &lt; 2
+    <if test="filter.accountTypeId != null">
+          AND chart_account_groups.chart_account_type_id = #{filter.accountTypeId}
+    </if>
+    <if test="filter.searchText != null">AND (chart_account_groups.name LIKE CONCAT("%", #{filter.searchText}, "%"))</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountGroupFilter" resultMap="ChartAccountGroupResponse">
+
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+           ${filter.orderBy}
+      </when>
+      <otherwise>
+          chart_account_groups.id ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.ChartAccountGroup">
+        UPDATE chart_account_groups SET
+        <if test="chartAccountGroup.status != null"> `is_active` = #{chartAccountGroup.status},</if>
+        modified = NOW(),
+        modified_by = #{chartAccountGroup.modifiedBy}
+        WHERE id = #{chartAccountGroup.id}
+  </update>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountGroupFilter" resultType="java.lang.Long">
+        SELECT COUNT(chart_account_groups.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" resultMap="ChartAccountGroupResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE chart_account_groups.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM chart_account_groups
+        WHERE is_active &lt; 2 AND (name = #{name})
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+      <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ChartAccountGroup">
+          INSERT INTO chart_account_groups(
+              chart_account_type_id,
+              `name`,
+              is_depreciation,
+              created,
+              created_by,
+              is_active
+          ) VALUES (
+                       #{chartAccountGroup.accountTypeId},
+                       #{chartAccountGroup.name},
+                       #{chartAccountGroup.expense},
+                       NOW(),
+                       #{chartAccountGroup.createdBy},
+                       #{chartAccountGroup.isActive}
+                   );
+      </insert>
+
+      <update id="update" parameterType="com.ut.nlSystemAPi.model.ChartAccountGroup">
+          UPDATE chart_account_groups SET
+          <if test="chartAccountGroup.accountTypeId != null"> `chart_account_type_id` = #{chartAccountGroup.accountTypeId},</if>
+          <if test="chartAccountGroup.name != null"> `name` = #{chartAccountGroup.name},</if>
+          <if test="chartAccountGroup.expense != null"> `is_depreciation` = #{chartAccountGroup.expense},</if>
+          <if test="chartAccountGroup.isActive != null"> `is_active` = #{chartAccountGroup.isActive},</if>
+          modified = NOW(),
+          modified_by = #{chartAccountGroup.modifiedBy}
+          WHERE id = #{chartAccountGroup.id}
+      </update>
+
+      <update id="delete" parameterType="java.lang.Long">
+          UPDATE chart_account_groups SET
+             is_active = 2,
+             modified = NOW(),
+             modified_by = #{userId}
+          WHERE id = #{id};
+      </update>
+
+</mapper>

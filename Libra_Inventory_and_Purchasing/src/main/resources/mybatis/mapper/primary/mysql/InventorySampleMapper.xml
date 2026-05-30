@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InventorySampleMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        isp.id AS id,
+        isp.reference AS adjNO,
+        isp.date AS `date`,
+        isp.company_id AS companyId,
+        companies.name AS companyName,
+        isp.location_group_id AS warehouseId,
+        lg.name AS warehouseName,
+        isp.pgroup_id AS productGroupId,
+        lg.name AS productGroupName,
+        isp.note AS description,
+        isp.created AS created,
+        CONCAT(u.first_name, ' ', u.last_name) AS createdBy,
+        isp.created AS modified,
+        CONCAT(u.first_name, ' ', u.last_name) AS modifiedBy,
+        isp.status AS status
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM inventory_sample_products isp
+            LEFT JOIN companies ON companies.id = isp.company_id
+            LEFT JOIN location_groups lg ON lg.id = isp.location_group_id
+            LEFT JOIN pgroups ON pgroups.id = isp.pgroup_id
+            LEFT JOIN users u ON u.id = isp.created_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE isp.status >= 0
+        <if test="filter.status != null">
+            AND isp.status = #{filter.status}
+        </if>
+        <if test="filter.date != null and filter.date != ''">
+            AND isp.date = #{filter.date}
+        </if>
+        <if test="filter.warehouseId != null and filter.warehouseId != ''">
+            AND isp.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND isp.reference LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND isp.created_by = #{userId}
+        </if>
+    </sql>
+
+    <sql id="BASE_COLUMN_LIST_DETAIL">
+        p.id,
+        p.code AS sku,
+        p.barcode AS upc,
+        p.name AS `name`,
+        u.abbr AS uom,
+        p.is_expired_date AS isExpiredDate
+    </sql>
+
+    <sql id="BASE_FROM_DETAIL">
+        FROM products p
+            INNER JOIN uoms u ON u.id = p.price_uom_id
+            INNER JOIN product_pgroups pgp ON pgp.product_id = p.id
+            INNER JOIN pgroups pg ON pg.id = pgp.pgroup_id
+            LEFT JOIN user_pgroups upg ON upg.pgroup_id = pg.id
+    </sql>
+
+    <sql id="BASE_WHERE_DETAIL">
+        WHERE 1=1
+        <if test="filter.upc != null and filter.upc != ''">
+            AND p.barcode LIKE CONCAT('%', #{filter.upc}, '%')
+        </if>
+        <if test="filter.sku != null and filter.sku != ''">
+            AND p.code LIKE CONCAT('%', #{filter.sku}, '%')
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND p.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+        <if test="filter.locationGroupId != null and filter.locationGroupId != ''">
+            AND pgp.pgroup_id = #{filter.locationGroupId}
+        </if>
+        AND (pg.user_apply = 0 OR (pg.user_apply = 1 AND upg.user_id = #{filter.userId}))
+    </sql>
+
+    <select id="getListProductDetail" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="InventorySampleProductDetailResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_DETAIL"/>
+        <include refid="BASE_FROM_DETAIL"/>
+        <include refid="BASE_WHERE_DETAIL"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                p.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.InventorySampleFilter" resultMap="InventorySampleResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                isp.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.InventorySampleFilter" resultType="java.lang.Long">
+        SELECT COUNT(isp.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="countProductList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(p.id)
+        <include refid="BASE_FROM_DETAIL"/>
+        <include refid="BASE_WHERE_DETAIL"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="InventorySampleResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE isp.id = #{id} AND isp.status >= 0
+    </select>
+
+    <select id="getProductDetails" parameterType="java.lang.Long" resultMap="InventorySampleProductDetailResponse">
+        SELECT
+            inventory_sample_product_details.id AS id,
+            inventory_sample_product_details.inventory_sample_product_id AS inventorySampleProductId,
+            products.code AS code,
+            products.code AS sku,
+            products.unit_cost AS unitCost,
+            uoms.name AS uom,
+            uoms.abbr AS uomAbbr,
+            products.barcode AS upc,
+            inventory_sample_product_details.product_id AS productId,
+            products.name AS productName,
+            inventory_sample_product_details.location_id AS locationId,
+            locations.name AS locationName,
+            products.is_expired_date AS isExpiredDate,
+            IFNULL(inventory_sample_product_details.lots_number, '0') AS lotsNumber,
+            inventory_sample_product_details.expired_date AS expiredDate,
+            inventory_sample_product_details.new_qty AS newQty,
+            inventory_sample_product_details.qty_difference AS adjustQty,
+            inventory_sample_product_details.current_qty AS qtyOnHand
+        FROM inventory_sample_product_details
+            LEFT JOIN locations ON inventory_sample_product_details.location_id = locations.id
+            LEFT JOIN products ON inventory_sample_product_details.product_id = products.id
+            LEFT JOIN uoms ON uoms.id = products.price_uom_id
+        WHERE inventory_sample_product_details.inventory_sample_product_id = #{inventorySampleProductId}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.InventorySample" useGeneratedKeys="true" keyProperty="inventorySample.id">
+        INSERT INTO inventory_sample_products (
+            company_id,
+            reference,
+            date,
+            note,
+            location_group_id,
+            pgroup_id,
+            created_by,
+            created
+        ) VALUES (
+                     #{inventorySample.companyId},
+                     #{inventorySample.reference},
+                     #{inventorySample.date},
+                     #{inventorySample.description},
+                     #{inventorySample.warehouseId},
+                     #{inventorySample.pgroupId},
+                     #{inventorySample.createdBy},
+                     NOW()
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.InventorySample" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO inventory_sample_products (
+            company_id,
+            reference,
+            `date`,
+            note,
+            location_group_id,
+            pgroup_id,
+            created_by,
+            created
+        ) VALUES (
+                     #{inventorySample.companyId},
+                     #{inventorySample.reference},
+                     #{inventorySample.date},
+                     #{inventorySample.description},
+                     #{inventorySample.warehouseId},
+                     #{inventorySample.pgroupId},
+                     #{inventorySample.modifiedBy},
+                     NOW()
+                 )
+    </update>
+
+    <insert id="insertInventorySampleProductDetails" parameterType="com.ut.nlSystemAPi.model.request.Login.InventorySample.InventorySampleRequestDetail" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO inventory_sample_product_details (
+            inventory_sample_product_id,
+            product_id,
+            location_id,
+            expired_date,
+            current_qty,
+            new_qty,
+            qty_difference
+        ) VALUES (
+                     #{inventorySample.inventorySampleProductId},
+                     #{inventorySample.productId},
+                     #{inventorySample.locationId},
+                     #{inventorySample.expiredDate},
+                     #{inventorySample.qtyOnHand},
+                     #{inventorySample.newQty},
+                     #{inventorySample.adjustQty}
+                 )
+    </insert>
+
+    <update id="updateInventorySampleStatus" parameterType="com.ut.nlSystemAPi.model.InventorySample">
+        UPDATE inventory_sample_products
+        SET status = #{inventorySample.status}
+        WHERE id = #{inventorySample.id}
+    </update>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE inventory_sample_products
+        SET status = -1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE inventory_sample_products
+        SET status = 0,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteInventorySampleProductDetailsBySampleId" parameterType="java.lang.Long">
+        DELETE FROM inventory_sample_product_details
+        WHERE inventory_sample_product_id = #{inventorySampleId}
+    </delete>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM inventory_sample_products
+        WHERE status = 1 AND reference = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+
+</mapper>

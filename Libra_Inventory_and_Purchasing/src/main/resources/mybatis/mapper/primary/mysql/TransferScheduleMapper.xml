@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TransferScheduleMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        transfer_schedules.id AS id,
+        transfer_schedules.start_date AS startDate,
+        transfer_schedules.end_date AS endDate,
+        transfer_schedules.start_time AS startTime,
+        transfer_schedules.end_time AS endTime,
+        transfer_schedules.privacy AS privacy,
+        transfer_schedules.is_close AS isClose,
+        transfer_schedules.backgroundColor AS backgroundColor,
+        transfer_schedules.title AS title,
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = transfer_schedules.created_by) AS bookedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM transfer_schedules
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE transfer_schedules.is_active = 1 AND transfer_schedules.is_close = 0
+        <if test="filter.searchText != null">
+            AND transfer_schedules.title LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND transfer_schedules.created_by = #{userId}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND (
+            (
+            DATE(transfer_schedules.start_date) >= #{filter.dateFrom} AND DATE(transfer_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(transfer_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(transfer_schedules.end_date) >= #{filter.dateTo}
+            ) OR (
+            DATE(transfer_schedules.start_date) &lt;= #{filter.dateFrom} AND DATE(transfer_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(transfer_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(transfer_schedules.end_date) &lt;= #{filter.dateTo}
+            ) OR (
+            DATE(transfer_schedules.start_date) >= #{filter.dateFrom} AND DATE(transfer_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(transfer_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(transfer_schedules.end_date) &lt;= #{filter.dateTo}
+            ) OR (
+            DATE(transfer_schedules.start_date) &lt;= #{filter.dateFrom} AND DATE(transfer_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(transfer_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(transfer_schedules.end_date) >= #{filter.dateTo}
+            )
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TransferScheduleFilter" resultMap="TransferScheduleResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                transfer_schedules.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TransferScheduleFilter" resultType="java.lang.Long">
+        SELECT COUNT(transfer_schedules.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TransferScheduleResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+    WHERE transfer_schedules.is_active = 1 AND transfer_schedules.is_close = 0 AND transfer_schedules.id = #{id}
+  </select>
+
+    <select id="getTransferScheduleDetail" parameterType="java.lang.Long" resultMap="TransferScheduleDetailResponse">
+        SELECT
+            transfer_schedule_details.id AS id,
+            transfer_schedule_details.pv_request_id AS pvRequestId,
+            pv_requests.code AS pvRequestNumber,
+            pv_requests.total_amount AS totalAmount
+        FROM transfer_schedule_details
+        LEFT JOIN pv_requests ON pv_requests.id = transfer_schedule_details.pv_request_id
+        WHERE transfer_schedule_details.transfer_schedule_id = #{id} AND transfer_schedule_details.is_active = 1
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.TransferSchedule" useGeneratedKeys="true" keyProperty="transferSchedule.id">
+        INSERT INTO transfer_schedules (
+            start_date,
+            start_time,
+            end_date,
+            end_time,
+            title,
+            backgroundColor,
+            privacy,
+            created,
+            created_by,
+            is_close,
+            is_active
+        ) VALUES (
+                     #{transferSchedule.startDate},
+                     #{transferSchedule.startTime},
+                     #{transferSchedule.endDate},
+                     #{transferSchedule.endTime},
+                     #{transferSchedule.title},
+                     #{transferSchedule.backgroundColor},
+                     #{transferSchedule.privacy},
+                     NOW(),
+                     #{transferSchedule.createdBy},
+                     #{transferSchedule.isClose},
+                     #{transferSchedule.isActive}
+                 )
+    </insert>
+
+    <insert id="insertTransferScheduleDetail" parameterType="com.ut.nlSystemAPi.model.TransferScheduleDetail" useGeneratedKeys="true">
+        INSERT INTO transfer_schedule_details (
+            transfer_schedule_id,
+            pv_request_id,
+            is_active
+        ) VALUES (
+             #{transferScheduleDetail.transferScheduleId},
+             #{transferScheduleDetail.pvRequestId},
+             #{transferScheduleDetail.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.TransferSchedule">
+        UPDATE transfer_schedules SET
+        <if test="transferSchedule.startDate != null">
+            start_date = #{transferSchedule.startDate},
+        </if>
+        <if test="transferSchedule.startTime != null">
+            start_time = #{transferSchedule.startTime},
+        </if>
+        <if test="transferSchedule.endDate != null">
+            end_date = #{transferSchedule.endDate},
+        </if>
+        <if test="transferSchedule.endTime != null">
+            end_time = #{transferSchedule.endTime},
+        </if>
+        <if test="transferSchedule.title != null">
+            title = #{transferSchedule.title},
+        </if>
+        <if test="transferSchedule.backgroundColor != null">
+            backgroundColor = #{transferSchedule.backgroundColor},
+        </if>
+        <if test="transferSchedule.privacy != null">
+            privacy = #{transferSchedule.privacy},
+        </if>
+        modified = NOW(),
+        <if test="transferSchedule.modifiedBy != null">
+            modified_by = #{transferSchedule.modifiedBy}
+        </if>
+        WHERE id = #{transferSchedule.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+            UPDATE transfer_schedules SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by =#{userId}
+            WHERE id = #{id}
+    </update>
+
+    <update id="deleteTransferDetail" parameterType="java.lang.Long">
+        UPDATE transfer_schedule_details SET is_active = 2 WHERE transfer_schedule_id = #{id};
+    </update>
+
+</mapper>

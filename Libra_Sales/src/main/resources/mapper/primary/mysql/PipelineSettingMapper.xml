@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PipelineSettingMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cps.id AS id,
+        cps.description AS description,
+        (SELECT GROUP_CONCAT(egroups.name SEPARATOR ', ') FROM egroups WHERE egroups.id IN (SELECT egroup_id FROM crm_pipeline_setting_egroups WHERE crm_pipeline_setting_id = cps.id)) AS employeeGroupName,
+        GROUP_CONCAT(cos.name SEPARATOR ', ') AS stageName,
+        GROUP_CONCAT(CONCAT(FORMAT(cpss.percent, 0), '%') SEPARATOR ', ') AS percentage,
+        GROUP_CONCAT(cpss.ordering SEPARATOR ', ') AS ordering,
+        cps.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cps.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_pipeline_settings AS cps
+        LEFT JOIN crm_pipeline_setting_stags AS cpss ON cpss.crm_pipeline_setting_id = cps.id
+        LEFT JOIN crm_opportunity_stags AS cos ON cos.id = cpss.crm_opportunity_stag_id
+        LEFT JOIN users AS creator ON creator.id = cps.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cps.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cps.is_active = 1
+        AND cps.id IN (
+            SELECT crm_pipeline_setting_id FROM crm_pipeline_setting_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        <if test="filter.searchText != null">
+            AND cps.description LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="PipelineSettingResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY cps.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>cps.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT cps.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="PipelineSettingResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE cps.is_active = 1 AND cps.id = #{id}
+        GROUP BY cps.id
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="pipeline.id">
+        INSERT INTO crm_pipeline_settings(description, created, created_by, is_active)
+        VALUES (#{pipeline.description}, NOW(), #{pipeline.createdBy}, #{pipeline.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE crm_pipeline_settings SET description = #{pipeline.description}, modified = NOW(), modified_by = #{pipeline.modifiedBy}
+        WHERE id = #{pipeline.id} AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_pipeline_settings SET is_active = 2, modified = NOW(), modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <insert id="insertEmployeeGroup">
+        INSERT INTO crm_pipeline_setting_egroups(crm_pipeline_setting_id, egroup_id)
+        VALUES (#{pipelineId}, #{employeeGroupId})
+    </insert>
+
+    <insert id="insertStage">
+        INSERT INTO crm_pipeline_setting_stags(crm_pipeline_setting_id, crm_opportunity_stag_id, percent, ordering, is_skippable)
+        VALUES (#{pipelineId}, #{stageId}, #{percent}, #{ordering}, #{skippable})
+    </insert>
+
+    <insert id="insertStageActivity">
+        INSERT INTO crm_opportunity_stag_activities(crm_opportunity_stag_id, crm_opportunity_activity_id)
+        VALUES (#{stageId}, #{activityId})
+    </insert>
+
+    <insert id="insertActivityEmployeeGroup">
+        INSERT INTO crm_opportunity_activity_egroups(crm_opportunity_activity_id, egroup_id)
+        VALUES (#{activityId}, #{employeeGroupId})
+    </insert>
+
+    <delete id="deleteEmployeeGroup">
+        DELETE FROM crm_pipeline_setting_egroups WHERE crm_pipeline_setting_id = #{pipelineId}
+    </delete>
+
+    <delete id="deleteStage">
+        DELETE FROM crm_pipeline_setting_stags WHERE crm_pipeline_setting_id = #{pipelineId}
+    </delete>
+
+    <delete id="deleteStageActivity">
+        DELETE FROM crm_opportunity_stag_activities WHERE crm_opportunity_stag_id = #{stageId}
+    </delete>
+
+    <select id="getStages" resultMap="PipelineSettingStageResponse">
+        SELECT
+            cpss.crm_opportunity_stag_id AS stageId,
+            cos.name AS stageName,
+            cpss.percent AS percent,
+            cpss.ordering AS ordering,
+            cpss.is_skippable AS skippable
+        FROM crm_pipeline_setting_stags AS cpss
+        INNER JOIN crm_opportunity_stags AS cos ON cos.id = cpss.crm_opportunity_stag_id
+        WHERE cpss.crm_pipeline_setting_id = #{pipelineId}
+        ORDER BY cpss.ordering ASC
+    </select>
+
+    <select id="getStageActivityIds" resultType="java.lang.Long">
+        SELECT crm_opportunity_activity_id
+        FROM crm_opportunity_stag_activities
+        WHERE crm_opportunity_stag_id = #{stageId}
+    </select>
+
+</mapper>

@@ -1,0 +1,52 @@
+services:
+  accounting:
+    build:
+      context: .
+      args:
+        MODULE: NewLink_Accounting
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-dev}
+      SERVER_PORT: ${ACCOUNTING_PORT:-8697}
+      SPRING_APPLICATION_JSON: ${SPRING_APPLICATION_JSON:-{}}
+      JAVA_OPTS: -Dcatalina.base=/tmp
+    ports:
+      - "${ACCOUNTING_PORT:-8697}:${ACCOUNTING_PORT:-8697}"
+
+  hr:
+    build:
+      context: .
+      args:
+        MODULE: NewLink_HR
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-dev}
+      SERVER_PORT: ${HR_PORT:-8696}
+      SPRING_APPLICATION_JSON: ${SPRING_APPLICATION_JSON:-{}}
+      JAVA_OPTS: -Dcatalina.base=/tmp
+    ports:
+      - "${HR_PORT:-8696}:${HR_PORT:-8696}"
+
+  inventory:
+    build:
+      context: .
+      args:
+        MODULE: NewLink_Inventory_and_Purchasing
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-dev}
+      SERVER_PORT: ${INVENTORY_PORT:-8698}
+      SPRING_APPLICATION_JSON: ${SPRING_APPLICATION_JSON:-{}}
+      JAVA_OPTS: -Dcatalina.base=/tmp
+    ports:
+      - "${INVENTORY_PORT:-8698}:${INVENTORY_PORT:-8698}"
+
+  sales:
+    build:
+      context: .
+      args:
+        MODULE: NewLink_Sales
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-dev}
+      SERVER_PORT: ${SALES_PORT:-8699}
+      SPRING_APPLICATION_JSON: ${SPRING_APPLICATION_JSON:-{}}
+      JAVA_OPTS: -Dcatalina.base=/tmp
+    ports:
+      - "${SALES_PORT:-8699}:${SALES_PORT:-8699}"

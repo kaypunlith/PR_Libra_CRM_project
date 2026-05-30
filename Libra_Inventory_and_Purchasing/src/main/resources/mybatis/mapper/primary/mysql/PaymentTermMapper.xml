@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PaymentTermMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        payment_terms.id AS id,
+        payment_terms.payment_type_id AS typeId,
+        payment_types.name AS typeName,
+        payment_terms.name AS `name`,
+        payment_terms.net_days AS netDay,
+        payment_terms.created AS created,
+        payment_terms.modified AS modified,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM payment_terms
+        LEFT JOIN  users AS users1 ON users1.id = payment_terms.created_by
+        LEFT JOIN users AS users2 ON users2.id = payment_terms.modified_by
+        LEFT JOIN payment_types ON payment_types.id = payment_terms.payment_type_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE payment_terms.is_active = 1
+        <if test="filter.searchText != null">
+            AND (payment_terms.name LIKE CONCAT('%', #{filter.searchText}, '%') OR payment_types.name LIKE CONCAT('%', #{filter.searchText}, '%'))
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PaymentTermResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                payment_terms.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+       SELECT COUNT(payment_terms.id)
+      <include refid="BASE_FROM"/>
+      <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="PaymentTermResponse">
+       SELECT
+         <include refid="BASE_COLUMN_LIST"/>
+         <include refid="BASE_FROM"/>
+        WHERE payment_terms.is_active = 1 AND payment_terms.id = #{id};
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.PaymentTerm" useGeneratedKeys="true" keyProperty="paymentTerm.id">
+    INSERT INTO payment_terms (
+        payment_type_id,
+        `name`,
+        net_days,
+        created,
+        created_by,
+        is_active
+    ) VALUES (
+      #{paymentTerm.typeId},
+      #{paymentTerm.name},
+      #{paymentTerm.netDay},
+      NOW(),
+      #{paymentTerm.createdBy},
+      #{paymentTerm.isActive}
+    )
+  </insert>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM payment_terms
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.PaymentTerm">
+        UPDATE payment_terms  SET
+        <if test="paymentTerm.typeId != null">
+            `payment_type_id` = #{paymentTerm.typeId},
+        </if>
+        <if test="paymentTerm.name != null">
+            `name` = #{paymentTerm.name},
+        </if>
+        <if test="paymentTerm.netDay != null">
+            `net_days` = #{paymentTerm.netDay},
+        </if>
+        `modified` = NOW()
+        <if test="paymentTerm.modifiedBy != null">,
+            `modified_by` = #{paymentTerm.modifiedBy}
+        </if>
+        WHERE `id` = #{paymentTerm.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE payment_terms SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+</mapper>

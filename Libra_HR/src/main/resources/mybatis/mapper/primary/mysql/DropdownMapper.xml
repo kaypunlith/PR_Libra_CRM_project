@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DropdownMapper">
+
+<select id="getGroupDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM egroups
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="getDepartmentDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM departments
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    <if test="filter.groupId != null">
+      AND group_id = #{filter.groupId}
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countDepartmentDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM departments
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getDayDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM days
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY id ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countDayDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM days
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getLeaveRequestTypeDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM leave_types
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="getWorkShiftDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM work_shifts
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countWorkShiftDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM work_shifts
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getPositionDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM positions
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countPositionDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM positions
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getEmployeeTypeDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM employee_types
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countEmployeeTypeDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employee_types
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getEmployeeStatusDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM employee_status
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countEmployeeStatusDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employee_status
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getMaritalStatusDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    name AS name
+    FROM maritals
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="countMaritalStatusDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM maritals
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+  </select>
+
+  <select id="getMissionMeanDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    description AS name
+    FROM working_time_means
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND description LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY description ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="getMissionDestinationDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    id AS id,
+    description AS name
+    FROM working_time_destinations
+    WHERE is_active = 1
+    <if test="filter.searchText != null">
+      AND description LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY description ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="getMissionOrganizationDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
+    SELECT
+    customers.id AS id,
+    customers.name AS name
+    FROM customers
+    LEFT JOIN working_time_organizations as morg ON morg.organization_id = customers.id AND morg.is_active = 1
+    WHERE customers.is_active = 1
+    <if test="filter.searchText != null">
+      AND customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    ORDER BY customers.name ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+</mapper>

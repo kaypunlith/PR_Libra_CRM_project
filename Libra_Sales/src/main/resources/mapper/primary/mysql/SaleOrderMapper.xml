@@ -1,0 +1,599 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SaleOrderMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        orders.id AS id,
+        orders.type AS `type`,
+        orders.order_date AS soDate,
+        orders.order_code AS soNo,
+        orders.company_id AS companyId,
+        companies.name AS companyName,
+        companies.vat_number AS companyVat,
+        companies.business_number AS companyTelephone,
+        companies.address AS companyAddress,
+        companies.website AS companyWebsite,
+        customers.id AS organizationId,
+        customers.name AS organizationName,
+        customers.main_number AS organizationTelephone,
+        customers.customer_code AS organizationCode,
+        customers.address AS organizationAddress,
+        customers.vat AS organizationVat,
+        DATEDIFF(DATE(NOW()), order_date) AS dateDiff,
+        CASE
+        WHEN orders.status = 1
+             AND orders.is_close = 0
+             AND (orders.is_approve = 0 OR (orders.is_approve = 1 AND orders.is_wso = 1))
+             AND NOT EXISTS (
+                 SELECT 1
+                 FROM purchase_requests pr
+                 INNER JOIN purchase_request_orders pro ON pr.id = pro.purchase_request_id
+                 WHERE pro.order_id = orders.id
+             ) THEN 1
+        ELSE 0
+        END AS allowModify,
+        CASE
+        WHEN NOT EXISTS (
+            SELECT 1
+            FROM sales_orders so
+            WHERE so.status > 0
+                  AND so.balance > 0
+                  AND so.type = 1
+                  AND so.order_id = orders.id
+        ) THEN 1
+        ELSE 0
+        END AS allowDisapprove,
+        (SELECT GROUP_CONCAT(purchase_requests.pr_code SEPARATOR ', ')
+        FROM purchase_requests
+        INNER JOIN purchase_request_orders ON purchase_request_orders.purchase_request_id = purchase_requests.id
+        WHERE purchase_requests.status > 0 AND purchase_request_orders.order_id = orders.id) AS poNo,
+        (SELECT so_code FROM sales_orders WHERE order_id = orders.id AND status >= 1 GROUP BY order_id) AS invoiceNo,
+        IFNULL(orders.customer_contact_id, 0) AS organizationContactId,
+        customer_contacts.contact_name AS organizationContactName,
+        customer_contacts.contact_telephone AS organizationContactTelephone,
+        orders.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        currency_centers.id AS currencyId,
+        currency_centers.name AS currencyName,
+        currency_centers.symbol AS currencySymbol,
+        IFNULL(orders.customer_po_number, '') AS organizationPoNo,
+        IFNULL(orders.customer_po_file, '') AS organizationPoFile,
+        orders.total_amount AS subTotal,
+        orders.total_amount - IFNULL(orders.discount, 0) + IFNULL(orders.total_vat, 0) AS totalAmount,
+        orders.vat_setting_id AS vatId,
+        vat_settings.name AS vatName,
+        IFNULL(orders.total_vat, 0) AS totalVat,
+        IFNULL(orders.vat_percent, 0) AS vatPercent,
+        IFNULL(orders.discount, 0) AS discountAmount,
+        IFNULL(orders.discount_percent, 0) AS discountPercent,
+        IFNULL(orders.price_type_id, 0) AS priceTypeId,
+        IFNULL(orders.delivery_date, '') AS deliveryDate,
+        orders.note AS note,
+        orders.is_apply AS isApply,
+        orders.is_close AS isClose,
+        orders.is_wso AS isWso,
+        orders.is_approve AS isApprove,
+        orders.is_none_vat AS isNoneVat,
+        orders.status AS status,
+        orders.remark AS isRequiredPo,
+        orders.created AS created,
+        COALESCE((SELECT name FROM employees WHERE user_id = orders.created_by), CONCAT(creator.first_name, ' ', creator.last_name)) AS createdBy,
+        orders.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM orders
+        LEFT JOIN customers ON customers.id = orders.customer_id
+        LEFT JOIN currency_centers ON currency_centers.id = orders.currency_center_id
+        LEFT JOIN users AS creator ON creator.id = orders.created_by
+        LEFT JOIN customer_contacts ON customer_contacts.id = orders.customer_contact_id
+        LEFT JOIN companies ON companies.id = orders.company_id
+        LEFT JOIN price_types ON price_types.id = orders.price_type_id
+        LEFT JOIN vat_settings ON vat_settings.id = orders.vat_setting_id
+        LEFT JOIN users AS modifier ON modifier.id = orders.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.viewByUser == 1">
+            AND orders.created_by = #{userId}
+        </if>
+        <if test="filter.type != null">
+            AND orders.type = #{filter.type}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.isWso != null">
+            AND orders.is_wso = #{filter.isWso}
+        </if>
+        <if test="filter.customerPo != null">
+            AND (orders.id IN (SELECT order_id FROM order_details WHERE po_no LIKE ('%', #{filter.searchText}, '%'))  OR orders.id IN (SELECT order_id FROM order_miscs WHERE po_no LIKE ('%', #{filter.searchText}, '%')) OR orders.id IN (SELECT order_id FROM order_services WHERE po_no LIKE ('%', #{filter.searchText}, '%')))
+        </if>
+        <if test="filter.dateFrom != null">
+            AND orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null and filter.type == 1">
+            <choose>
+                <when test="filter.status == -1">
+                    AND status = 1 AND is_close = 1 AND is_approve = 1 AND orders.id NOT IN (SELECT so.order_id FROM sales_orders AS so WHERE so.status > 0 AND so.order_id IS NOT NULL)
+                </when>
+                <when test="filter.status == 0">
+                    AND status = 1 AND is_approve = 0
+                </when>
+                <when test="filter.status == 1">
+                    AND status = 1 AND is_close = 0 AND is_approve = 1 AND DATEDIFF(NOW(), order_date) ;lt 3
+                </when>
+                <when test="filter.status == 5">
+                    AND status = 1 AND is_close = 0 AND is_approve = 0 AND DATEDIFF(NOW(), order_date) > 3
+                </when>
+                <when test="filter.status == 6">
+                    AND status = 1 AND is_close = 0 AND is_approve = 1
+                </when>
+                <when test="filter.status == 2">
+                    AND status = 2 AND is_close = 1 AND is_approve = 1
+                </when>
+                <when test="filter.status == 3">
+                    AND status IN (1,3) AND is_close = 1 AND is_approve = 1 AND orders.id IN (SELECT so.order_id FROM sales_orders AS so WHERE so.status > 0 AND so.delivery_id IS NULL)
+                </when>
+                <when test="filter.status == 4">
+                    AND status IN (1,4) AND is_close = 1 AND is_approve = 1 AND orders.id IN (SELECT so.order_id FROM sales_orders AS so WHERE so.status > 0 AND so.delivery_id IS NOT NULL)
+                </when>
+                <when test="filter.status == 7">
+                    AND status = 0
+                </when>
+            </choose>
+        </if>
+        <if test="filter.status != null and filter.type == 2">
+            <choose>
+                <when test="filter.status == 1">
+                    AND is_close = 1 AND is_approve = 1
+                </when>
+                <when test="filter.status == 2">
+                    AND is_close = 0 AND is_approve = 1
+                </when>
+                <when test="filter.status == 0">
+                    AND is_approve = 0
+                </when>
+            </choose>
+        </if>
+        <if test="filter.status == null">
+            AND orders.status >= 0
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (orders.order_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.customer_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR (SELECT contact_name FROM customer_contacts WHERE id = orders.customer_contact_id) LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.SaleOrderFilter" resultMap="SaleOrderResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY orders.order_code DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.SaleOrderFilter" resultType="java.lang.Long">
+       SELECT COUNT(orders.id)
+       <include refid="BASE_FROM"/>
+       <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="SaleOrderResponse">
+       SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+        WHERE orders.status > 0 AND orders.id = #{id} AND orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.SaleOrder.SaleOrder" useGeneratedKeys="true" keyProperty="saleOrder.id">
+        INSERT INTO orders (
+            type,
+            company_id,
+            order_date,
+            customer_id,
+            customer_contact_id,
+            customer_po_number,
+            customer_po_file,
+            currency_center_id,
+            delivery_date,
+            price_type_id,
+            note,
+            total_vat,
+            vat_percent,
+            vat_setting_id,
+            vat_calculate,
+            discount,
+            discount_percent,
+            total_amount,
+            is_apply,
+            is_none_vat,
+            remark,
+            is_wso,
+            created,
+            created_by,
+            edited,
+            edited_by,
+            modified,
+            modified_by
+        ) VALUES (
+                     #{saleOrder.type},
+                     #{saleOrder.companyId},
+                     #{saleOrder.date},
+                     #{saleOrder.organizationId},
+                     #{saleOrder.organizationContactId},
+                     #{saleOrder.organizationPoNo},
+                     #{saleOrder.organizationPoFile},
+                     #{saleOrder.currencyId},
+                     #{saleOrder.deliveryDate},
+                     #{saleOrder.priceTypeId},
+                     #{saleOrder.note},
+                     #{saleOrder.totalVat},
+                     #{saleOrder.vatPercent},
+                     #{saleOrder.vatSettingId},
+                     #{saleOrder.vatCalculate},
+                     #{saleOrder.discountAmount},
+                     #{saleOrder.discountPercent},
+                     #{saleOrder.totalAmount},
+                     #{saleOrder.isApply},
+                     #{saleOrder.isNoneVat},
+                     #{saleOrder.isRequiredPo},
+                     #{saleOrder.isWso},
+                     #{saleOrder.created},
+                     #{saleOrder.createdBy},
+                     #{saleOrder.edited},
+                     #{saleOrder.editedBy},
+                     #{saleOrder.modified},
+                     #{saleOrder.modifiedBy}
+                 )
+    </insert>
+
+    <insert id="insertSaleOrderQuotation" parameterType="java.lang.Long">
+        INSERT INTO order_quotations (
+            order_id,
+            quotation_id
+        ) VALUES (
+                     #{saleOrderId},
+                     #{quotationId}
+                 )
+    </insert>
+
+    <select id="getSaleOrderQuotation" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.SaleOrder.SaleOrderQuotationResponse">
+        SELECT
+            quotation_id AS id,
+            quotations.quotation_code AS code
+        FROM order_quotations
+        INNER JOIN quotations ON quotations.id = order_quotations.quotation_id
+        WHERE order_id = #{saleOrderId}
+    </select>
+
+    <insert id="insertTermCondition" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationTermCondition">
+        INSERT INTO order_term_conditions (
+            order_id,
+            term_condition_type_id,
+            term_condition_id
+        ) VALUES (
+                     #{termCondition.saleOrderId},
+                     #{termCondition.termConditionTypeId},
+                     #{termCondition.termConditionId}
+                 )
+    </insert>
+
+    <select id="getTermCondition" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.TermCondition.TermConditionResponse">
+        SELECT *
+        FROM(
+                SELECT
+                    order_term_conditions.term_condition_type_id AS typeId,
+                    term_condition_types.name AS typeName,
+                    order_term_conditions.term_condition_id AS id,
+                    term_conditions.name AS name
+                FROM order_term_conditions
+                         INNER JOIN term_condition_types ON term_condition_types.id = order_term_conditions.term_condition_type_id
+                         INNER JOIN term_conditions ON term_conditions.id = order_term_conditions.term_condition_id
+                WHERE order_id = #{saleOrderId}
+
+                UNION ALL
+
+                SELECT
+                    term_condition_applies.term_condition_type_id AS typeId,
+                    term_condition_types.name AS typeName,
+                    IFNULL(term_condition_applies.term_condition_default_id, 0) AS id,
+                    IFNULL(term_conditions.name, '') AS name
+                FROM term_condition_applies
+                         INNER JOIN term_condition_types ON term_condition_types.id = term_condition_applies.term_condition_type_id
+                         LEFT JOIN term_conditions ON term_conditions.id = term_condition_applies.term_condition_default_id
+                WHERE term_condition_applies.is_active = 1 AND term_condition_applies.module_type_id IN (SELECT id FROM module_types WHERE status = 1 AND (name = 'Sales Order' OR name = 'Sales Order (Software)'))
+                AND EXISTS (
+                    SELECT 1
+                    FROM order_term_conditions
+                    WHERE order_term_conditions.order_id = #{saleOrderId}
+                    AND order_term_conditions.term_condition_type_id = term_condition_applies.term_condition_type_id
+                )
+            ) as results
+        GROUP BY typeId
+    </select>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.SaleOrder.SaleOrderDetail">
+        INSERT INTO order_details (
+            order_id,
+            product_id,
+            quotation_id,
+            po_no,
+            qty,
+            qty_free,
+            conversion,
+            qty_uom_id,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price
+        ) VALUES (
+                     #{detail.saleOrderId},
+                     #{detail.itemId},
+                     #{detail.quotationId},
+                     #{detail.poNo},
+                     #{detail.qty},
+                     #{detail.qtyFree},
+                     #{detail.conversion},
+                     #{detail.uomId},
+                     #{detail.discountId},
+                     #{detail.discountAmount},
+                     #{detail.discountPercent},
+                     #{detail.unitPrice},
+                     #{detail.totalPrice}
+                 )
+    </insert>
+
+    <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationServices">
+        INSERT INTO order_services (
+            order_id,
+            quotation_id,
+            service_id,
+            po_no,
+            qty,
+            qty_free,
+            conversion,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price
+        )
+        VALUES (
+                   #{service.saleOrderId},
+                   #{service.quotationId},
+                   #{service.itemId},
+                   #{service.poNo},
+                   #{service.qty},
+                   #{service.qtyFree},
+                   #{service.conversion},
+                   #{service.discountId},
+                   #{service.discountAmount},
+                   #{service.discountPercent},
+                   #{service.unitPrice},
+                   #{service.totalPrice}
+               );
+    </insert>
+
+    <insert id="insertMisc" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationMisc">
+        INSERT INTO order_miscs (
+            order_id,
+            quotation_id,
+            description,
+            po_no,
+            qty,
+            qty_free,
+            qty_uom_id,
+            conversion,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price
+        )
+        VALUES (
+                   #{misc.saleOrderId},
+                   #{misc.quotationId},
+                   #{misc.itemName},
+                   #{misc.poNo},
+                   #{misc.qty},
+                   #{misc.qtyFree},
+                   #{misc.uomId},
+                   #{misc.conversion},
+                   #{misc.discountId},
+                   #{misc.discountAmount},
+                   #{misc.discountPercent},
+                   #{misc.unitPrice},
+                   #{misc.totalPrice}
+               );
+    </insert>
+
+    <select id="getListDetail" parameterType="java.lang.Long" resultMap="SaleOrderDetailResponse">
+        (
+            SELECT
+                1 AS `type`,
+                order_details.id AS id,
+                order_details.product_id AS itemId,
+                products.name AS itemName,
+                (SELECT GROUP_CONCAT(pgroups.name SEPARATOR ', ')
+                FROM pgroups
+                WHERE pgroups.is_active = 1
+                AND pgroups.id IN (SELECT pgroup_id FROM product_pgroups WHERE product_pgroups.product_id = products.id)
+                ) AS itemBrand,
+                products.code AS sku,
+                products.barcode AS upc,
+                products.spec AS spec,
+                <if test="warehouseId != null">
+                IFNULL(((SELECT SUM(total_qty) FROM ${warehouseId}_group_totals WHERE product_id = products.id) - (SELECT SUM(total_order) FROM ${warehouseId}_group_totals WHERE product_id = products.id)),0) AS qtyInStock,
+                </if>
+                order_details.qty AS qty,
+                order_details.qty_free AS qtyFree,
+                quotations.quotation_code AS quotationNo,
+                order_details.po_no AS poNo,
+                IFNULL(products.small_val_uom,1) / IFNULL(order_details.conversion, 1) AS conversion,
+                order_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                products.is_expired_date AS isExpiredDate,
+                order_details.discount_id AS discountId,
+                order_details.discount_amount AS discountAmount,
+                order_details.discount_percent AS discountPercent,
+                order_details.unit_price AS unitPrice,
+                order_details.total_price AS totalPrice,
+                IFNULL((SELECT COUNT(id) FROM sales_order_details
+                        WHERE product_id = order_details.product_id
+                          AND qty = order_details.qty
+                          AND qty_uom_id = order_details.qty_uom_id
+                          AND sales_order_id IN (
+                            SELECT id FROM sales_orders WHERE order_id = order_details.order_id AND status > 0
+                        ) LIMIT 1
+                ) > 0, 0) AS isInvoiced
+            FROM order_details
+            INNER JOIN products ON products.id = order_details.product_id
+            LEFT JOIN uoms ON uoms.id = order_details.qty_uom_id
+            LEFT JOIN quotations ON quotations.id = order_details.quotation_id
+            WHERE order_details.order_id = #{saleOrderId}
+        )
+        UNION ALL
+        (
+            SELECT
+                2 AS `type`,
+                order_services.id AS id,
+                order_services.service_id AS itemId,
+                services.name AS itemName,
+                NULL AS itemBrand,
+                services.sku AS sku,
+                services.sku AS upc,
+                services.description AS spec,
+                <if test="warehouseId != null">
+                NULL AS qtyInStock,
+                </if>
+                order_services.qty AS qty,
+                order_services.qty_free AS qtyFree,
+                quotations.quotation_code AS quotationNo,
+                order_services.po_no AS poNo,
+                1 AS conversion,
+                services.uom_id AS uomId,
+                uoms.name  AS uomName,
+                uoms.abbr AS uomAbbr,
+                NULL AS isExpiredDate,
+                order_services.discount_id AS discountId,
+                order_services.discount_amount AS discountAmount,
+                order_services.discount_percent AS discountPercent,
+                order_services.unit_price AS unitPrice,
+                order_services.total_price AS totalPrice,
+                0 AS isInvoiced
+            FROM order_services
+            INNER JOIN services ON services.id = order_services.service_id
+            LEFT JOIN uoms ON uoms.id = services.uom_id
+            LEFT JOIN quotations ON quotations.id = order_services.quotation_id
+            WHERE order_services.order_id = #{saleOrderId}
+        )
+        UNION ALL
+        (
+            SELECT
+                3 AS `type`,
+                order_miscs.id AS id,
+                order_miscs.id AS itemId,
+                order_miscs.description AS itemName,
+                NULL AS itemBrand,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS spec,
+                <if test="warehouseId != null">
+                NULL AS qtyInStock,
+                </if>
+                order_miscs.qty AS qty,
+                order_miscs.qty_free AS qtyFree,
+                quotations.quotation_code AS quotationNo,
+                order_miscs.po_no AS poNo,
+                1 AS conversion,
+                order_miscs.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                NULL AS isExpiredDate,
+                order_miscs.discount_id AS discountId,
+                order_miscs.discount_amount AS discountAmount,
+                order_miscs.discount_percent AS discountPercent,
+                order_miscs.unit_price AS unitPrice,
+                order_miscs.total_price AS totalPrice,
+                0 AS isInvoiced
+            FROM order_miscs
+            LEFT JOIN uoms ON uoms.id = order_miscs.qty_uom_id
+            LEFT JOIN quotations ON quotations.id = order_miscs.quotation_id
+            WHERE order_miscs.order_id = #{saleOrderId}
+        )
+        ORDER BY `type` ASC, id ASC
+    </select>
+
+    <update id="approve" parameterType="java.lang.Long">
+        UPDATE orders SET
+        <choose>
+            <when test="status == 2">
+                is_approve = 1,
+            </when>
+            <otherwise>
+                is_approve = 0,
+            </otherwise>
+        </choose>
+        approved = NOW(),
+        approved_by = #{userId}
+        WHERE id = #{id} AND status > 0;
+    </update>
+
+    <update id="close" parameterType="java.lang.Long">
+        UPDATE orders SET
+        is_close = #{status},
+        approved = NOW(),
+        approved_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <select id="getCreator" parameterType="java.lang.Long" resultMap="QuotationCreator">
+        SELECT
+            orders.created AS created,
+            orders.created_by AS createdBy
+        FROM orders
+        WHERE id = #{id}
+    </select>
+
+    <select id="countItems" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COUNT(*) AS total
+        FROM (
+                 SELECT id FROM order_details WHERE order_id = #{saleOrderId}
+                 UNION ALL
+                 SELECT id FROM order_services WHERE order_id = #{saleOrderId}
+                 UNION ALL
+                 SELECT id FROM order_miscs WHERE order_id = #{saleOrderId}
+             ) AS combined
+    </select>
+
+    <select id="countEdit" parameterType="java.lang.String" resultType="java.lang.Long">
+        SELECT COUNT(id) FROM orders WHERE status = -1 AND order_code = #{saleOrderCode}
+    </select>
+
+    <select id="checkDelivery" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(COUNT(delivery_id),0) FROM sales_orders WHERE order_id = #{saleOrderId}
+    </select>
+
+    <select id="checkInvoice" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(COUNT(id),0) FROM sales_orders WHERE order_id = #{saleOrderId}
+    </select>
+
+    <select id="checkCatalogOrder" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT catalog_order_id FROM orders WHERE id = #{saleOrderId}
+    </select>
+</mapper>

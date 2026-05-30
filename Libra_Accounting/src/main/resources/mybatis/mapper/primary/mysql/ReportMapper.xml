@@ -1,0 +1,2902 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        gld.id AS id,
+         gl.id AS generalLedgerId,
+        (SELECT account_codes FROM chart_accounts WHERE id=gld.chart_account_id) AS accountCode,
+         (SELECT CONCAT(account_codes," · ",account_description) FROM chart_accounts WHERE id=gld.chart_account_id) AS accountDescription,
+         gld.branch_id AS branchId,
+         (SELECT name FROM branches WHERE id = gld.branch_id) AS branchName,
+         date AS date,
+         (SELECT CONCAT(first_name," ",last_name) FROM users WHERE id=gl.created_by) AS createdBy,
+         gl.reference AS reference,
+         is_adj AS addJust,
+         type AS type,
+         memo AS description,
+         (SELECT name FROM classes WHERE id=gld.class_id) AS className,
+         debit AS debit,
+         credit AS credit,
+         gld.chart_account_id AS chartAccountId
+    </sql>
+    <sql id="BASE_FROM">
+        FROM general_ledgers gl
+            INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE gl.is_approve = 1 AND gl.is_active = 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(gl.date) >= DATE(#{filter.dateFrom}) AND DATE(gl.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+
+        <if test="filter.companyId = null">
+            AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        </if>
+
+        <if test="filter.companyId != null">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id = #{filter.chartAccountId}
+        </if>
+
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+
+        <if test="filter.adjustingEntryId != null">
+            AND gl.is_adj = #{filter.adjustingEntryId}
+        </if>
+    </sql>
+
+    <select id="getChartAccountGl" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="generalLedgerReportResponse">
+        SELECT
+        (SELECT account_codes FROM chart_accounts WHERE id=gld.chart_account_id) AS accountCode,
+        (SELECT CONCAT(account_codes," · ",account_description) FROM chart_accounts WHERE id=gld.chart_account_id) AS accountDescription,
+        gld.chart_account_id AS chartAccountId,
+        IFNULL((SELECT SUM(debit) - SUM(credit)
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id=general_ledger_details.general_ledger_id
+        WHERE is_active=1
+        AND is_approve=1
+        AND chart_account_id = gld.chart_account_id
+        AND DATE(general_ledgers.date) &lt; DATE(#{filter.dateFrom})
+        ), 0) AS beginBalance
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY gld.chart_account_id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                (SELECT account_codes FROM chart_accounts WHERE id=gld.chart_account_id) ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+
+    <select id="getListGeneralLegerReport" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="generalLedgerReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        AND gld.chart_account_id = #{chartAccountId}
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                gl.date ASC, gl.id ASC
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(gl.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY gld.chart_account_id
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_JOURNAL">
+        gld.id AS id,
+        gl.id AS generalLedgerId,
+        gl.date AS date,
+        gld.branch_id AS branchId,
+          (SELECT name FROM branches WHERE id = gld.branch_id) AS branchName,
+          (SELECT CONCAT(first_name," ",last_name) FROM users WHERE id=gl.created_by) AS createdBy,
+        gl.reference AS reference,
+          (SELECT reference FROM receive_payments WHERE id = gl.receive_payment_id) AS receivePaymentCode,
+        gl.is_adj AS addJust,
+        type AS type,
+          (SELECT account_codes FROM chart_accounts WHERE id = gld.chart_account_id) AS accountCode,
+          (SELECT CONCAT(account_codes, " · ", account_description) FROM chart_accounts WHERE id = gld.chart_account_id) AS account,
+          CASE
+            WHEN gl.cycle_product_id > 0 THEN
+                (SELECT note FROM cycle_products WHERE cycle_products.id = gl.cycle_product_id)
+            ELSE
+                memo
+        END AS description,
+            (SELECT name FROM classes WHERE id = gld.class_id) AS className,
+        debit AS debit,
+        credit AS credit
+    </sql>
+
+    <sql id="BASE_FROM_JOURNAL">
+        FROM general_ledgers gl
+          INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+          LEFT JOIN chart_accounts ON chart_accounts.id = gld.chart_account_id
+    </sql>
+
+    <sql id="BASE_WHERE_JOURNAL">
+        WHERE gl.is_active = 1 AND gl.is_approve = 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND  DATE(gl.date) >= #{filter.dateFrom} AND DATE(gl.date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId = null">
+            AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        </if>
+        <if test="filter.companyId = null">
+            AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id = #{filter.chartAccountId}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.vendorId!= null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.adjustingEntryId != null and filter.adjustingEntryId != 0">
+            AND gl.is_adj = #{filter.adjustingEntryId}
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (
+            gl.reference = #{filter.searchText}
+            OR chart_accounts.account_codes = #{filter.searchText}
+            )
+        </if>
+    </sql>
+
+    <select id="getListJournal" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="generalLedgerReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_JOURNAL"/>
+        <include refid="BASE_FROM_JOURNAL"/>
+        <include refid="BASE_WHERE_JOURNAL"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                gl.date ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+    <select id="countListJournal" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultType="java.lang.Long">
+        SELECT COUNT( gl.id)
+        FROM general_ledgers gl
+                 INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE DATE(gl.date) >= #{filter.dateFrom} AND DATE(gl.date) &lt;= #{filter.dateTo}
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_TRAIL_BALANCE">
+        c.id AS id,
+        c.account_codes AS accountCode,
+        c.account_description AS accountDescription,
+        cg.name AS accountGroup
+    </sql>
+    <sql id="BASE_FROM_TRAIL_BALANCE">
+        FROM chart_accounts c
+        LEFT JOIN chart_account_types ct ON c.chart_account_type_id = ct.id
+        LEFT JOIN chart_account_groups cg ON c.chart_account_group_id = cg.id
+    </sql>
+
+    <sql id="BASE_WHERE_TRAIL_BALANCE">
+        WHERE c.is_active = 1
+    </sql>
+
+    <select id="getListTrailBalance" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="TrailBalanceReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_TRAIL_BALANCE"/>
+        <include refid="BASE_FROM_TRAIL_BALANCE"/>
+        <include refid="BASE_WHERE_TRAIL_BALANCE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                c.account_codes ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countListTrailBalance" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultType="java.lang.Long">
+        SELECT COUNT( c.id)
+        <include refid="BASE_FROM_TRAIL_BALANCE"/>
+        <include refid="BASE_WHERE_TRAIL_BALANCE"/>
+    </select>
+
+    <sql id="BASE_WHERE_TRAIL_BALANCE_DETAIL">
+        WHERE gld.chart_account_id = #{chartAccountId}
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        <if test="filter.type == 1">
+            AND MONTH(date) &lt;= MONTH(#{months})
+            AND YEAR(date) &lt;= YEAR(#{months})
+        </if>
+        <if test="filter.type == 2">
+            AND MONTH(date) = MONTH(#{months})
+            AND YEAR(date) = YEAR(#{months})
+        </if>
+        <if test="filter.companyId == null">
+            AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        </if>
+        <if test="filter.companyId != null">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id = #{filter.chartAccountId}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.vendorId!= null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.adjustingEntryId != null and filter.adjustingEntryId != 0">
+            AND gl.is_adj = #{filter.adjustingEntryId}
+        </if>
+    </sql>
+
+    <select id="getTrialBalanceDetails" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="TrialBalanceDetailResponse">
+        SELECT
+        #{months} AS date,
+        CASE
+        WHEN (SUM(gld.debit) - SUM(gld.credit) > 0) THEN SUM(gld.debit) - SUM(gld.credit)
+        ELSE 0
+        END AS debit,
+        CASE
+        WHEN (SUM(gld.debit) - SUM(gld.credit) &lt; 0) THEN ABS(SUM(gld.debit) - SUM(gld.credit))
+        ELSE 0
+        END AS credit
+        FROM general_ledgers gl
+        LEFT JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_TRAIL_BALANCE_DETAIL"/>
+        ORDER BY gl.date
+    </select>
+    <sql id="BASE_COLUMN_LIST_CHECK">
+        gl.id AS id,
+        gl.date AS date,
+        gl.reference AS reference,
+        branches.id AS branchId,
+        branches.name AS branchName,
+        gl.is_adj AS adjustName,
+        CASE
+            WHEN customer_id != '' THEN (SELECT name FROM customers WHERE id = gld.customer_id)
+            WHEN vendor_id != '' THEN (SELECT name FROM vendors WHERE id = gld.vendor_id)
+            WHEN employee_id != '' THEN (SELECT name FROM employees WHERE id = gld.employee_id)
+            WHEN other_id != '' THEN (SELECT name FROM others WHERE id = gld.other_id)
+            ELSE ''
+        END AS name,
+        (SELECT name FROM companies WHERE id = gld.company_id) AS companyName,
+        (SELECT CONCAT(account_codes, " · ", account_description) FROM chart_accounts WHERE id = gld.chart_account_id) AS account,
+        IFNULL(gld.debit, 0) AS debit,
+        IFNULL(gld.credit, 0) AS credit
+    </sql>
+    <sql id="BASE_FROM_CHECK">
+        FROM general_ledgers gl
+        LEFT JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        LEFT JOIN branches ON gld.branch_id = branches.id
+        LEFT JOIN chart_accounts ON chart_accounts.id = gld.chart_account_id
+    </sql>
+    <sql id="BASE_WHERE_CHECK">
+        WHERE gl.is_active = 1 AND type = 'Check' AND gl.is_approve = 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(gl.date) >= #{filter.dateFrom} AND DATE(gl.date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId = null">
+            AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        </if>
+        <if test="filter.companyId != null">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id = #{filter.chartAccountId}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.vendorId!= null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.adjustingEntryId != null and filter.adjustingEntryId != 0">
+            AND gl.is_adj = #{filter.adjustingEntryId}
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (
+            gl.reference = #{filter.searchText}
+            OR chart_accounts.account_codes = #{filter.searchText}
+            )
+        </if>
+    </sql>
+
+    <select id="getListCheck" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="CheckReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_CHECK"/>
+        <include refid="BASE_FROM_CHECK"/>
+        <include refid="BASE_WHERE_CHECK"/>
+        GROUP BY gl.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                gl.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListCheckDetail" parameterType="java.lang.Long" resultMap="CheckReportResponse">
+        SELECT
+        gl.id AS id,
+        gl.is_adj AS adjustName,
+        gl.reference AS reference,
+        CASE
+        WHEN customer_id != '' THEN (SELECT name FROM customers WHERE id = gld.customer_id)
+        WHEN vendor_id != '' THEN (SELECT name FROM vendors WHERE id = gld.vendor_id)
+        WHEN employee_id != '' THEN (SELECT name FROM employees WHERE id = gld.employee_id)
+        WHEN other_id != '' THEN (SELECT name FROM others WHERE id = gld.other_id)
+        ELSE ''
+        END AS name,
+        (SELECT name FROM companies WHERE id = gld.company_id) AS companyName,
+        (SELECT CONCAT(account_codes, " · ", account_description) FROM chart_accounts WHERE id = gld.chart_account_id) AS account,
+        IFNULL(gld.debit, 0) AS debit,
+        IFNULL(gld.credit, 0) AS credit
+        <include refid="BASE_FROM_CHECK"/>
+        WHERE gld.general_ledger_id = #{journalEntryId}
+    </select>
+
+    <select id="getListCheckGrandTotal" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="CheckReportResponse">
+        SELECT
+        SUM(gld.debit) AS totalDebit,
+        SUM(gld.credit) AS totalCredit
+        <include refid="BASE_FROM_CHECK"/>
+        <include refid="BASE_WHERE_CHECK"/>
+    </select>
+
+    <select id="countListCheck" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultType="java.lang.Long">
+        SELECT COUNT( gl.id)
+        <include refid="BASE_FROM_CHECK"/>
+        <include refid="BASE_WHERE_CHECK"/>
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_DEBIT">
+        gl.id AS id,
+            gl.date AS date,
+            branches.id AS branchId,
+            branches.name AS branchName,
+            gl.reference AS reference,
+            gl.is_adj AS adjustName,
+            CASE
+                WHEN customer_id != '' THEN (SELECT name FROM customers WHERE id = gld.customer_id)
+                WHEN vendor_id != '' THEN (SELECT name FROM vendors WHERE id = gld.vendor_id)
+                WHEN employee_id != '' THEN (SELECT name FROM employees WHERE id = gld.employee_id)
+                WHEN other_id != '' THEN (SELECT name FROM others WHERE id = gld.other_id)
+                ELSE ''
+        END AS name,
+            (SELECT name FROM companies WHERE id = gld.company_id) AS companyName,
+            (SELECT CONCAT(account_codes, " · ", account_description) FROM chart_accounts WHERE id = gld.chart_account_id) AS account,
+            gld.debit AS debit,
+            gld.credit As credit
+    </sql>
+    <sql id="BASE_FROM_DEBIT">
+        FROM  general_ledgers gl
+            LEFT JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+            LEFT JOIN branches ON gld.branch_id = branches.id
+    </sql>
+    <sql id="BASE_WHERE_DEBIT">
+        WHERE gl.is_active = 1 AND gld.type = 'Deposit' AND gl.is_approve = 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(gl.date) >= #{filter.dateFrom} AND DATE(gl.date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId = null">
+            AND ( SELECT company_id FROM user_companies WHERE user_id = #{filter.userId} )
+        </if>
+        <if test="filter.companyId != null">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id = #{filter.chartAccountId}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.vendorId!= null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.adjustingEntryId != null and filter.adjustingEntryId != 0">
+            AND gl.is_adj = #{filter.adjustingEntryId}
+        </if>
+    </sql>
+    <select id="getListDebit" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultMap="CheckReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_DEBIT"/>
+        <include refid="BASE_FROM_DEBIT"/>
+        <include refid="BASE_WHERE_DEBIT"/>
+        GROUP BY gl.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                gl.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+
+    </select>
+
+    <select id="getListDebitDetail" parameterType="java.lang.Long" resultMap="CheckReportResponse">
+        SELECT
+        gl.id AS id,
+        gl.is_adj AS adjustName,
+        gl.reference AS reference,
+        CASE
+        WHEN customer_id != '' THEN (SELECT name FROM customers WHERE id = gld.customer_id)
+        WHEN vendor_id != '' THEN (SELECT name FROM vendors WHERE id = gld.vendor_id)
+        WHEN employee_id != '' THEN (SELECT name FROM employees WHERE id = gld.employee_id)
+        WHEN other_id != '' THEN (SELECT name FROM others WHERE id = gld.other_id)
+        ELSE ''
+        END AS name,
+        (SELECT name FROM companies WHERE id = gld.company_id) AS companyName,
+        (SELECT CONCAT(account_codes, " · ", account_description) FROM chart_accounts WHERE id = gld.chart_account_id) AS account,
+        gld.debit AS debit,
+        gld.credit As credit
+        <include refid="BASE_FROM_DEBIT"/>
+        WHERE gld.general_ledger_id = #{journalEntryId}
+    </select>
+
+    <select id="countListDebit" parameterType="com.ut.nlSystemAPi.model.filter.generalLegerReportFilter" resultType="java.lang.Long">
+        SELECT COUNT( gl.id)
+        <include refid="BASE_FROM_DEBIT"/>
+        <include refid="BASE_WHERE_DEBIT"/>
+    </select>
+
+    <select id="getListAuditTrailByQuotation" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        quote.id AS id,
+        'Quotation' AS type,
+        quote.quotation_code AS code,
+        (quote.total_amount - quote.discount + quote.total_vat) AS amount,
+        quote.quotation_date AS date,
+        quote.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = quote.created_by) AS createdBy,
+        quote.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = quote.modified_by) AS modifiedBy,
+        quote.status AS statusNum
+        FROM quotations quote
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(quote.quotation_date) >= DATE(#{filter.dateFrom})
+            AND DATE(quote.quotation_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.createBy != null">
+            AND quote.created_by = #{filter.createBy}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ORDER BY quote.quotation_code ASC, quote.created ASC
+    </select>
+
+    <select id="getListAuditTrailBySaleInvoice" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        so.id AS id,
+        'Invoice' AS type,
+        so.so_code AS code,
+        (so.total_amount - so.discount + so.total_vat) AS amount,
+        so.order_date AS date,
+        so.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = so.created_by) AS createdBy,
+        so.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = so.modified_by) AS modifiedBy,
+        status AS statusNum
+        FROM sales_orders so
+        WHERE so.is_pos = 0
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(so.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(so.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.createBy != null">
+            AND so.created_by = #{filter.createBy}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ORDER BY created ASC
+    </select>
+
+    <select id="getListAuditTrailBySaleOrder" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        saleOrder.id AS id,
+        'Sale Order' AS type,
+        saleOrder.order_code AS code,
+        (saleOrder.total_amount - saleOrder.discount + saleOrder.total_vat) AS amount,
+        saleOrder.order_date AS date,
+        saleOrder.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = saleOrder.created_by) AS createdBy,
+        saleOrder.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = saleOrder.modified_by) AS modifiedBy,
+        saleOrder.status AS statusNum
+        FROM orders saleOrder
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(saleOrder.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(saleOrder.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.createBy != null">
+            AND saleOrder.created_by = #{filter.createBy}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ORDER BY order_code, created ASC
+    </select>
+
+    <select id="getListAuditTrailByPOS" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        so.id AS id,
+        'Invoice POS' AS type,
+        so.so_code AS code,
+        (so.total_amount - so.discount + so.total_vat) AS amount,
+        so.order_date AS date,
+        so.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = so.created_by) AS createdBy,
+        so.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = so.modified_by) AS modifiedBy,
+        CASE
+        WHEN so.status = -1 THEN "Modified"
+        WHEN so.status = 0 THEN "Void"
+        WHEN (so.status = 1 OR so.status = 2) THEN "Prior"
+        ELSE "Latest"
+        END AS status
+        FROM sales_orders so
+        WHERE so.is_pos = 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(so.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(so.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.createBy != null">
+            AND so.created_by = #{filter.createBy}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND so.branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        ORDER BY
+        so.created ASC;
+    </select>
+
+    <select id="getListAuditTrailByCreditMemo" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        cm.id AS id,
+        'Credit Memo' AS type,
+        cm.cm_code AS code,
+        (total_amount - discount + total_vat) AS amount,
+        cm.order_date AS date,
+        cm.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = cm.created_by) AS createdBy,
+        cm.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = cm.modified_by) AS modifiedBy,
+        status AS statusNum
+        FROM credit_memos cm
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(cm.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(cm.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND cm.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByDelivery" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        dv.id AS id,
+        'Delivery' AS type,
+        dv.code AS code,
+        dv.date AS date,
+        0 AS amount,
+        dv.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = dv.created_by) AS createdBy,
+        dv.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = dv.modified_by) AS modifiedBy,
+        status AS statusNum
+        FROM deliveries dv
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(dv.date) >= DATE(#{filter.dateFrom})
+            AND DATE(dv.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND dv.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByReceivePayment" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        rp.id AS id,
+        'Receive Payment' AS type,
+        rp.reference AS code,
+        rp.date AS date,
+        (SELECT IFNULL(SUM(paid), 0)
+        FROM receive_payment_details
+        WHERE receive_payment_id = rp.id
+        ) AS amount,
+        rp.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = rp.created_by) AS createdBy,
+        rp.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = rp.modified_by
+        ) AS modifiedBy,
+        is_active AS statusNum
+        FROM receive_payments rp
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(rp.date) >= DATE(#{filter.dateFrom})
+            AND DATE(rp.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND rp.created_by = #{filter.createBy}
+        </if>
+    </select>
+    <select id="getListAuditTrailByAdjustment" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        adj.id AS id,
+        'Adjustment' AS type,
+        adj.reference AS code,
+        adj.date AS date,
+        adj.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = adj.created_by) AS createdBy,
+        adj.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = adj.modified_by) AS modifiedBy,
+        status AS statusNum
+        FROM cycle_products adj
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(adj.date) >= DATE(#{filter.dateFrom})
+            AND DATE(adj.date) &lt;=  DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND adj.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByTransferOrder" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        tf.id AS id,
+        'Transfer Order' AS type,
+        tf.to_code AS code,
+        tf.order_date AS date,
+        tf.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = tf.created_by) AS createdBy,
+        tf.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = tf.modified_by) AS modified_name,
+        --         CASE
+        --             WHEN status = -1 THEN "Modified"
+        --             WHEN status = 0 THEN "Void"
+        --             WHEN (status = 2 OR status = 3) THEN "Prior"
+        --             ELSE "Latest"
+        --         END AS status
+        status AS statusNum
+        FROM transfer_orders tf
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(tf.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(tf.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND tf.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByPurchaseOrder" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        pr.id AS id,
+        'Purchase Order' AS type,
+        pr.pr_code AS code,
+        (pr.total_amount + pr.total_vat) AS amount,
+        pr.order_date AS date,
+        pr.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.created_by) AS createdBy,
+        pr.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.modified_by) AS modifiedBy,
+        --         CASE
+        --             WHEN status = -1 THEN "Modified"
+        --             WHEN status = 0 THEN "Void"
+        --             WHEN (status = 2 OR status = 3) THEN "Prior"
+        --             ELSE "Latest"
+        --         END AS status
+        status AS statusNum
+        FROM purchase_requests pr
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(pr.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(pr.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND pr.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByPurchaseBill" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        po.id AS id,
+        'Purchase Bill' AS type,
+        po.po_code AS code,
+        (po.total_amount - po.discount_amount + po.total_vat) AS amount,
+        po.order_date AS date,
+        po.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = po.created_by) AS createdBy,
+        po.modified AS modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = po.modified_by) AS modifiedBy,
+        status AS statusNum
+        FROM purchase_orders po
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(po.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(po.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND po.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByPurchaseReceive" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        purchase_receive_results.id AS id,
+        'Purchase Receive' AS type,
+        purchase_receive_results.code AS code,
+        (po.total_amount - po.discount_amount + po.total_vat) AS amount,
+        pr.received_date AS date,
+        pr.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.created_by) AS createdBy,
+        pr.modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.modified_by) AS modifiedBy,
+        pr.status AS statusNum
+        FROM purchase_receives pr
+        INNER JOIN purchase_orders po ON po.id = pr.purchase_order_id
+        INNER JOIN purchase_receive_results ON purchase_receive_results.id = pr.purchase_receive_result_id
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(pr.received_date) >= DATE(#{filter.dateFrom})
+            AND DATE(pr.received_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND pr.branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND pr.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByBillReturn" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        pr.id AS id,
+        'Bill Return' AS type,
+        pr.pr_code AS code,
+        (pr.total_amount + pr.total_vat) AS amount,
+        pr.order_date AS date,
+        pr.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.created_by) AS created_name,
+        pr.modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.modified_by) AS modifiedBy,
+        pr.status AS statusNum
+        FROM purchase_returns pr
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(pr.order_date) >= DATE(#{filter.dateFrom})
+            AND DATE(pr.order_date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND pr.branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND pr.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListAuditTrailByBill" parameterType="com.ut.nlSystemAPi.model.filter.AuditTrailReportFilter" resultMap="AuditTrailReportResponse">
+        SELECT
+        pr.id AS id,
+        'Pay Bill' AS type,
+        pr.reference AS code,
+        (SELECT IFNULL(SUM(paid), 0) FROM pay_bill_details WHERE pay_bill_id = pr.id) AS amount,
+        pr.date AS date,
+        pr.created AS created,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.created_by) AS created_name,
+        pr.modified,
+        (SELECT CONCAT(users.first_name, ' ', users.last_name)
+        FROM users
+        WHERE id = pr.modified_by) AS modifiedBy,
+        pr.is_active AS statusNum
+        FROM pay_bills pr
+        WHERE 1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(pr.date) >= DATE(#{filter.dateFrom})
+            AND DATE(pr.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size > 0">
+            AND pr.branch_id IN
+            <foreach item="id" collection="filter.branchId" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        <if test="filter.createBy != null">
+            AND pr.created_by = #{filter.createBy}
+        </if>;
+    </select>
+
+    <select id="getListARDetail" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ARDetailReportResponse">
+        SELECT
+        sales_orders.id AS id,
+        'Invoice' AS type,
+        sales_orders.order_date AS date,
+        sales_orders.due_date AS dueDate,
+        branches.name AS branchName,
+        branches.id AS branchId,
+        sales_orders.so_code AS invoiceNo,
+        sales_orders.customer_po_number AS customerPoNumber,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS customerName,
+        customers.customer_code AS customerId,
+        payment_terms.name AS terms,
+        (DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) AS aging,
+        sales_orders.balance AS openBalance
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        LEFT JOIN payment_terms ON payment_terms.id = sales_orders.payment_term_id
+        LEFT JOIN branches ON branches.id = sales_orders.branch_id
+        WHERE sales_orders.status > 0 AND sales_orders.balance > 0
+        <if test="fromValue != null">
+            AND (DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) >= #{fromValue} AND (DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) &lt;= #{toValue}
+        </if>
+        <if test="fromValue == null">
+            AND (DATEDIFF(#{filter.date}, sales_orders.order_date) - payment_terms.net_days) >= #{toValue}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND sales_orders.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.location_group_id = #{filter.groupId}
+        </if>
+        ORDER BY sales_orders.due_date ASC
+    </select>
+
+    <select id="getListARDetailByTermRange" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ARDetailReportResponse">
+        SELECT
+        sales_orders.id AS id,
+        'Invoice' AS type,
+        sales_orders.order_date AS date,
+        sales_orders.due_date AS dueDate,
+        branches.name AS branchName,
+        branches.id AS branchId,
+        sales_orders.so_code AS invoiceNo,
+        sales_orders.customer_po_number AS customerPoNumber,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS customerName,
+        customers.customer_code AS customerId,
+        payment_terms.name AS terms,
+        (DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) AS netDays,
+        sales_orders.balance AS openBalance
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        LEFT JOIN payment_terms ON payment_terms.id = sales_orders.payment_term_id
+        LEFT JOIN branches ON branches.id = sales_orders.branch_id
+        WHERE sales_orders.status > 0
+        AND sales_orders.balance > 0
+        <if test="fromNetDay != null and toNetDay != null">
+            AND ABS(DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) >= #{fromNetDay}
+            AND ABS(DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) &lt;= #{toNetDay}
+        </if>
+        <if test="toNetDay == null">
+            AND ABS(DATEDIFF(#{filter.date}, sales_orders.order_date) - IFNULL(payment_terms.net_days, 0)) >= #{fromNetDay}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND sales_orders.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.groupId != null and filter.groupId != 0">
+            AND sales_orders.location_group_id = #{filter.groupId}
+        </if>
+        ORDER BY payment_terms.net_days ASC, sales_orders.due_date ASC
+    </select>
+    <select id="getListAPDetailByTermRange" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ApListDetailReportResponse">
+        SELECT
+        po.id AS id,
+        'Bill' AS type,
+        po.order_date AS date,
+        po.due_date AS dueDate,
+        branches.name AS branchName,
+        branches.id AS branchId,
+        po.po_code AS invoiceNo,
+        CONCAT_WS(' - ', v.vendor_code, v.name) AS vendorName,
+        v.vendor_code AS vendorId,
+        payment_terms.name AS terms,
+        payment_terms.net_days AS netDays,
+        po.balance AS openBalance
+        FROM purchase_orders po
+        LEFT JOIN vendors v ON v.id = po.vendor_id
+        LEFT JOIN payment_terms ON payment_terms.id = v.payment_term_id
+        LEFT JOIN branches ON branches.id = po.branch_id
+        WHERE po.status > 0
+        AND po.balance > 0
+        <if test="fromNetDay != null and toNetDay != null">
+            AND ABS(DATEDIFF(#{filter.date}, po.order_date) - IFNULL(payment_terms.net_days, 0)) >= #{fromNetDay}
+            AND ABS(DATEDIFF(#{filter.date}, po.order_date) - IFNULL(payment_terms.net_days, 0)) &lt;= #{toNetDay}
+        </if>
+        <if test="toNetDay == null">
+            AND ABS(DATEDIFF(#{filter.date}, po.order_date) - IFNULL(payment_terms.net_days, 0)) >= #{fromNetDay}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND po.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND po.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.groupId != null and filter.groupId != 0">
+            AND po.location_group_id = #{filter.groupId}
+        </if>
+        <if test="filter.userId != null">
+            AND po.company_id IN
+            (
+            SELECT company_id FROM user_companies WHERE user_id = #{filter.userId}
+            )
+        </if>
+        ORDER BY payment_terms.net_days ASC, po.due_date ASC
+    </select>
+    <select id="findGrandTotalAR" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultType="java.lang.Double">
+        SELECT
+            SUM(balance)
+        FROM
+            sales_orders
+        WHERE
+            sales_orders.status > 0
+          AND sales_orders.due_date = #{filter.date}
+    </select>
+
+    <select id="getListARDetailAll" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ARDetailReportResponse">
+        SELECT
+        sales_orders.id AS id,
+        'invoice' AS type,
+        sales_orders.order_date AS date,
+        sales_orders.due_date AS duDate,
+        branches.name AS branchName,
+        branches.id AS branchId,
+        sales_orders.so_code AS invoiceNo,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS customerName,
+        customers.customer_code AS customerId,
+        payment_terms.name AS terms,
+        DATEDIFF(NOW(), sales_orders.due_date) AS aging,
+        sales_orders.balance AS openBalance
+        FROM
+        sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        LEFT JOIN payment_terms ON payment_terms.id = sales_orders.payment_term_id
+        LEFT JOIN branches ON branches.id = sales_orders.branch_id
+        WHERE
+        sales_orders.status > 0
+        AND sales_orders.due_date &lt;= #{filter.date}
+        AND DATEDIFF(NOW(), sales_orders.order_date) >= #{toValue}
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND sales_orders.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.location_group_id = #{filter.groupId}
+        </if>
+    </select>
+
+    <select id="getARGraphDetail" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ARDetailReportResponse">
+        SELECT
+        customers.id AS customerId,
+        customers.name AS customerName,
+        SUM(sales_orders.balance) AS amount
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        WHERE sales_orders.status > 0 AND sales_orders.balance > 0
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND sales_orders.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.date != null and filter.date != ''">
+            AND sales_orders.due_date &lt;= DATE(#{filter.date})
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.location_group_id = #{filter.groupId}
+        </if>
+        GROUP BY sales_orders.customer_id;
+    </select>
+
+
+    <select id="getAPGraphDetail" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ApListDetailReportResponse">
+        SELECT
+        CONCAT_WS(' - ', v.vendor_code, v.name) AS vendorName,
+        v.id AS vendorId,
+        SUM(po.balance) AS amount
+        FROM purchase_orders po
+        INNER JOIN vendors v ON v.id = po.vendor_id
+        LEFT JOIN payment_terms pt ON pt.id = v.payment_term_id
+        LEFT JOIN branches b ON b.id = po.branch_id
+        WHERE po.status >0 AND po.balance > 0
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND sales_orders.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.date != null and filter.date != ''">
+            AND po.due_date &lt;= DATE(#{filter.date})
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.groupId != null and filter.groupId != 0">
+            AND sales_orders.location_group_id = #{filter.groupId}
+        </if>
+        GROUP BY po.vendor_id;
+    </select>
+
+    <select id="getListAPDetail" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ApListDetailReportResponse">
+        SELECT
+        po.id AS id,
+        'Bill' AS type,
+        po.order_date AS date,
+        po.due_date AS dueDate,
+        b.name AS branchName,
+        b.id AS branchId,
+        po.po_code AS invoiceNo,
+        CONCAT_WS(' - ', v.vendor_code, v.name) AS vendorName,
+        v.vendor_code AS vendorId,
+        pt.name AS terms,
+        (DATEDIFF(#{filter.date}, po.order_date) - pt.net_days) AS aging,
+        po.balance AS openBalance,
+        po.note AS note
+        FROM purchase_orders po
+        LEFT JOIN vendors v ON v.id = po.vendor_id
+        LEFT JOIN payment_terms pt ON pt.id = v.payment_term_id
+        LEFT JOIN branches b ON b.id = po.branch_id
+        WHERE po.status > 0 AND po.balance > 0
+        <if test="fromValue != null and fromValue != null">
+            AND (DATEDIFF(#{filter.date}, po.order_date) - pt.net_days) >= #{fromValue} AND (DATEDIFF(#{filter.date}, po.order_date) - pt.net_days ) &lt;= #{toValue}
+        </if>
+        <if test="fromValue == null">
+            AND (DATEDIFF(#{filter.date}, po.order_date) - pt.net_days) >= #{toValue}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND po.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND po.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.groupId != null and filter.groupId != 0">
+            AND po.location_group_id = #{filter.groupId}
+        </if>
+        ORDER BY po.order_date ASC
+    </select>
+
+    <select id="getListAPDetailAll" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ApListDetailReportResponse">
+        SELECT
+        po.id AS id,
+        'Bill' AS type,
+        po.order_date AS date,
+        po.due_date AS dueDate,
+        b.name AS branchName,
+        b.id AS branchId,
+        po.po_code AS PBNo,
+        CONCAT_WS(' - ', v.vendor_code, v.name) AS vendorName,
+        v.id AS vendorId,
+        pt.name AS terms,
+        DATEDIFF(NOW(), po.order_date) AS aging,
+        po.balance AS openBalance,
+        po.note AS note
+        FROM purchase_orders po
+        INNER JOIN vendors v ON v.id = po.vendor_id
+        LEFT JOIN payment_terms pt ON pt.id = v.payment_term_id
+        LEFT JOIN branches b ON b.id = po.branch_id
+        WHERE po.order_date &lt;=#{filter.date}
+        AND po.status > 0
+        AND DATEDIFF(NOW(), po.order_date) >= #{toValue}
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND sales_orders.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.groupId != null and filter.groupId != 0">
+            AND sales_orders.location_group_id = #{filter.groupId}
+        </if>
+    </select>
+    <select id="createTable" parameterType="java.lang.String">
+        CREATE TABLE IF NOT EXISTS `${tableName}` (
+                                                      `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `date` DATE DEFAULT NULL,
+            `chart_account_id` INT(11) DEFAULT NULL,
+            `company_id` INT(11) DEFAULT NULL,
+            `location_id` INT(11) DEFAULT NULL,
+            `debit` DOUBLE DEFAULT NULL,
+            `credit` DOUBLE DEFAULT NULL,
+            `customer_id` BIGINT(20) DEFAULT NULL,
+            `vendor_id` BIGINT(20) DEFAULT NULL,
+            `employee_id` BIGINT(20) DEFAULT NULL,
+            `other_id` BIGINT(20) DEFAULT NULL,
+            `class_id` BIGINT(20) DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `chart_account_id` (`chart_account_id`),
+            KEY `company_id` (`company_id`),
+            KEY `location_id` (`location_id`),
+            KEY `date` (`date`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+    </select>
+
+    <select id="getListProfitLoss" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ProfitLossReportResponse">
+        SELECT
+        SUM(debit) AS debit,
+        SUM(credit) AS credit,
+        `date` AS date,
+        chart_account_id AS chartAccountId,
+        company_id AS companyId,
+        location_id AS locationId,
+        customer_id AS customerId,
+        vendor_id AS vendorId,
+        employee_id AS employeeId,
+        other_id AS otherId,
+        class_id AS classId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND is_retained_earnings = 0
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND DATE(gl.date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(gl.date) &lt;= #{filter.dateTo}
+        </if>
+        GROUP BY `date`, chart_account_id, company_id, location_id, customer_id, vendor_id, employee_id, other_id, class_id
+    </select>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.ProfitLossReport" useGeneratedKeys="true" keyProperty="profitLoss.id">
+        INSERT INTO ${tableName} (
+            `date`,
+            `chart_account_id`,
+            `company_id`,
+            `location_id`,
+            `debit`,
+            `credit`,
+            `customer_id`,
+            `vendor_id`,
+            `employee_id`,
+            `other_id`,
+            `class_id`
+        ) VALUES (
+                     #{profitLoss.date},
+                     #{profitLoss.chartAccountId},
+                     #{profitLoss.companyId},
+                     #{profitLoss.locationId},
+                     #{profitLoss.debit},
+                     #{profitLoss.credit},
+                     #{profitLoss.customerId},
+                     #{profitLoss.vendorId},
+                     #{profitLoss.employeeId},
+                     #{profitLoss.otherId},
+                     #{profitLoss.classId}
+                 )
+    </insert>
+    <select id="dropTable" parameterType="java.lang.String">
+        DROP TABLE IF EXISTS `${tableName}`;
+    </select>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP">
+        IFNULL(
+        (
+        SELECT  SUM(debit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND DATE(date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(credit)  FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND DATE(date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) * -1 AS totalAmount
+    </sql>
+
+    <select id="getAccountGroupDetailIncome" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail"   >
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Income')
+        ORDER BY t.id
+    </select>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT">
+        IFNULL(
+        (
+        SELECT SUM(debit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = chart_accounts.id
+        AND date >= #{filter.dateFrom} AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(credit)  FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = chart_accounts.id
+        AND date >= #{filter.dateFrom} AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) * -1 AS totalAmount
+    </sql>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_ACCOUNT_COST">
+        IFNULL(
+        (
+        SELECT SUM(debit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = chart_accounts.id
+        AND date >= #{filter.dateFrom} AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(credit)  FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = chart_accounts.id
+        AND date >= #{filter.dateFrom} AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getChartAccountByGroupId" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="chartAccountDetail">
+        SELECT
+        id AS charAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT"/>
+        FROM chart_accounts
+        WHERE is_active=1
+        AND chart_account_group_id= #{groupId}
+        <if test="filter.emptyValue == 1">
+              HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <select id="getChartAccountCostByGroupId" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="chartAccountDetail">
+        SELECT
+        id AS charAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACCOUNT_COST"/>
+        FROM chart_accounts
+        WHERE is_active=1
+        AND chart_account_group_id= #{groupId}
+        <if test="filter.emptyValue == 1">
+              HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <sql id="BASE_WHERE_TOTAL_AMOUNT_DURATION">
+        <if test="filter.column == 1">
+            AND date = bl1.date
+        </if>
+        <if test="filter.column == 2">
+            AND WEEK(date) = WEEK(bl1.date)
+        </if>
+        <if test="filter.column == 3">
+            AND MONTH(date) = MONTH(bl1.date)
+        </if>
+        <if test="filter.column == 4">
+            AND QUARTER(date) = QUARTER(bl1.date)
+        </if>
+        <if test="filter.column == 5">
+            AND CEIL(MONTH(date) / 6.0) = CEIL(MONTH(bl1.date) / 6.0)
+        </if>
+        <if test="filter.column == 6">
+            AND YEAR(date) = YEAR(bl1.date)
+        </if>
+        <if test="filter.column == 7">
+            AND class_id = bl1.class_id
+        </if>
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+    </sql>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_DURATION">
+        IFNULL(
+        (
+        SELECT SUM(debit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = #{chartAccountId}
+        <include refid="BASE_WHERE_TOTAL_AMOUNT_DURATION"/>
+        ) - (
+        SELECT SUM(credit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = #{chartAccountId}
+        <include refid="BASE_WHERE_TOTAL_AMOUNT_DURATION"/>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getChartAccountById" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="ChartAccountSubDetail">
+        SELECT
+        CASE
+        WHEN (SELECT name FROM classes WHERE id = bl1.class_id) IS NULL THEN 'Unclassified'
+        ELSE (SELECT name FROM classes WHERE id = bl1.class_id)
+        END AS className,
+        bl1.date AS date,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_DURATION"/>
+        FROM chart_accounts
+        LEFT JOIN general_ledger_detail_bl_#{filter.userId} AS bl1 ON bl1.chart_account_id = chart_accounts.id
+        WHERE chart_accounts.is_active = 1 AND bl1.date IS NOT NULL
+        <if test="filter.column == 1">
+            GROUP BY bl1.date
+        </if>
+        <if test="filter.column == 2">
+            GROUP BY WEEK(bl1.date)
+        </if>
+        <if test="filter.column == 3">
+            GROUP BY MONTH(bl1.date)
+        </if>
+        <if test="filter.column == 4">
+            GROUP BY QUARTER(bl1.date)
+        </if>
+        <if test="filter.column == 5">
+            GROUP BY CEIL(MONTH(bl1.date) / 6.0)
+        </if>
+        <if test="filter.column == 6">
+            GROUP BY YEAR(bl1.date)
+        </if>
+        <if test="filter.column == 7">
+            GROUP BY bl1.class_id
+        </if>
+        <!--        <if test="filter.emptyValue == 1">-->
+        <!--              HAVING totalAmount IS NOT NULL-->
+        <!--        </if>-->
+        ORDER BY bl1.date
+    </select>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_DURATION_REVENUE">
+        IFNULL(
+        (
+        SELECT SUM(credit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = #{chartAccountId}
+        <include refid="BASE_WHERE_TOTAL_AMOUNT_DURATION"/>
+        ) - (
+        SELECT SUM(debit)  FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id = #{chartAccountId}
+        <include refid="BASE_WHERE_TOTAL_AMOUNT_DURATION"/>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getChartAccountRevenueById" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="ChartAccountSubDetail">
+        SELECT
+        CASE
+        WHEN (SELECT name FROM classes WHERE id = bl1.class_id) IS NULL THEN 'Unclassified'
+        ELSE (SELECT name FROM classes WHERE id = bl1.class_id)
+        END AS className,
+        bl1.date AS date,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_DURATION_REVENUE"/>
+        FROM chart_accounts
+        LEFT JOIN general_ledger_detail_bl_#{filter.userId} AS bl1 ON bl1.chart_account_id = chart_accounts.id
+        WHERE chart_accounts.is_active = 1 AND bl1.date IS NOT NULL
+        <if test="filter.column == 1">
+            GROUP BY bl1.date
+        </if>
+        <if test="filter.column == 2">
+            GROUP BY WEEK(bl1.date)
+        </if>
+        <if test="filter.column == 3">
+            GROUP BY MONTH(bl1.date)
+        </if>
+        <if test="filter.column == 4">
+            GROUP BY QUARTER(bl1.date)
+        </if>
+        <if test="filter.column == 5">
+            GROUP BY CEIL(MONTH(bl1.date) / 6.0)
+        </if>
+        <if test="filter.column == 6">
+            GROUP BY YEAR(bl1.date)
+        </if>
+        <if test="filter.column == 7">
+            GROUP BY bl1.class_id
+        </if>
+        <!--        <if test="filter.emptyValue == 1">-->
+        <!--              HAVING totalAmount IS NOT NULL-->
+        <!--        </if>-->
+        ORDER BY bl1.date
+    </select>
+
+
+
+    <!--    By Column-->
+    <sql id="CONDITION_COLUMN_DATE">
+        <if test="filter.column == 1">
+            AND date = bl1.date
+        </if>
+        <if test="filter.column == 2">
+            AND WEEK(date) = WEEK(bl1.date)
+        </if>
+        <if test="filter.column == 3">
+            AND MONTH(date) = MONTH(bl1.date)
+        </if>
+        <if test="filter.column == 4">
+            AND QUARTER(date) = QUARTER(bl1.date)
+        </if>
+        <if test="filter.column == 5">
+            AND CEIL(MONTH(date) / 6.0) = CEIL(MONTH(bl1.date) / 6.0)
+        </if>
+        <if test="filter.column == 6">
+            AND YEAR(date) = YEAR(bl1.date)
+        </if>
+    </sql>
+
+    <sql id="CONDITION_COLUMN">
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+    </sql>
+
+    <sql id="BASE_FIND_TOTAL_BY_COLUMN">
+        IFNULL(
+        (
+        SELECT SUM(debit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_group_id IN (#{chartAccountGroupId}))
+        <include refid="CONDITION_COLUMN_DATE"/>
+        <include refid="CONDITION_COLUMN"/>
+        ) + (
+        SELECT SUM(credit)  FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_group_id IN (#{chartAccountGroupId}))
+        <include refid="CONDITION_COLUMN_DATE"/>
+        <include refid="CONDITION_COLUMN"/>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getBalanceByColumn" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="ChartAccountSubDetail">
+        SELECT
+        bl1.date AS date,
+        <include refid="BASE_FIND_TOTAL_BY_COLUMN"/>
+        FROM chart_accounts
+        LEFT JOIN general_ledger_detail_bl_#{filter.userId} AS bl1 ON bl1.chart_account_id = chart_accounts.id
+        WHERE chart_accounts.is_active = 1
+        <if test="filter.column == 1">
+            GROUP BY bl1.date
+        </if>
+        <if test="filter.column == 2">
+            GROUP BY WEEK(bl1.date)
+        </if>
+        <if test="filter.column == 3">
+            GROUP BY MONTH(bl1.date)
+        </if>
+        <if test="filter.column == 4">
+            GROUP BY QUARTER(bl1.date)
+        </if>
+        <if test="filter.column == 5">
+            GROUP BY CEIL(MONTH(bl1.date) / 6.0)
+        </if>
+        <if test="filter.column == 6">
+            GROUP BY YEAR(bl1.date)
+        </if>
+        ORDER BY bl1.date
+    </select>
+
+    <!--    Account Group-->
+    <select id="getChartAccountByGroupIdAndParent" resultMap="chartAccountDetail">
+        SELECT
+            id AS charAccountId,
+            (SELECT id FROM chart_accounts WHERE id = coa.parent_id) AS parentId,
+            (SELECT CONCAT_WS(' ', account_codes, '·', account_description) FROM chart_accounts WHERE id = coa.parent_id) AS parentName,
+            CONCAT_WS(' ', account_codes, '·', account_description) AS chartAccountName
+        FROM
+            chart_accounts coa
+        WHERE
+            is_active = 1
+          AND chart_account_group_id = #{groupId}
+        HAVING totalAmount > 0
+        ORDER BY  parentName, account_codes;
+
+    </select>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_COST">
+        IFNULL(
+        (
+        SELECT  SUM(debit) FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND DATE(date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(credit)  FROM general_ledger_detail_bl_#{filter.userId}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND DATE(date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getAccountGroupDetailCostOfGoodsSold" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_COST"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+        WHERE g.is_active=1 AND t.name IN ('Cost of Goods Sold')
+        <if test="filter.emptyValue == 1">
+              HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupDetailGrossProfit" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_COST"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense') AND g.is_depreciation NOT IN (2,3)
+        <if test="filter.emptyValue == 1">
+              HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupDetailNetOrdinaryIncome" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Income')
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalOtherRevenue" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Income') AND g.is_depreciation NOT IN (2,3)
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalOtherExpend" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_COST"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Expense')
+        <if test="filter.emptyValue == 1">
+              HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalEarningsBeforeInterestAndTax" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+               g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense','Other Expense') AND g.is_depreciation IN (2)
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalCurrentAsset"  parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+               g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Cash and Bank','Accounts receivable','Other Current Asset')
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalFixedAsset" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+               g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Fixed Asset')
+        ORDER BY t.id
+    </select>
+    <select id="getAccountGroupTotalAsset" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+               g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Accounts Payable','Credit Card','Other Current Liability')
+        ORDER BY t.id
+    </select>
+
+
+    <select id="getAccountGroupTotalEarningsBeforeTax" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+            g.id AS accountGroupId,
+            g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense','Other Expense') AND g.is_depreciation IN (2,3)
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalTaxExpend" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_COST"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense') AND g.name IN ('Tax Expense')
+        ORDER BY t.id
+    </select>
+
+
+    <select id="getAccountGroupTotalCurrentLiability" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+               g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Long Term Liability')
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalLongTermLiability" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+               g.name AS accountGroupName
+        FROM chart_account_groups g
+                 INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Equity')
+        ORDER BY t.id
+    </select>
+
+    <sql id="WHERE_FIND_TOTAL_AMOUNT">
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gl.date >= #{filter.dateFrom}AND gl.date  &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </sql>
+
+    <sql id="FIND_TOTAL_AMOUNT">
+        SUM(IFNULL(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT"/>
+        ), 0
+        )
+        -
+        IFNULL(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT"/>
+        ), 0
+        )) AS totalAmount
+    </sql>
+
+    <sql id="FIND_TOTAL_AMOUNT_CREDIT">
+        SUM(IFNULL(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT"/>
+        ), 0
+        )
+        -
+        IFNULL(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT"/>
+        ), 0
+        )) AS totalAmount
+    </sql>
+
+    <sql id="FIND_TOTAL_NET_INCOME_AMOUNT">
+        SUM(IFNULL(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gl.date >= #{filter.dateFrom}AND gl.date  &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        ), 0
+        )
+        -
+        IFNULL(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.date >= #{filter.dateFrom}AND gl.date  &lt;= #{filter.dateTo}
+        AND gl.is_active = 1
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+
+        ), 0
+        )) AS totalAmount
+    </sql>
+
+
+    <sql id="FIND_TOTAL_AMOUNT_OPERATING">
+        (
+        COALESCE(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN
+        (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gl.date >= #{filter.dateFrom}
+        AND gl.date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        ), 0
+        )
+        -
+        COALESCE(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN
+        (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gl.date >= #{filter.dateFrom}
+        AND gl.date &lt;= #{filter.dateTo}
+
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        ), 0
+        )
+        ) AS totalAmount
+    </sql>
+
+    <sql id="FIND_TOTAL_AMOUNT_CHART_ACCOUNT">
+        (
+
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        -
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        ) AS totalAmount
+    </sql>
+
+    <sql id="BASE_WHERE_CHART_ACCOUNT_CASH_BANK">
+        WHERE gld.chart_account_id = chart_accounts.id
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND (YEAR(gl.date) &lt; YEAR(#{filter.dateTo})
+        OR (YEAR(gl.date) = YEAR(#{filter.dateTo}) AND MONTH(gl.date) &lt;= MONTH(#{filter.dateTo})))
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </sql>
+
+
+    <sql id="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_CASH_BANK">
+        (
+        COALESCE(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT_CASH_BANK"/>
+        ), 0
+        )
+        -
+        COALESCE(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT_CASH_BANK"/>
+        ), 0
+        )
+        ) AS totalAmount
+
+    </sql>
+
+    <sql id="BASE_WHERE_CHART_ACCOUNT">
+        WHERE gld.chart_account_id = chart_accounts.id
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gl.date >= #{filter.dateFrom}
+        AND gl.date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </sql>
+
+    <sql id="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_OPERATION_AC">
+        (
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        -
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        ) AS totalAmount
+    </sql>
+
+    <select id="getListCashFlowOperating" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="cashFlowReportResponse">
+        SELECT
+        g.id AS groupId,
+        CONCAT(' (Increase)/Decrease in ' , g.name) AS  groupName,
+        <include refid="FIND_TOTAL_AMOUNT_OPERATING"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active = 1
+        AND t.name IN ('Accounts receivable','Other Current Asset', 'Other Current Liability', 'Accounts Payable')
+          HAVING totalAmount IS NOT NULL
+        ORDER BY t.id
+    </select>
+
+    <select id="getNetInCom" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultType="java.lang.Double">
+        SELECT
+        <include refid="FIND_TOTAL_NET_INCOME_AMOUNT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Income','Other Income','Cost of Goods Sold','Expense','Other Expense')
+        ORDER BY t.id
+    </select>
+
+    <select id="getNetInComeByMonth" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountSubDetail">
+        SELECT
+        months.date,
+        SUM(
+        IFNULL(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND DATE_FORMAT(gl.date, '%Y-%m') = DATE_FORMAT(months.date, '%Y-%m')
+        <include refid="BASE_WHERE_BY_MONTH"/>
+        ), 0
+        )
+        -
+        IFNULL(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND DATE_FORMAT(gl.date, '%Y-%m') = DATE_FORMAT(months.date, '%Y-%m')
+        <include refid="BASE_WHERE_BY_MONTH"/>
+        ), 0
+        )
+        ) AS totalAmount
+        FROM (
+        SELECT DATE_FORMAT(DATE_ADD(#{filter.dateFrom}, INTERVAL month_num.n MONTH), '%Y-%m-01') AS date
+        FROM (
+        SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+        UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+        UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
+        ) month_num
+        WHERE DATE_ADD(#{filter.dateFrom}, INTERVAL month_num.n MONTH) &lt;= #{filter.dateTo}
+        ) months
+        CROSS JOIN chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+        WHERE g.is_active = 1
+        AND t.name IN ('Income','Other Income','Cost of Goods Sold','Expense','Other Expense')
+        GROUP BY months.date
+        ORDER BY months.date
+    </select>
+
+    <select id="getListOperationChartAccount" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountResponse">
+        SELECT
+        id AS chartAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_OPERATION_AC"/>
+        FROM chart_accounts WHERE is_active=1 AND chart_account_group_id=#{groupId}
+        <if test="filter.emptyValue == 1">
+            HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <select id="getListChartAccount" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountResponse">
+        SELECT
+        id AS chartAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="FIND_TOTAL_AMOUNT_CHART_ACCOUNT"/>
+        FROM chart_accounts WHERE is_active=1 AND chart_account_group_id=#{groupId}
+        HAVING totalAmount IS NOT NULL
+        ORDER BY account_codes
+    </select>
+
+    <sql id="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_CASH_BANK_PERIOD">
+        (
+        COALESCE(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT_CASH_BANK_PERIOD"/>
+        ), 0
+        )
+        -
+        COALESCE(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT_CASH_BANK_PERIOD"/>
+        ), 0
+        )
+        ) AS totalAmount
+
+    </sql>
+
+    <select id="getListChartAccountCashBankPeriod" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountResponse">
+        SELECT
+        id AS chartAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_CASH_BANK_PERIOD"/>
+        FROM chart_accounts WHERE is_active=1 AND chart_account_group_id=#{groupId}
+        <if test="filter.emptyValue != null and filter.companyId == 0">
+            HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <select id="getListChartAccountCashBank" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountResponse">
+        SELECT
+        id AS chartAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_CASH_BANK"/>
+        FROM chart_accounts WHERE is_active=1 AND chart_account_group_id=#{groupId}
+        <if test="filter.emptyValue != null and filter.companyId == 0">
+            HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <sql id="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_CREDIT">
+        (
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        -
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        ) AS totalAmount
+
+    </sql>
+
+    <sql id="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_DEBIT_ONLY">
+        -1 * (
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_CHART_ACCOUNT"/>
+        )
+        ) AS totalAmount
+    </sql>
+
+    <select id="getListChartAccountDebit" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountResponse">
+        SELECT
+        id AS chartAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_DEBIT_ONLY"/>
+        FROM chart_accounts WHERE is_active=1 AND chart_account_group_id=#{groupId}
+        <if test="filter.emptyValue == 1">
+            HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <select id="getListChartAccountCredit" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountResponse">
+        SELECT
+        id AS chartAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="FIND_TOTAL_AMOUNT_CHART_ACCOUNT_CREDIT"/>
+        FROM chart_accounts WHERE is_active=1 AND chart_account_group_id=#{groupId}
+        <if test="filter.emptyValue == 1">
+            HAVING totalAmount IS NOT NULL AND totalAmount &lt;&gt; 0
+        </if>
+        ORDER BY account_codes
+    </select>
+
+    <select id="getListCashFlowInvesting" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="cashFlowReportResponse">
+        SELECT g.id AS groupId,
+        g.name AS groupName,
+        <include refid="FIND_TOTAL_AMOUNT_OPERATING"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN  ('Fixed Asset','Other Asset')
+        ORDER BY t.id
+    </select>
+
+    <select id="getListCashFlowFinancing" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="cashFlowReportResponse">
+        SELECT g.id AS groupId,
+        g.name AS groupName,
+        t.name AS typeName,
+        <include refid="FIND_TOTAL_AMOUNT_CREDIT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN  ('Long Term Liability','Equity', 'Borrowing', 'Repayment')
+        ORDER BY t.id
+    </select>
+
+    <select id="getListCashFlowCashBank" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="cashFlowReportResponse">
+        SELECT g.id AS groupId,
+        g.name AS groupName,
+        <include refid="FIND_TOTAL_AMOUNT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+        WHERE g.is_active = 1 AND t.name IN ('Cash and Bank')
+        ORDER BY t.id
+    </select>
+
+    <sql id="WHERE_FIND_TOTAL_AMOUNT_CASH_BANK_PERIOD">
+        WHERE gld.chart_account_id = chart_accounts.id
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND DATE(gl.date) &lt;= DATE_SUB(DATE(#{filter.dateFrom}),INTERVAL 1 DAY)
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </sql>
+
+    <sql id="FIND_TOTAL_AMOUNT_CASH_BANK_PERIOD">
+        SUM(IFNULL(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT_CASH_BANK_PERIOD"/>
+        ), 0
+        )
+        -
+        IFNULL(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="WHERE_FIND_TOTAL_AMOUNT_CASH_BANK_PERIOD"/>
+        ), 0
+        )) AS totalAmount
+    </sql>
+
+    <sql id="FIND_TOTAL_NET_INCOME_AMOUNT_STATEMENT">
+        SUM(IFNULL(
+        (SELECT SUM(debit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND (
+        YEAR(gl.date) &lt; YEAR(#{filter.dateTo})
+        OR (YEAR(gl.date) = YEAR(#{filter.dateTo}) AND MONTH(gl.date) &lt;= MONTH(#{filter.dateTo}))
+        )
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        ), 0
+        )
+        -
+        IFNULL(
+        (SELECT SUM(credit)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND gl.is_approve = 1
+        AND (
+        YEAR(gl.date) &lt; YEAR(#{filter.dateTo})
+        OR (YEAR(gl.date) = YEAR(#{filter.dateTo}) AND MONTH(gl.date) &lt;= MONTH(#{filter.dateTo}))
+        )
+        AND gl.is_active = 1
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        ), 0
+        )) AS totalAmount
+    </sql>
+
+    <select id="getListTotalPerStatement" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="cashFlowReportResponse">
+        SELECT g.id AS groupId,
+        g.name AS groupName,
+        <include refid="FIND_TOTAL_NET_INCOME_AMOUNT_STATEMENT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id = t.id
+        WHERE g.is_active = 1 AND t.name IN ('Cash and Bank')
+        ORDER BY t.id
+    </select>
+
+    <select id="findBeginningBalanceAmount" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultType="java.lang.Double">
+        SELECT SUM(debit)-SUM(credit)
+        FROM general_ledgers gl INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_active=1
+          AND is_approve=1
+          AND company_id= 1
+          AND chart_account_id=#{filter.chartAccountId}
+          AND is_reconcile=1
+          AND reconcile_id!=#{filter.ReconcileDateId}
+          AND (SELECT date FROM reconciles WHERE id=reconcile_id) &lt;= (SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+    </select>
+
+    <select id="findReconcileCheckPaymentDetails" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileReportFilter" resultMap="ReconcileCheckPaymentDetail">
+        SELECT
+        gl.id AS id,
+        gld.type AS typeName,
+        cus.id AS customerId,
+        CASE
+        WHEN gld.customer_id IS NOT NULL THEN COALESCE(cus.name, '')
+        WHEN gld.vendor_id IS NOT NULL THEN (SELECT name FROM vendors WHERE id=gld.vendor_id)
+        WHEN gld.employee_id IS NOT NULL THEN (SELECT name FROM employees WHERE id=gld.employee_id)
+        WHEN gld.other_id IS NOT NULL THEN (SELECT name FROM others WHERE id=gld.employee_id)
+        ELSE ""
+        END AS customerName,
+        gl.date AS date,
+        gl.reference AS reference,
+        gld.is_reconcile AS clear,
+        (gld.credit*-1) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        LEFT JOIN customers AS cus ON cus.id = gld.customer_id
+        WHERE credit>0
+        AND gl.is_active=1
+        AND gl.is_approve=1
+        AND gld.is_reconcile=1
+        AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = 1)
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id=#{filter.chartAccountId}
+        </if>
+        <if test="filter.ReconcileDateId != null and filter.ReconcileDateId != 0">
+            AND gld.reconcile_id=#{filter.ReconcileDateId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        ORDER BY date ASC, gl.id ASC
+    </select>
+
+    <select id="findReconcileDepositsCreditsDetails" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileReportFilter" resultMap="ReconcileDepositDetail">
+        SELECT
+        gl.id AS id,
+        gld.type AS typeName,
+        cus.id AS customerId,
+        CASE
+        WHEN gld.customer_id IS NOT NULL THEN COALESCE(cus.name, '')
+        WHEN gld.vendor_id IS NOT NULL THEN (SELECT name FROM vendors WHERE id=gld.vendor_id)
+        WHEN gld.employee_id IS NOT NULL THEN (SELECT name FROM employees WHERE id=gld.employee_id)
+        WHEN gld.other_id IS NOT NULL THEN (SELECT name FROM others WHERE id=gld.employee_id)
+        ELSE ""
+        END AS customerName,
+        gl.date AS date,
+        gl.reference AS reference,
+        gld.is_reconcile AS clear,
+        gld.debit AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        LEFT JOIN customers AS cus ON cus.id = gld.customer_id
+        WHERE debit>0
+        AND gl.is_active=1
+        AND gl.is_approve=1
+        AND gld.is_reconcile=1
+        AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        <if test="filter.chartAccountId != null and filter.chartAccountId != 0">
+            AND gld.chart_account_id=#{filter.chartAccountId}
+        </if>
+        <if test="filter.ReconcileDateId != null and filter.ReconcileDateId != 0">
+            AND gld.reconcile_id=#{filter.ReconcileDateId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId.size() > 0">
+            AND gld.branch_id IN
+            <foreach item="branchId" collection="filter.branchId" open="(" separator="," close=")">
+                #{branchId}
+            </foreach>
+        </if>
+        ORDER BY date ASC, gl.id ASC
+    </select>
+
+    <select id="findReconcileCheckPaymentTransactionsDetails" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileReportFilter" resultMap="ReconcileDepositTransactionDetail">
+        SELECT
+            gl.id AS id,
+            gld.type AS typeName,
+            cus.id AS customerId,
+            CASE
+                WHEN gld.customer_id IS NOT NULL THEN COALESCE(cus.name, '')
+                WHEN gld.vendor_id IS NOT NULL THEN (SELECT name FROM vendors WHERE id=gld.vendor_id)
+                WHEN gld.employee_id IS NOT NULL THEN (SELECT name FROM employees WHERE id=gld.employee_id)
+                WHEN gld.other_id IS NOT NULL THEN (SELECT name FROM others WHERE id=gld.employee_id)
+                ELSE ""
+                END AS customerName,
+            gl.date AS date,
+        gl.reference AS reference,
+        gld.is_reconcile AS clear,
+         (gld.credit*-1) AS amount
+        FROM general_ledgers gl
+            INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+            LEFT JOIN customers AS cus ON cus.id = gld.customer_id
+        WHERE credit>0
+          AND gl.is_active=1
+          AND gl.is_approve=1
+          AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND gld.chart_account_id=#{filter.chartAccountId}
+          AND (
+            gld. reconcile_id IS NULL
+           OR (
+            gld.is_reconcile=1
+          AND gld.reconcile_id!=#{filter.ReconcileDateId}
+          AND date&lt;(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+          AND (SELECT date FROM reconciles WHERE id=reconcile_id)>(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+            )
+            )
+          AND date>(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+        ORDER BY date ASC, gl.id ASC
+    </select>
+
+    <select id="findReconcileUnclearedTransactionsDetails" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileReportFilter" resultMap="ReconcileDepositTransactionDetail">
+        SELECT
+            gl.id AS id,
+            gld.type AS typeName,
+            cus.id AS customerId,
+            CASE
+                WHEN gld.customer_id IS NOT NULL THEN COALESCE(cus.name, '')
+                WHEN gld.vendor_id IS NOT NULL THEN (SELECT name FROM vendors WHERE id=gld.vendor_id)
+                WHEN gld.employee_id IS NOT NULL THEN (SELECT name FROM employees WHERE id=gld.employee_id)
+                WHEN gld.other_id IS NOT NULL THEN (SELECT name FROM others WHERE id=gld.employee_id)
+                ELSE ""
+                END AS customerName,
+            gl.date AS date,
+            gl.reference AS reference,
+            gld.is_reconcile AS clear,
+            (gld.credit*-1) AS amount
+        FROM general_ledgers gl
+            INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+            LEFT JOIN customers AS cus ON cus.id = gld.customer_id
+        WHERE credit>0
+          AND gl.is_active=1
+          AND gl.is_approve=1
+          AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND gld.chart_account_id=#{filter.chartAccountId}
+          AND (
+            gld. reconcile_id IS NULL
+           OR (
+            gld.is_reconcile=1
+          AND gld.reconcile_id!=#{filter.ReconcileDateId}
+          AND date&lt;(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+          AND (SELECT date FROM reconciles WHERE id=reconcile_id)>(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+            )
+            )
+          AND date &lt;= (SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+        ORDER BY date ASC, gl.id ASC
+    </select>
+
+
+    <select id="findReconcileDepositsCreditsTransactionsDetails" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileReportFilter" resultMap="ReconcileDepositTransactionNewTransactionDetail">
+        SELECT
+            gl.id AS id,
+            gld.type AS typeName,
+            cus.id AS customerId,
+            CASE
+                WHEN gld.customer_id IS NOT NULL THEN CONCAT(cus.customer_code, '-', cus.name)
+                WHEN gld.vendor_id IS NOT NULL THEN (SELECT name FROM vendors WHERE id=gld.vendor_id)
+                WHEN gld.employee_id IS NOT NULL THEN (SELECT name FROM employees WHERE id=gld.employee_id)
+                WHEN gld.other_id IS NOT NULL THEN (SELECT name FROM others WHERE id=gld.employee_id)
+                ELSE ""
+                END AS customerName,
+            gl.date AS date,
+        gl.reference AS reference,
+        gld.is_reconcile AS clear,
+         (gld.debit) AS amount
+        FROM general_ledgers gl
+            INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+            LEFT JOIN customers AS cus ON cus.id = gld.customer_id
+        WHERE debit>0
+          AND gl.is_active=1
+          AND gl.is_approve=1
+          AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+          AND gld.chart_account_id=#{filter.chartAccountId}
+          AND (
+            gld. reconcile_id IS NULL
+           OR (
+            gld.is_reconcile=1
+          AND gld.reconcile_id!=#{filter.ReconcileDateId}
+          AND date&lt;(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+          AND (SELECT date FROM reconciles WHERE id=reconcile_id)>(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+            )
+            )
+          AND date>(SELECT date FROM reconciles WHERE id=#{filter.ReconcileDateId})
+        ORDER BY date ASC, gl.id ASC
+    </select>
+
+    <sql id="BASE_WHERE_BY_MONTH">
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND gld.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND gld.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND gld.other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND gld.class_id = #{filter.classId}
+        </if>
+    </sql>
+
+
+    <select id="getChartAccountCashFlowMonthById" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountSubDetail">
+        SELECT
+        CONCAT(YEAR(#{date}), '-', MONTH(#{date}), '-01') AS date,
+        IFNULL(SUM(debit) - SUM(debit), 0) AS totalAmount,
+        IFNULL(SUM(debit), 0) AS debit,
+        IFNULL(SUM(credit), 0) AS credit
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id = #{chartAccountId}
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND (YEAR(gl.date) = YEAR(#{date}) AND MONTH(gl.date) = MONTH(#{date}))
+        <include refid="BASE_WHERE_BY_MONTH"/>
+    </select>
+
+    <select id="getChartAccountCashFlowMonthStatementById" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountSubDetail">
+        SELECT
+        CONCAT(YEAR(#{date}), '-', MONTH(#{date}), '-01') AS date,
+        IFNULL(SUM(debit) - SUM(credit), 0) AS totalAmount,
+        SUM(debit) AS debit,
+        SUM(credit) AS credit
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = #{chartAccountId})
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND (
+        YEAR(gl.date) &lt; YEAR(#{date})
+        OR (YEAR(gl.date) = YEAR(#{date}) AND MONTH(gl.date) &lt; MONTH(#{date}))
+        )
+        <include refid="BASE_WHERE_BY_MONTH"/>
+    </select>
+
+    <select id="getChartAccountCashFlowMonthStatementByChartAccountId" parameterType="com.ut.nlSystemAPi.model.filter.cashFlowReportFilter" resultMap="ChartAccountSubDetail">
+        SELECT
+        CONCAT(YEAR(#{date}), '-', MONTH(#{date}), '-01') AS date,
+        IFNULL(SUM(debit) - SUM(credit), 0) AS totalAmount,
+        SUM(debit) AS debit,
+        SUM(credit) AS credit
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.chart_account_id = #{chartAccountId}
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND (
+        YEAR(gl.date) &lt; YEAR(#{date})
+        OR (YEAR(gl.date) = YEAR(#{date}) AND MONTH(gl.date) &lt;= MONTH(#{date}))
+        )
+        <include refid="BASE_WHERE_BY_MONTH"/>
+    </select>
+
+</mapper>

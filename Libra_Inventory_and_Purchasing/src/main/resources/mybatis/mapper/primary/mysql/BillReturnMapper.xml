@@ -1,0 +1,720 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BillReturnMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        purchase_returns.id AS id,
+        purchase_returns.currency_center_id AS currencyCenterId,
+        currency_centers.name AS currencyCenterName,
+        purchase_returns.purchase_order_id AS purchaseBillId,
+        purchase_orders.po_code AS purchaseBillCode,
+        purchase_returns.company_id AS companyId,
+        companies.name AS companyName,
+        purchase_returns.vendor_id AS vendorId,
+        vendors.name AS vendorName,
+        purchase_returns.location_group_id AS warehouseId,
+        location_groups.name AS warehouseName,
+        purchase_returns.location_id AS locationId,
+        locations.name AS locationName,
+        purchase_returns.order_date AS orderDate,
+        purchase_returns.note AS note,
+        purchase_returns.pr_code AS prCode,
+        purchase_returns.ap_id AS apId,
+        CONCAT(chart_accounts.account_codes, ' ', chart_accounts.account_description) AS apName,
+        purchase_returns.vat_chart_account_id AS vatChartAccountId,
+        purchase_returns.vat_calculate AS vatCalculate,
+        purchase_returns.total_amount AS subTotal,
+        purchase_returns.vat_setting_id AS vatSettingId,
+        vat_settings.name AS vatSettingName,
+        purchase_returns.total_amount + purchase_returns.total_vat AS total,
+        purchase_returns.total_vat AS totalVat,
+        purchase_returns.vat_percent AS vatPercentage,
+        purchase_returns.balance AS balance,
+        purchase_returns.status AS status,
+        purchase_returns.created AS created,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        purchase_returns.modified AS modified,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM purchase_returns
+            LEFT JOIN currency_centers ON purchase_returns.currency_center_id = currency_centers.id
+            LEFT JOIN purchase_orders ON purchase_returns.purchase_order_id = purchase_orders.id
+            LEFT JOIN companies ON purchase_returns.company_id = companies.id
+            LEFT JOIN vendors ON purchase_returns.vendor_id = vendors.id
+            LEFT JOIN location_groups ON purchase_returns.location_group_id = location_groups.id
+            LEFT JOIN locations ON purchase_returns.location_id = locations.id
+            LEFT JOIN chart_accounts ON purchase_returns.ap_id = chart_accounts.id
+            LEFT JOIN vat_settings ON purchase_returns.vat_setting_id = vat_settings.id
+            LEFT JOIN users AS users1 ON purchase_returns.created_by = users1.id
+            LEFT JOIN users AS users2 ON purchase_returns.modified_by = users2.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE purchase_returns.status >= 0
+        AND purchase_returns.location_id IN (
+        SELECT location_id FROM user_locations WHERE user_id= #{userId} GROUP BY location_id
+        )
+        <if test="filter.searchText != null">
+            AND purchase_returns.pr_code LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        <if test="filter.status != null">
+            AND purchase_returns.status = #{filter.status}
+        </if>
+        <if test="filter.locationId != null">
+            AND purchase_returns.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND purchase_returns.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.vendorId != null">
+            AND purchase_returns.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND purchase_returns.created_by = #{userId}
+        </if>
+        <if test="filter.type != null">
+            <choose>
+                <when test="filter.type == 1">
+                    AND purchase_returns.balance > 0
+                </when>
+                <when test="filter.type == 2">
+                    AND purchase_returns.balance = 0
+                </when>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnFilter" resultMap="BillReturnResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                purchase_returns.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnFilter" resultType="java.lang.Long">
+        SELECT COUNT(purchase_returns.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="BillReturnResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE purchase_returns.status >= 0 AND purchase_returns.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM purchase_requests
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.BillReturn" useGeneratedKeys="true" keyProperty="billReturn.id">
+        INSERT INTO purchase_returns (
+            company_id,
+            purchase_order_id,
+            vendor_id,
+            location_group_id,
+            location_id,
+            currency_center_id,
+            note,
+            pr_code,
+            ap_id,
+            order_date,
+            total_amount,
+            vat_setting_id,
+            vat_percent,
+            total_amount_po,
+            vat_chart_account_id,
+            total_vat,
+            vat_calculate,
+            balance,
+            created,
+            created_by
+        ) VALUES (
+                     #{billReturn.companyId},
+                     #{billReturn.purchaseBillId},
+                     #{billReturn.vendorId},
+                     #{billReturn.warehouseId},
+                     #{billReturn.locationId},
+                     #{billReturn.currencyCenterId},
+                     #{billReturn.note},
+                     #{billReturn.prCode},
+                     #{billReturn.apId},
+                     #{billReturn.date},
+                     #{billReturn.subTotal},
+                     #{billReturn.vatSettingId},
+                     #{billReturn.vatPercentage},
+                     #{billReturn.total},
+                     #{billReturn.vatChartAccountId},
+                     #{billReturn.totalVat},
+                     #{billReturn.vatCalculate},
+                     #{billReturn.balance},
+                     NOW(),
+                     #{billReturn.createdBy}
+                 )
+    </insert>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE purchase_returns SET
+        status = -1,
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="update" parameterType="com.ut.nlSystemAPi.model.BillReturn" useGeneratedKeys="true" keyProperty="billReturn.id">
+        INSERT INTO purchase_returns (
+        <if test="billReturn.companyId != null">company_id,</if>
+        <if test="billReturn.purchaseBillId != null">purchase_order_id,</if>
+        <if test="billReturn.vendorId != null">vendor_id,</if>
+        <if test="billReturn.warehouseId != null">location_group_id,</if>
+        <if test="billReturn.locationId != null">location_id,</if>
+        <if test="billReturn.note != null">note,</if>
+        <if test="billReturn.prCode != null">pr_code,</if>
+        <if test="billReturn.apId != null">ap_id,</if>
+        <if test="billReturn.date != null">order_date,</if>
+        <if test="billReturn.subTotal != null">total_amount,</if>
+        <if test="billReturn.vatSettingId != null">vat_setting_id,</if>
+        <if test="billReturn.vatPercentage != null">vat_percent,</if>
+        <if test="billReturn.total != null">total_amount_po,</if>
+        <if test="billReturn.vatChartAccountId != null">vat_chart_account_id,</if>
+        <if test="billReturn.totalVat != null">total_vat,</if>
+        <if test="billReturn.vatCalculate != null">vat_calculate,</if>
+        <if test="billReturn.balance != null">balance,</if>
+        created,
+        created_by
+        ) VALUES (
+        <if test="billReturn.companyId != null">#{billReturn.companyId},</if>
+        <if test="billReturn.purchaseBillId != null">#{billReturn.purchaseBillId},</if>
+        <if test="billReturn.vendorId != null">#{billReturn.vendorId},</if>
+        <if test="billReturn.warehouseId != null">#{billReturn.warehouseId},</if>
+        <if test="billReturn.locationId != null">#{billReturn.locationId},</if>
+        <if test="billReturn.note != null">#{billReturn.note},</if>
+        <if test="billReturn.prCode != null">#{billReturn.prCode},</if>
+        <if test="billReturn.apId != null">#{billReturn.apId},</if>
+        <if test="billReturn.date != null">#{billReturn.date},</if>
+        <if test="billReturn.subTotal != null">#{billReturn.subTotal},</if>
+        <if test="billReturn.vatSettingId != null">#{billReturn.vatSettingId},</if>
+        <if test="billReturn.vatPercentage != null">#{billReturn.vatPercentage},</if>
+        <if test="billReturn.total != null">#{billReturn.total},</if>
+        <if test="billReturn.vatChartAccountId != null">#{billReturn.vatChartAccountId},</if>
+        <if test="billReturn.totalVat != null">#{billReturn.totalVat},</if>
+        <if test="billReturn.vatCalculate != null">#{billReturn.vatCalculate},</if>
+        <if test="billReturn.balance != null">#{billReturn.balance},</if>
+        NOW(),
+        #{billReturn.modifiedBy}
+        )
+    </insert>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE purchase_returns SET
+      status = 0,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+    <update id="updateStatus" parameterType="java.lang.Long">
+        UPDATE purchase_returns SET status = 2 WHERE id = #{filter.id};
+    </update>
+
+    <select id="getLastCode" resultType="java.lang.String">
+        SELECT pr_code
+        FROM purchase_returns
+        WHERE YEAR(order_date) = YEAR(NOW()) AND pr_code LIKE '%PBR%' ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="getLastCodeReceipt" resultType="java.lang.String">
+        SELECT receipt_code
+        FROM purchase_return_receipts
+        WHERE YEAR(created) = YEAR(NOW()) AND receipt_code LIKE '%PRC%' ORDER BY id DESC LIMIT 1
+    </select>
+
+    <insert id="insertReceipt" parameterType="com.ut.nlSystemAPi.model.BillReturnReceipt" useGeneratedKeys="true" keyProperty="receipt.id">
+        INSERT INTO purchase_return_receipts (
+            purchase_return_id,
+            exchange_rate_id,
+            currency_center_id,
+            chart_account_id,
+            receipt_code,
+            amount_us,
+            amount_other,
+            total_amount,
+            balance,
+            balance_other,
+            due_date,
+            created,
+            created_by
+        ) VALUES (
+                     #{receipt.billReturnId},
+                     #{receipt.exchangeRateId},
+                     #{receipt.currencyCenterId},
+                     #{receipt.chartAccountId},
+                     #{receipt.receiptCode},
+                     #{receipt.amountUsd},
+                     #{receipt.amountOther},
+                     #{receipt.totalAmount},
+                     #{receipt.balance},
+                     #{receipt.balanceOther},
+                     #{receipt.aging},
+                     NOW(),
+                     #{receipt.createdBy}
+                 )
+    </insert>
+
+    <update id="updateBalancePurchaseOrder">
+        UPDATE purchase_orders SET
+        <choose>
+            <when test="type == 1">
+                balance = balance - #{balance},
+            </when>
+            <when test="type == 2">
+                balance = balance + #{balance},
+            </when>
+        </choose>
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{purchaseOrderId};
+    </update>
+
+    <update id="updateBalancePurchaseReturn" parameterType="com.ut.nlSystemAPi.model.BillReturn">
+        UPDATE purchase_returns SET
+           balance = #{billReturn.balance},
+           total_amount_po = #{billReturn.total},
+           modified = NOW(),
+           modified_by = #{billReturn.modifiedBy}
+        WHERE id = #{billReturn.id};
+    </update>
+
+    <insert id="insertReceiptWithPbs" parameterType="com.ut.nlSystemAPi.model.BillReturnWithPbsReceipt" useGeneratedKeys="true" keyProperty="receipt.id">
+        INSERT INTO invoice_pbc_with_pbs (
+            purchase_return_id,
+            purchase_order_id,
+            apply_date,
+            total_cost,
+            created,
+            created_by
+        ) VALUES (
+                     #{receipt.billReturnId},
+                     #{receipt.purchaseBillId},
+                     #{receipt.applyDate},
+                     #{receipt.totalCost},
+                     NOW(),
+                     #{receipt.createdBy}
+                 )
+    </insert>
+
+    <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.GeneralLedger" useGeneratedKeys="true" keyProperty="generalLedger.id">
+        INSERT INTO general_ledgers (
+        <if test="generalLedger.inventoryAdjustmentId != null">cycle_product_id,</if>
+        <if test="generalLedger.purchaseReturnId != null">purchase_return_id,</if>
+        <if test="generalLedger.purchaseReturnReceiptId != null">purchase_return_receipt_id,</if>
+        <if test="generalLedger.date != null">date,</if>
+        <if test="generalLedger.reference != null">reference,</if>
+        created
+        <if test="generalLedger.createdBy != null">, created_by</if>
+        <if test="generalLedger.isSys != null">, is_sys</if>
+        ) VALUES (
+        <if test="generalLedger.inventoryAdjustmentId != null">#{generalLedger.inventoryAdjustmentId},</if>
+        <if test="generalLedger.purchaseReturnId != null">#{generalLedger.purchaseReturnId},</if>
+        <if test="generalLedger.purchaseReturnReceiptId != null">#{generalLedger.purchaseReturnReceiptId},</if>
+        <if test="generalLedger.date != null">#{generalLedger.date},</if>
+        <if test="generalLedger.reference != null">#{generalLedger.reference},</if>
+        NOW()
+        <if test="generalLedger.createdBy != null">, #{generalLedger.createdBy}</if>
+        <if test="generalLedger.isSys != null">, #{generalLedger.isSys}</if>
+        )
+    </insert>
+
+    <select id="getActiveGeneralLedgerId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT id
+        FROM general_ledgers
+        WHERE purchase_return_id = #{purchaseReturnId}
+          AND purchase_return_receipt_id IS NULL
+          AND (is_active = 1 OR is_active IS NULL)
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insertInventoryValuation" parameterType="com.ut.nlSystemAPi.model.InventoryValuation" useGeneratedKeys="true" keyProperty="inventoryValuation.id">
+        INSERT INTO inventory_valuations (
+            purchase_return_id,
+            `date`,
+            `type`,
+            company_id,
+            pid,
+            small_qty,
+            qty,
+            reference,
+            cost,
+            price,
+            created,
+            is_var_cost
+        ) VALUES (
+                     #{inventoryValuation.purchaseReturnId},
+                     #{inventoryValuation.date},
+                     #{inventoryValuation.type},
+                     #{inventoryValuation.companyId},
+                     #{inventoryValuation.pid},
+                     #{inventoryValuation.smallQty},
+                     #{inventoryValuation.qty},
+                     #{inventoryValuation.reference},
+                     #{inventoryValuation.cost},
+                     #{inventoryValuation.price},
+                     NOW(),
+                     #{inventoryValuation.isVarCost}
+                 )
+    </insert>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.GeneralLedgerDetail" useGeneratedKeys="true" keyProperty="generalLedgerDetail.id">
+        INSERT INTO general_ledger_details (
+        <if test="generalLedgerDetail.generalLedgerId != null">general_ledger_id,</if>
+        <if test="generalLedgerDetail.chartAccountId != null">chart_account_id,</if>
+        <if test="generalLedgerDetail.companyId != null">company_id,</if>
+        <if test="generalLedgerDetail.locationId != null">location_id,</if>
+        <if test="generalLedgerDetail.productId != null">product_id,</if>
+        <if test="generalLedgerDetail.type != null">`type`,</if>
+        <if test="generalLedgerDetail.debit != null">debit,</if>
+        <if test="generalLedgerDetail.credit != null">credit,</if>
+        <if test="generalLedgerDetail.classId != null">class_id,</if>
+        <if test="generalLedgerDetail.memo != null">memo,</if>
+        <if test="generalLedgerDetail.vendorId != null">vendor_id,</if>
+        <if test="generalLedgerDetail.inventoryValuationId != null">inventory_valuation_id,</if>
+        <if test="generalLedgerDetail.inventoryValuationIsDebit != null">inventory_valuation_is_debit,</if>
+        modified,
+        modified_by
+        ) VALUES (
+        <if test="generalLedgerDetail.generalLedgerId != null">#{generalLedgerDetail.generalLedgerId},</if>
+        <if test="generalLedgerDetail.chartAccountId != null">#{generalLedgerDetail.chartAccountId},</if>
+        <if test="generalLedgerDetail.companyId != null">#{generalLedgerDetail.companyId},</if>
+        <if test="generalLedgerDetail.locationId != null">#{generalLedgerDetail.locationId},</if>
+        <if test="generalLedgerDetail.productId != null">#{generalLedgerDetail.productId},</if>
+        <if test="generalLedgerDetail.type != null">#{generalLedgerDetail.type},</if>
+        <if test="generalLedgerDetail.debit != null">#{generalLedgerDetail.debit},</if>
+        <if test="generalLedgerDetail.credit != null">#{generalLedgerDetail.credit},</if>
+        <if test="generalLedgerDetail.classId != null">#{generalLedgerDetail.classId},</if>
+        <if test="generalLedgerDetail.memo != null">#{generalLedgerDetail.memo},</if>
+        <if test="generalLedgerDetail.vendorId != null">#{generalLedgerDetail.vendorId},</if>
+        <if test="generalLedgerDetail.inventoryValuationId != null">#{generalLedgerDetail.inventoryValuationId},</if>
+        <if test="generalLedgerDetail.inventoryValuationIsDebit != null">#{generalLedgerDetail.inventoryValuationIsDebit},</if>
+        NOW(),
+        #{generalLedgerDetail.createdBy}
+        )
+    </insert>
+
+    <select id="getClassByLocationGroupId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT class_id FROM location_group_classese WHERE company_id = #{companyId} AND location_group_id = #{locationGroupId} LIMIT 1
+    </select>
+
+    <select id="getDetail" parameterType="java.lang.Long" resultMap="BillReturnDetailResponse">
+        SELECT
+            1 AS type,
+            purchase_return_details.purchase_return_id AS billReturnId,
+            purchase_return_details.product_id AS itemId,
+            products.name AS itemName,
+            purchase_return_details.note AS note,
+            purchase_return_details.qty AS qty,
+            IFNULL(purchase_return_details.conversion, 1) AS conversion,
+            purchase_return_details.qty_uom_id AS uomId,
+            uoms.name AS uom,
+            purchase_return_details.expired_date AS expiredDate,
+            products.is_expired_date AS isExpiredDate,
+            purchase_return_details.total_price AS totalCost,
+            purchase_return_details.unit_price AS unitCost
+        FROM purchase_return_details
+                 LEFT JOIN purchase_returns ON purchase_return_details.purchase_return_id = purchase_returns.id
+                 LEFT JOIN products ON purchase_return_details.product_id = products.id
+                 LEFT JOIN uoms ON purchase_return_details.qty_uom_id = uoms.id
+        WHERE purchase_return_details.purchase_return_id = #{purchaseReturnId}
+
+        UNION ALL
+
+        SELECT
+            2 AS type,
+            purchase_return_services.purchase_return_id AS billReturnId,
+            purchase_return_services.service_id AS itemId,
+            services.name AS itemName,
+            purchase_return_services.note AS note,
+            purchase_return_services.qty AS qty,
+            1 AS conversion,
+            NULL AS uomId,
+            NULL AS uom,
+            NULL AS expiredDate,
+            0 AS isExpiredDate,
+            purchase_return_services.total_price AS totalCost,
+            purchase_return_services.unit_price AS unitCost
+        FROM purchase_return_services
+                 LEFT JOIN purchase_returns ON purchase_return_services.purchase_return_id = purchase_returns.id
+                 LEFT JOIN services ON purchase_return_services.service_id = services.id
+        WHERE purchase_return_services.purchase_return_id = #{purchaseReturnId}
+
+        UNION ALL
+
+        SELECT
+            3 AS type,
+            purchase_return_miscs.purchase_return_id AS billReturnId,
+            NULL AS itemId,
+            purchase_return_miscs.description AS itemName,
+            purchase_return_miscs.note AS note,
+            purchase_return_miscs.qty AS qty,
+            1 AS conversion,
+            purchase_return_miscs.qty_uom_id AS uomId,
+            uoms.name AS uom,
+            NULL AS expiredDate,
+            0 AS isExpiredDate,
+            purchase_return_miscs.total_price AS totalCost,
+            purchase_return_miscs.unit_price AS unitCost
+        FROM purchase_return_miscs
+                 LEFT JOIN purchase_returns ON purchase_return_miscs.purchase_return_id = purchase_returns.id
+                 LEFT JOIN uoms ON purchase_return_miscs.qty_uom_id = uoms.id
+        WHERE purchase_return_miscs.purchase_return_id = #{purchaseReturnId}
+    </select>
+
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.BillReturnDetail">
+        INSERT INTO purchase_return_details (
+            purchase_return_id,
+            product_id,
+            note,
+            expired_date,
+            qty,
+            qty_uom_id,
+            conversion,
+            unit_price,
+            total_price
+        )
+        VALUES (
+                   #{billReturnDetail.purchaseReturnId},
+                   #{billReturnDetail.itemId},
+                   #{billReturnDetail.note},
+                   #{billReturnDetail.expiredDate},
+                   #{billReturnDetail.qty},
+                   #{billReturnDetail.uomId},
+                   #{billReturnDetail.conversion},
+                   #{billReturnDetail.unitCost},
+                   #{billReturnDetail.totalCost}
+               );
+    </insert>
+
+    <delete id="deleteInventoryValuation" parameterType="java.lang.Long">
+        UPDATE inventory_valuations SET is_active = 2 WHERE purchase_return_id = #{billReturnId};
+    </delete>
+
+    <delete id="deleteGeneralLedger" parameterType="java.lang.Long">
+        UPDATE general_ledgers SET is_active = 2 WHERE purchase_return_id = #{billReturnId};
+    </delete>
+
+    <delete id="deleteDetail" parameterType="java.lang.Long">
+        DELETE FROM purchase_return_details WHERE purchase_return_id = #{purchaseReturnId};
+    </delete>
+
+    <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.BillReturnServices">
+        INSERT INTO purchase_return_services (
+            purchase_return_id,
+            service_id,
+            note,
+            qty,
+            total_price,
+            unit_price
+        )
+        VALUES (
+                   #{billReturnServices.purchaseReturnId},
+                   #{billReturnServices.itemId},
+                   #{billReturnServices.note},
+                   #{billReturnServices.qty},
+                   #{billReturnServices.totalCost},
+                   #{billReturnServices.unitCost}
+               );
+    </insert>
+
+    <delete id="deleteService" parameterType="java.lang.Long">
+        DELETE FROM purchase_return_services WHERE purchase_return_id = #{purchaseReturnId};
+    </delete>
+
+    <insert id="insertMisc" parameterType="com.ut.nlSystemAPi.model.BillReturnMisc">
+        INSERT INTO purchase_return_miscs (
+            purchase_return_id,
+            description,
+            qty,
+            qty_uom_id,
+            unit_price,
+            total_price,
+            note
+        ) VALUES (
+                     #{billReturnMisc.purchaseReturnId},
+                     #{billReturnMisc.description},
+                     #{billReturnMisc.qty},
+                     #{billReturnMisc.qtyUomId},
+                     #{billReturnMisc.unitCost},
+                     #{billReturnMisc.totalCost},
+                     #{billReturnMisc.note}
+                 )
+    </insert>
+
+    <delete id="deleteMisc" parameterType="java.lang.Long">
+        DELETE FROM purchase_return_miscs WHERE purchase_return_id = #{purchaseReturnId};
+    </delete>
+
+    <select id="getConversionByUomId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT value FROM uom_conversions WHERE from_uom_id = #{uomId} AND is_active = 1 LIMIT 1
+    </select>
+
+    <select id="getVatSetting" parameterType="java.lang.Long" resultMap="VatSettingResponse">
+        SELECT
+            id AS id,
+            `type` AS type,
+            company_id AS companyId,
+            `name` AS name,
+            vat_percent AS vatPercent,
+            chart_account_id AS chartAccountId
+        FROM vat_settings WHERE id = #{vatSettingId} AND is_active = 1
+    </select>
+
+    <insert id="insertTableInventories" parameterType="com.ut.nlSystemAPi.model.Inventories">
+        INSERT INTO ${tableName} (
+            purchase_return_id,
+            product_id,
+            location_id,
+            location_group_id,
+            lots_number,
+            expired_date,
+            qty,
+            `date`,
+            vendor_id,
+            unit_cost,
+            created,
+            created_by,
+            modified,
+            modified_by
+        ) VALUES (
+                     #{inventories.purchaseReturnId},
+                     #{inventories.productId},
+                     #{inventories.locationId},
+                     #{inventories.warehouseId},
+                     #{inventories.lotsNumber},
+                     #{inventories.expireDate},
+                     #{inventories.qty},
+                     #{inventories.date},
+                     #{inventories.vendorId},
+                     #{inventories.unitCost},
+                     NOW(),
+                     #{inventories.createdBy},
+                     NOW(),
+                     #{inventories.modifiedBy}
+                 )
+    </insert>
+
+    <update id="voidReceipt" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnReceiptFilter">
+        UPDATE purchase_return_receipts SET
+            is_void = 1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE purchase_return_id = #{request.billReturnId} AND id = #{request.id};
+    </update>
+
+    <update id="voidReceiptApplyPb" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnReceiptFilter">
+        UPDATE invoice_pbc_with_pbs SET
+            status = 0,
+            modified = NOW(),
+            modified_By = #{userId}
+        WHERE purchase_return_id = #{request.billReturnId} AND id = #{request.id}
+    </update>
+
+    <update id="updateBalance" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnReceiptFilter">
+        UPDATE purchase_returns SET
+        <choose>
+            <when test="type == 1">
+                balance = balance - #{balance}
+            </when>
+            <when test="type == 3">
+                balance = #{balance}
+            </when>
+            <otherwise>
+                balance = balance + #{balance}
+            </otherwise>
+        </choose>
+        WHERE id = #{billReturnId}
+    </update>
+
+    <select id="listReceipt" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnReceiptFilter" resultMap="BillReturnReceiptResponse">
+        SELECT
+            purchase_return_receipts.id AS id,
+            purchase_return_receipts.purchase_return_id AS billReturnId,
+            purchase_return_receipts.exchange_rate_id AS exchangeRateId,
+            companies.currency_center_id AS baseCurrencyCenterId,
+            base.name AS baseCurrencyCenterName,
+            base.symbol AS baseCurrencyCenterSymbol,
+            purchase_return_receipts.currency_center_id AS currencyCenterId,
+            currency_centers.name AS currencyCenterName,
+            currency_centers.symbol AS currencyCenterSymbol,
+            (SELECT rate_to_purchase FROM company_currencies WHERE currency_center_id = currency_centers.id AND exchange_rate_id = purchase_return_receipts.exchange_rate_id LIMIT 1) AS rateToSell,
+            purchase_return_receipts.receipt_code AS receiptCode,
+            purchase_return_receipts.amount_us AS paidUsd,
+            purchase_return_receipts.amount_other AS paidOther,
+            purchase_return_receipts.total_amount AS totalAmount,
+            purchase_return_receipts.balance AS balance,
+            purchase_return_receipts.balance_other AS balanceOther,
+            purchase_return_receipts.due_date AS aging,
+            DATE(purchase_return_receipts.created) AS `date`
+        FROM purchase_return_receipts
+        INNER JOIN purchase_returns ON purchase_returns.id = purchase_return_receipts.purchase_return_id
+        INNER JOIN companies ON companies.id = purchase_returns.company_id
+        LEFT JOIN currency_centers AS base ON base.id = companies.currency_center_id
+        LEFT JOIN currency_centers ON currency_centers.id = purchase_return_receipts.currency_center_id
+        WHERE purchase_return_receipts.purchase_return_id = #{filter.billReturnId} AND is_void = 0
+    </select>
+
+    <select id="listReceiptApplyPb" parameterType="com.ut.nlSystemAPi.model.filter.BillReturnReceiptFilter" resultMap="BillReturnReceiptResponse">
+        SELECT
+            invoice_pbc_with_pbs.id AS id,
+            invoice_pbc_with_pbs.purchase_return_id AS billReturnId,
+            purchase_orders.id AS purchaseBillId,
+            (SELECT name FROM vendors WHERE id = purchase_orders.vendor_id) AS vendorName,
+            purchase_orders.po_code AS purchaseBillCode,
+            purchase_orders.order_date AS orderDate,
+            purchase_orders.total_amount AS totalAmount,
+            invoice_pbc_with_pbs.total_cost AS paid,
+            DATE(invoice_pbc_with_pbs.created) AS `date`
+        FROM invoice_pbc_with_pbs
+             LEFT JOIN purchase_orders ON purchase_orders.id = invoice_pbc_with_pbs.purchase_order_id
+        WHERE invoice_pbc_with_pbs.purchase_return_id = #{filter.billReturnId} AND invoice_pbc_with_pbs.status = 1
+    </select>
+
+    <select id="getSmallValUom" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT small_val_uom FROM products WHERE id = #{productId} LIMIT 1
+    </select>
+
+    <select id="getPrCode" resultType="java.lang.String" parameterType="java.lang.Long">
+        SELECT pr_code FROM purchase_returns WHERE id = #{id}
+    </select>
+
+    <select id="getSqlTrack" resultType="java.lang.String">
+        SELECT val FROM tracks WHERE id = 1
+    </select>
+
+    <select id="getOrderDate" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT DATE_FORMAT(DATE_SUB(order_date, INTERVAL 1 DAY), '%Y-%m-%d') AS order_date
+        FROM purchase_returns
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateTrack" parameterType="java.lang.String">
+        UPDATE tracks SET val= #{val}, is_recalculate = 1 WHERE id=1
+    </update>
+
+</mapper>

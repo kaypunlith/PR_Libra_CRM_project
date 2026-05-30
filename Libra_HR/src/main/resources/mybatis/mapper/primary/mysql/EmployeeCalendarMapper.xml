@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.EmployeeCalendarMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    employee_calendars.id AS id,
+    employee_calendars.employee_id AS employeeId,
+    employees.code AS employeeCode,
+    employees.name AS employeeName,
+    departments.name AS departmentName,
+    employee_calendars.date_from AS dateFrom,
+    employee_calendars.date_to AS dateTo,
+    employee_calendars.is_repeatable AS isRepeatable,
+    employee_calendars.repeat_type AS repeatType,
+    employee_calendars.description AS description,
+    (
+      SELECT GROUP_CONCAT(DISTINCT employee_calendar_details.repeat_days
+        ORDER BY FIELD(
+          employee_calendar_details.repeat_days,
+          'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+        ) SEPARATOR ', '
+      )
+      FROM employee_calendar_details
+      WHERE employee_calendar_details.employee_calendar_id = employee_calendars.id
+        AND employee_calendar_details.repeat_days IS NOT NULL
+        AND employee_calendar_details.repeat_days != ''
+    ) AS repeatDays,
+    (
+      SELECT GROUP_CONCAT(DISTINCT customer_markets.name ORDER BY customer_markets.name SEPARATOR ', ')
+      FROM employee_calendar_details
+      INNER JOIN customer_markets ON customer_markets.id = employee_calendar_details.market_id
+      WHERE employee_calendar_details.employee_calendar_id = employee_calendars.id
+        AND customer_markets.is_active = 1
+    ) AS marketNames,
+    employee_calendars.created AS created,
+    employee_calendars.modified AS modified,
+    CONCAT(user1.first_name, ' ', user1.last_name) AS createdBy,
+    CONCAT(user2.first_name, ' ', user2.last_name) AS modifiedBy,
+    employee_calendars.is_active AS isActive
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM employee_calendars
+    LEFT JOIN employees ON employee_calendars.employee_id = employees.id
+    LEFT JOIN departments ON departments.id = employees.department_id
+    LEFT JOIN users AS user1 ON employee_calendars.created_by = user1.id
+    LEFT JOIN users AS user2 ON employee_calendars.modified_by = user2.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE employee_calendars.is_active = 1
+    <if test="filter.employeeId != null">
+      AND employee_calendars.employee_id = #{filter.employeeId}
+    </if>
+    <if test="filter.dateFrom != null and filter.dateFrom != ''">
+      AND DATE(employee_calendars.date_to) >= DATE(#{filter.dateFrom})
+    </if>
+    <if test="filter.dateTo != null and filter.dateTo != ''">
+      AND DATE(employee_calendars.date_from) &lt;= DATE(#{filter.dateTo})
+    </if>
+    <if test="filter.isRepeatable != null">
+      AND employee_calendars.is_repeatable = #{filter.isRepeatable}
+    </if>
+    <if test="filter.repeatType != null">
+      AND employee_calendars.repeat_type = #{filter.repeatType}
+    </if>
+    <if test="filter.searchText != null">
+      AND (
+        employees.code LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employees.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR departments.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employee_calendars.description LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR CAST(employee_calendars.date_from AS CHAR) LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR CAST(employee_calendars.date_to AS CHAR) LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR EXISTS (
+          SELECT 1
+          FROM employee_calendar_details
+          WHERE employee_calendar_details.employee_calendar_id = employee_calendars.id
+            AND employee_calendar_details.repeat_days LIKE CONCAT("%", #{filter.searchText}, "%")
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM employee_calendar_details
+          INNER JOIN customer_markets ON customer_markets.id = employee_calendar_details.market_id
+          WHERE employee_calendar_details.employee_calendar_id = employee_calendars.id
+            AND customer_markets.is_active = 1
+            AND customer_markets.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        )
+      )
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.EmployeeCalendarFilter" resultMap="EmployeeCalendarResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        employee_calendars.date_from DESC, employee_calendars.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.EmployeeCalendarFilter" resultType="java.lang.Long">
+    SELECT COUNT(employee_calendars.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="EmployeeCalendarResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE employee_calendars.is_active = 1 AND employee_calendars.id = #{id}
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.EmployeeCalendar" useGeneratedKeys="true" keyProperty="employeeCalendar.id">
+    INSERT INTO employee_calendars (
+      employee_id,
+      is_repeatable,
+      repeat_type,
+      date_from,
+      date_to,
+      description,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{employeeCalendar.employeeId},
+      #{employeeCalendar.isRepeatable},
+      #{employeeCalendar.repeatType},
+      #{employeeCalendar.dateFrom},
+      #{employeeCalendar.dateTo},
+      #{employeeCalendar.description},
+      NOW(),
+      #{employeeCalendar.createdBy},
+      #{employeeCalendar.isActive}
+    )
+  </insert>
+
+  <insert id="insertDetail">
+    INSERT INTO employee_calendar_details (
+      employee_calendar_id,
+      market_id,
+      repeat_days
+    ) VALUES (
+      #{employeeCalendarId},
+      #{marketId},
+      #{repeatDay}
+    )
+  </insert>
+
+  <select id="getMarketIds" resultType="java.lang.Long">
+    SELECT DISTINCT market_id
+    FROM employee_calendar_details
+    WHERE employee_calendar_id = #{employeeCalendarId}
+      AND market_id IS NOT NULL
+    ORDER BY market_id ASC
+  </select>
+
+  <select id="getRepeatDayList" resultType="java.lang.String">
+    SELECT DISTINCT repeat_days
+    FROM employee_calendar_details
+    WHERE employee_calendar_id = #{employeeCalendarId}
+      AND repeat_days IS NOT NULL
+      AND repeat_days != ''
+    ORDER BY FIELD(repeat_days, 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')
+  </select>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.EmployeeCalendar">
+    UPDATE employee_calendars SET
+      employee_id = #{employeeCalendar.employeeId},
+      is_repeatable = #{employeeCalendar.isRepeatable},
+      repeat_type = #{employeeCalendar.repeatType},
+      date_from = #{employeeCalendar.dateFrom},
+      date_to = #{employeeCalendar.dateTo},
+      description = #{employeeCalendar.description},
+      modified = NOW(),
+      modified_by = #{employeeCalendar.modifiedBy}
+    WHERE id = #{employeeCalendar.id} AND is_active = 1
+  </update>
+
+  <delete id="deleteDetails">
+    DELETE FROM employee_calendar_details
+    WHERE employee_calendar_id = #{employeeCalendarId}
+  </delete>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE employee_calendars SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id} AND is_active = 1
+  </delete>
+
+</mapper>

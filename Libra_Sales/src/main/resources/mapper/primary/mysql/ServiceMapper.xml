@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ServiceMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        services.id AS id,
+        services.sku AS sku,
+        services.name AS `name`,
+        services.company_id AS companyId,
+        companies.name AS companyName,
+        services.section_id AS sectionId,
+        sections.name AS sectionName,
+        services.uom_id AS uomId,
+        uoms.abbr AS uomAbbr,
+        services.unit_price AS unitPrice,
+        services.description AS description,
+        services.chart_account_id AS chartAccountId,
+        CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS chartAccountName,
+        services.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        services.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM services
+        INNER JOIN companies ON companies.id = services.company_id
+        INNER JOIN sections ON sections.id = services.section_id
+        INNER JOIN uoms ON uoms.id = services.uom_id
+        LEFT JOIN chart_accounts ON chart_accounts.id = services.chart_account_id
+        LEFT JOIN users AS creator ON services.created_by = creator.id
+        LEFT JOIN users AS modifier ON services.modified_by = modifier.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE services.is_active = 1
+        <if test="filter.companyId != null">
+            AND services.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.sectionId != null">
+            AND services.section_id = #{filter.sectionId}
+        </if>
+        <if test="filter.searchText != null">
+            AND services.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ServiceFilter" resultMap="ServiceResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                services.`name` ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ServiceFilter" resultType="java.lang.Long">
+        SELECT COUNT(services.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="ServiceResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE services.is_active = 1 AND services.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM services
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Service.Service" useGeneratedKeys="true" keyProperty="service.id">
+        INSERT INTO services (
+            `name`,
+            sku,
+            company_id,
+            section_id,
+            chart_account_id,
+            uom_id,
+            unit_price,
+            description,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{service.name},
+            #{service.sku},
+            #{service.companyId},
+            #{service.sectionId},
+            #{service.chartAccountId},
+            #{service.uomId},
+            #{service.unitPrice},
+            #{service.description},
+            NOW(),
+            #{service.createdBy},
+            #{service.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Service.Service">
+        UPDATE services SET
+            <if test="service.name != null">`name` = #{service.name},</if>
+            <if test="service.sku != null">sku = #{service.sku},</if>
+            <if test="service.companyId != null">company_id = #{service.companyId},</if>
+            <if test="service.sectionId != null">section_id = #{service.sectionId},</if>
+            <if test="service.chartAccountId != null">chart_account_id = #{service.chartAccountId},</if>
+            <if test="service.uomId != null">uom_id = #{service.uomId},</if>
+            <if test="service.unitPrice != null">unit_price = #{service.unitPrice},</if>
+            <if test="service.description != null">description = #{service.description},</if>
+            modified = NOW(),
+            modified_by = #{service.modifiedBy}
+        WHERE id = #{service.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE services SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+</mapper>

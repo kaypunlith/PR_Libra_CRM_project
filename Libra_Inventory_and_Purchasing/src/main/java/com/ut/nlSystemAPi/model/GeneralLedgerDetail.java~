@@ -1,0 +1,67 @@
+package com.ut.nlSystemAPi.model;
+
+import com.ut.nlSystemAPi.model.base.BaseModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+@Data
+public class GeneralLedgerDetail extends BaseModel {
+
+    @ApiModelProperty(position = 1)
+    private Long id;
+
+    @ApiModelProperty(position = 1)
+    private Long generalLedgerId;
+
+    @ApiModelProperty(position = 2)
+    private String type;
+
+    @ApiModelProperty(position = 2)
+    private String date;
+
+    @ApiModelProperty(position = 3)
+    private Long companyId;
+
+    @ApiModelProperty(position = 4)
+    private Long chartAccountId;
+
+    @ApiModelProperty(position = 5)
+    private Long locationId;
+
+    @ApiModelProperty(position = 6)
+    private Long vendorId;
+
+    @ApiModelProperty(position = 7)
+    private Long classId;
+
+    @ApiModelProperty(position = 8)
+    private String memo;
+
+    @ApiModelProperty(position = 9)
+    private Double debit;
+
+    @ApiModelProperty(position = 10)
+    private Double credit;
+
+    @ApiModelProperty(position = 11)
+    private Long productId;
+
+    @ApiModelProperty(position = 12)
+    private Long serviceId;
+
+    @ApiModelProperty(position = 12)
+    private Long customerId;
+
+    @ApiModelProperty(position = 12)
+    private Long employeeId;
+
+    @ApiModelProperty(position = 13)
+    private Long inventoryValuationId;
+
+    @ApiModelProperty(position = 14)
+    private Long inventoryValuationIsDebit;
+
+    @ApiModelProperty(position = 15)
+    private Double balance;
+
+}

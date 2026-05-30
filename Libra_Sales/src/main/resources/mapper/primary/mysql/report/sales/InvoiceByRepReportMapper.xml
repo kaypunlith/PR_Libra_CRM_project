@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_INVOICE_BY_REP">
+        WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <choose>
+            <when test="filter.status != null">
+                AND sales_orders.status = #{filter.status}
+            </when>
+            <otherwise>
+                AND sales_orders.status > 0
+            </otherwise>
+        </choose>
+        AND location_group_id IN (SELECT location_group_id FROM user_location_groups WHERE user_id = #{userId})
+        <if test="filter.searchText != null">
+            AND (
+                so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND sales_orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND sales_orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND sales_orders.status = #{filter.status}
+        </if>
+        <if test="filter.createdBy != null">
+            AND sales_orders.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.companyId != null">
+            AND sales_orders.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND sales_orders.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND sales_orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+    </sql>
+
+    <select id="getListInvoiceByRep" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.InvoiceByRepReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.InvoiceByRepReportResponse">
+        SELECT
+        (SELECT id FROM cgroups WHERE id=(SELECT cgroup_id FROM customer_cgroups WHERE customer_id=sales_orders.customer_id AND cgroup_id IN (SELECT id FROM cgroups WHERE is_active = 1) LIMIT 1)) AS organizationGroupId,
+        (SELECT name FROM cgroups WHERE id=(SELECT cgroup_id FROM customer_cgroups WHERE customer_id=sales_orders.customer_id AND cgroup_id IN (SELECT id FROM cgroups WHERE is_active = 1) LIMIT 1)) AS organizationGroupName,
+        sales_orders.order_date AS orderDate,
+        sales_orders.so_code AS invoiceCode,
+        sales_orders.memo AS memo,
+        CONCAT_WS(' ', customers.customer_code, ' - ', customers.name) AS organizationName,
+        IF(balance > 0 AND DATEDIFF(now(), due_date) > 0, DATEDIFF(now(), due_date), '.') AS aging,
+        sales_orders.total_amount - IFNULL(sales_orders.discount, 0) + IFNULL(sales_orders.total_vat, 0) - IFNULL(sales_orders.total_deposit, 0) AS totalAmount,
+        sales_orders.balance AS balance,
+        sales_orders.status AS status
+        FROM sales_orders
+        INNER JOIN customers ON customers.id = sales_orders.customer_id
+        <include refid="BASE_WHERE_INVOICE_BY_REP"/>
+        ORDER BY organizationGroupName, sales_orders.order_date ASC, sales_orders.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListInvoiceByRep" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.InvoiceByRepReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(sales_orders.id)
+        FROM sales_orders
+        INNER JOIN customers ON customers.id = sales_orders.customer_id
+        <include refid="BASE_WHERE_INVOICE_BY_REP"/>
+    </select>
+
+</mapper>

@@ -1,0 +1,774 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProductMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    products.id AS id,
+    pgroups.id AS groupId,
+    pgroups.name AS groupName,
+    products.name AS `name`,
+    products.name_kh AS nameKh,
+    products.barcode AS upc,
+    products.code AS sku,
+    products.price_uom_id AS uomId,
+    uoms.name AS uomName,
+    products.company_id AS companyId,
+    companies.name AS companyName,
+    products.brand_id AS brandId,
+    brands.name AS brandName,
+    products.url AS url,
+    products.default_cost AS unitCost,
+    products.unit_cost AS estimateCost,
+    products.photo AS photo,
+    products.photo_name AS photoName,
+    products.file_catalog AS fileCatalog,
+    products.file_catalog_name AS fileCatalogName,
+    products.spec AS spec,
+    products.lucky_code AS luckyCode,
+    products.is_active AS isActive,
+    products.is_end_of_life AS isEndOfLife,
+    IFNULL((SELECT DATE(created) FROM product_prices WHERE product_id = products.id ORDER BY id DESC LIMIT 1), '') AS priceModified,
+    IFNULL((SELECT CONCAT(users.first_name, ' ', users.last_name) FROM users LEFT JOIN product_prices ON users.id = product_prices.created_by ORDER BY product_prices.id DESC LIMIT 1), '') AS priceModifiedBy,
+    IFNULL((SELECT created FROM product_unit_cost_histories WHERE product_id = products.id ORDER BY id DESC LIMIT 1), '') AS latestCostUpdate,
+    IFNULL((SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE users.id = (SELECT created_by FROM product_unit_cost_histories WHERE product_id = products.id ORDER BY id DESC LIMIT 1) LIMIT 1), '') AS latestCostUpdateBy,
+    products.created AS created,
+    products.modified AS modified,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM products
+    LEFT JOIN companies ON companies.id = products.company_id
+    LEFT JOIN product_pgroups ON product_pgroups.product_id = products.id
+    LEFT JOIN pgroups ON pgroups.id = product_pgroups.pgroup_id
+    LEFT JOIN brands ON brands.id = products.brand_id
+    LEFT JOIN uoms ON uoms.id = products.price_uom_id
+    LEFT JOIN users AS users1 ON users1.id = products.created_by
+    LEFT JOIN users AS users2 ON users2.id = products.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE products.is_active IN (1,2)
+    <if test="filter.searchText != null">
+      AND (
+         products.name LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR products.barcode LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR products.code LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+    <if test="filter.show != null">
+      AND products.is_packet = #{filter.show}
+    </if>
+    <if test="filter.isActive != null">
+      AND products.is_active = #{filter.isActive}
+    </if>
+    <if test="filter.groupId != null">
+      AND products.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.groupId})
+    </if>
+    <if test="filter.upc != null">
+      AND products.barcode = #{filter.upc}
+    </if>
+    <if test="filter.sku != null">
+      AND products.code = #{filter.sku}
+    </if>
+    <if test="filter.viewByUser == 1">
+      AND products.created_by = #{userId}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ProductFilter" resultMap="ProductResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        products.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ProductFilter" resultType="java.lang.Long">
+    SELECT COUNT(products.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <sql id="BASE_COLUMN_ONE">
+    products.id AS id,
+    products.photo AS photo,
+    products.photo_name AS photoName,
+    products.company_id AS companyId,
+    companies.name AS companyName,
+    products.brand_id AS brandId,
+    brands.name AS brandName,
+    products.parent_id AS parentId,
+    parent.name AS parentName,
+    products.name AS `name`,
+    products.name_kh AS nameKh,
+    pgroups.id AS groupId,
+    pgroups.name AS groupName,
+    products.is_packet AS isPacket,
+    products.color AS color,
+    products.url AS url,
+    products.barcode AS upc,
+    products.default_cost AS unitCost,
+    products.period_from AS periodFrom,
+    products.period_to AS periodTo,
+    products.reorder_level AS productReorderLevel,
+    products.is_expired_date AS isExpiredDate,
+    IFNULL((SELECT id FROM `uom_conversions` WHERE `from_uom_id` = uoms.id AND `is_small_uom` = 1 AND `is_active` = 1 LIMIT 1), 0) AS smallUomId,
+    products.price_uom_id AS uomId,
+    uoms.name AS uomName,
+    products.code AS sku,
+    products.spec AS spec,
+    products.is_end_of_life AS isEndOfLife,
+    products.description AS description,
+    products.file_catalog AS fileCatalog,
+    products.file_catalog_name AS fileCatalogName,
+    products.width AS width,
+    products.height AS height,
+    products.length AS `length`,
+    products.size_uom_id AS sizeUomId,
+    uoms_size.name AS sizeUomName,
+    products.cubic_meter AS m3,
+    products.weight AS weight,
+    products.weight_uom_id AS weightUomId,
+    uoms_wieght.name AS weightUomName,
+    products.note AS vendorInfo,
+    products.lucky_code AS luckyCode,
+    (SELECT CASE
+        WHEN id IS NOT NULL THEN 1
+        ELSE 0
+        END
+    FROM price_requests
+    WHERE price_requests.product_id = products.id LIMIT 1) AS isPriceRequest,
+    (SELECT
+    CASE
+        WHEN EXISTS (
+            SELECT 1
+            FROM quotation_details qd
+            INNER JOIN quotations q ON q.id = qd.quotation_id
+            WHERE qd.product_id = products.id AND q.status > 0
+            UNION
+            SELECT 1
+            FROM sales_order_details sod
+            INNER JOIN sales_orders so ON so.id = sod.sales_order_id
+            WHERE sod.product_id = products.id AND so.status > 0
+            UNION
+            SELECT 1
+            FROM purchase_order_details pod
+            INNER JOIN purchase_orders po ON po.id = pod.purchase_order_id
+            WHERE pod.product_id = products.id AND po.status > 0
+            UNION
+            SELECT 1
+            FROM purchase_request_details prd
+            INNER JOIN purchase_requests pr ON pr.id = prd.purchase_request_id
+            WHERE prd.product_id = products.id AND pr.status > 0
+        ) THEN 1
+        ELSE 0
+    END) AS isTransaction,
+    products.is_active AS isActive,
+    products.created AS createdDate,
+    products.modified AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM_ONE">
+  FROM products
+  LEFT JOIN products AS parent ON parent.id = products.parent_id
+  LEFT JOIN companies ON products.company_id = companies.id
+  LEFT JOIN brands ON products.brand_id = brands.id
+  LEFT JOIN uoms ON products.price_uom_id = uoms.id
+  LEFT JOIN uoms AS uoms_size ON products.size_uom_id = uoms_size.id
+  LEFT JOIN uoms AS uoms_wieght ON products.weight_uom_id = uoms_wieght.id
+  LEFT JOIN product_pgroups ON products.id = product_pgroups.product_id
+  LEFT JOIN pgroups ON pgroups.id = product_pgroups.pgroup_id
+  LEFT JOIN users AS users1 ON users1.id = products.created_by
+  LEFT JOIN users AS users2 ON users2.id = products.modified_by
+  </sql>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="ProductDetailResponse">
+    SELECT
+    <include refid="BASE_COLUMN_ONE"/>
+    <include refid="BASE_FROM_ONE"/>
+    WHERE products.is_active IN (1,2) AND products.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM products
+    WHERE is_active = 1 AND barcode = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Products" useGeneratedKeys="true" keyProperty="product.id">
+    INSERT INTO products (
+      sys_code,
+      photo,
+      photo_name,
+      company_id,
+      brand_id,
+      price_request_id,
+      parent_id,
+      `name`,
+      name_kh,
+      color,
+      url,
+      period_from,
+      period_to,
+      barcode,
+      default_cost,
+      unit_cost,
+      estimate_cost,
+      reorder_level,
+      is_expired_date,
+      code,
+      price_uom_id,
+      small_val_uom,
+      spec,
+      description,
+      file_catalog,
+      file_catalog_name,
+      width,
+      height,
+      `length`,
+      size_uom_id,
+      cubic_meter,
+      weight,
+      weight_uom_id,
+      note,
+      lucky_code,
+      is_packet,
+      created_by,
+      created,
+      is_active
+    ) VALUES (
+      UUID(),
+      #{product.photo},
+      #{product.photoName},
+      #{product.companyId},
+      #{product.brandId},
+      #{product.priceRequestId},
+      #{product.parentId},
+      #{product.name},
+      #{product.nameKh},
+      #{product.color},
+      #{product.url},
+      #{product.periodFrom},
+      #{product.periodTo},
+      #{product.barcode},
+      #{product.unitCost},
+      #{product.unitCost},
+      #{product.unitCost},
+      #{product.productRecorderLevel},
+      COALESCE(#{product.isExpiredDate}, 0),
+      #{product.code},
+      #{product.priceUomId},
+      COALESCE((SELECT value FROM `uom_conversions` WHERE from_uom_id = #{product.priceUomId} AND is_small_uom = 1 LIMIT 1), 1),
+      #{product.spec},
+      #{product.description},
+      #{product.fileCatalog},
+      #{product.fileCatalogName},
+      #{product.width},
+      #{product.height},
+      #{product.length},
+      #{product.sizeUomId},
+      #{product.cubicMeter},
+      #{product.weight},
+      #{product.weightUomId},
+      #{product.note},
+      #{product.luckyCode},
+      #{product.isPacket},
+      #{product.createdBy},
+      NOW(),
+      #{product.isActive}
+    )
+  </insert>
+
+  <select id="getProductCategory" resultMap="CategoryResponse">
+    SELECT
+        crm_categories.id AS categoryId,
+        crm_categories.name AS categoryName
+    FROM crm_categories
+    LEFT JOIN product_categories ON product_categories.crm_category_id = crm_categories.id
+    WHERE product_categories.product_id = #{productId}
+  </select>
+
+  <select id="getICSAccount" resultMap="ProductICSResponse">
+    SELECT
+      chart_accounts.id AS chartAccountId,
+      accounts.account_type_id AS accountType,
+      CONCAT(chart_accounts.account_codes, ' ', chart_accounts.account_description) AS chartAccountName
+    FROM accounts
+    LEFT JOIN chart_accounts ON accounts.chart_account_id = chart_accounts.id
+    WHERE accounts.product_id = #{productId}
+  </select>
+
+  <select id="getProductSku" resultMap="ProductSkuResponse">
+    SELECT
+      product_with_skus.uom_id AS uomId,
+      product_with_skus.sku AS code
+    FROM product_with_skus
+    WHERE product_with_skus.product_id = #{productId}
+  </select>
+
+  <select id="getProductPacket" resultMap="ProductPacketResponse">
+    SELECT
+        product_with_packets.id AS id,
+        product_with_packets.packet_product_id AS productId,
+        products.name AS productName,
+        product_with_packets.qty AS qty,
+        product_with_packets.qty_uom_id AS uomId,
+        uoms.name AS uomName
+    FROM product_with_packets
+    LEFT JOIN products ON products.id = product_with_packets.packet_product_id
+    LEFT JOIN uoms ON product_with_packets.qty_uom_id = uoms.id
+    WHERE product_with_packets.main_product_id = #{productId}
+  </select>
+
+  <select id="getProductStockLevels" resultMap="ProductStockLevelResponse">
+    SELECT
+      product_stock_levels.stock_level_id AS stockLevelId,
+      stock_levels.name AS stockLevelName,
+      product_stock_levels.qty AS qty
+    FROM product_stock_levels
+      LEFT JOIN stock_levels ON stock_levels.id = product_stock_levels.stock_level_id
+    WHERE product_stock_levels.product_id = #{productId}
+      AND product_stock_levels.is_active = 1
+  </select>
+
+  <select id="getProductPhotos" resultMap="ProductPhotoResponse">
+    SELECT
+      product_photos.url AS url,
+      product_photos.name AS name
+    FROM (
+      SELECT
+        0 AS ordering,
+        products.photo AS url,
+        products.photo_name AS name
+      FROM products
+      WHERE products.id = #{productId}
+        AND IFNULL(products.photo, '') != ''
+      UNION ALL
+      SELECT
+        1 AS ordering,
+        product_images.url AS url,
+        product_images.name AS name
+      FROM product_images
+      WHERE product_images.product_id = #{productId}
+    ) AS product_photos
+    ORDER BY product_photos.ordering ASC
+  </select>
+
+  <insert id="insertProductImage" parameterType="com.ut.nlSystemAPi.model.ProductImage">
+    INSERT INTO product_images (
+      product_id,
+      url,
+      name
+    ) VALUES (
+      #{productImage.productId},
+      #{productImage.url},
+      #{productImage.name}
+    )
+  </insert>
+
+  <delete id="deleteProductImage" parameterType="java.lang.Long">
+    DELETE FROM product_images WHERE product_id = #{productId}
+  </delete>
+
+  <select id="getPriceRequestInformation" resultMap="PriceRequestInformationResponse">
+    SELECT
+      price_requests.id AS id,
+      price_requests.product_id AS productId,
+      price_requests.request_code AS requestCode,
+      price_requests.request_date AS requestDate,
+      (SELECT CONCAT(users.first_name, ' ', users.last_name) FROM users WHERE users.id = price_requests.request_by) AS requestBy,
+      (SELECT CONCAT(users.first_name, ' ', users.last_name) FROM users WHERE users.id = price_requests.convert_by) AS convertBy,
+      price_requests.closed AS closedDate,
+      (SELECT CONCAT(users.first_name, ' ', users.last_name) FROM users WHERE users.id = price_requests.closed_by) AS closedBy,
+      delivery_status.name AS leadTimeName,
+      made_in.name AS madeInCountryName,
+      ship_from.name AS shipFromCountryName,
+      price_requests.note AS note
+    FROM price_requests
+       LEFT JOIN products ON products.id = price_requests.product_id
+       LEFT JOIN countries AS made_in ON made_in.id = price_requests.made_in_country
+       LEFT JOIN countries AS ship_from ON ship_from.id = price_requests.ship_from
+       LEFT JOIN delivery_status ON delivery_status.id = price_requests.delivery_status_id
+    WHERE price_requests.product_id = #{productId}
+  </select>
+
+  <insert id="insertProductCategory" parameterType="com.ut.nlSystemAPi.model.ProductCategory">
+        INSERT INTO product_categories (
+            product_id,
+            crm_category_id
+        ) VALUES (
+                     #{productCategory.productId},
+                     #{productCategory.categoryId}
+                 )
+  </insert>
+
+    <insert id="insertICSAccount" parameterType="com.ut.nlSystemAPi.model.ProductChartAccount">
+        INSERT INTO accounts (
+            product_id,
+            account_type_id,
+            chart_account_id
+        ) VALUES (
+                     #{productChartAccount.productId},
+                     #{productChartAccount.accountType},
+                     #{productChartAccount.chartAccountId}
+                 )
+    </insert>
+
+    <insert id="insertProductPgroup" parameterType="com.ut.nlSystemAPi.model.ProductPgroup">
+        INSERT INTO product_pgroups (
+            product_id,
+            pgroup_id
+        ) VALUES (
+                     #{productPgroup.productId},
+                     #{productPgroup.pgroupId}
+                 )
+    </insert>
+
+  <insert id="insertProductSku" parameterType="com.ut.nlSystemAPi.model.ProductSku">
+    INSERT INTO product_with_skus (
+      product_id,
+      sku,
+      uom_id
+    ) VALUES (
+               #{productSku.productId},
+               #{productSku.code},
+               #{productSku.uomId}
+             )
+  </insert>
+
+  <insert id="insertProductPacket" parameterType="com.ut.nlSystemAPi.model.ProductPacket">
+    INSERT INTO product_with_packets (
+      main_product_id,
+      packet_product_id,
+      qty,
+      qty_uom_id,
+      conversion
+    ) VALUES (
+               #{productPacket.productId},
+               #{productPacket.packetId},
+               #{productPacket.qty},
+               #{productPacket.qtyUomId},
+               #{productPacket.conversion}
+             )
+  </insert>
+
+  <insert id="insertProductStockLevel" parameterType="com.ut.nlSystemAPi.model.ProductStockLevel">
+    INSERT INTO product_stock_levels (
+      product_id,
+      stock_level_id,
+      qty,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{productStockLevel.productId},
+      #{productStockLevel.stockLevelId},
+      #{productStockLevel.qty},
+      NOW(),
+      #{productStockLevel.createdBy},
+      1
+    )
+  </insert>
+
+  <select id="getConversion" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT `value` FROM uom_conversions WHERE is_active = 1 AND from_uom_id = #{uomId} ORDER BY id DESC LIMIT 1
+  </select>
+
+  <delete id="deleteProductPacket" parameterType="java.lang.Long">
+    DELETE FROM product_with_packets WHERE main_product_id = #{productId}
+  </delete>
+
+  <delete id="deleteProductSku" parameterType="java.lang.Long">
+    DELETE FROM product_with_skus WHERE product_id = #{productId}
+  </delete>
+
+  <delete id="deleteProductCategory" parameterType="java.lang.Long">
+      DELETE FROM product_categories WHERE product_id = #{productId}
+  </delete>
+
+  <delete id="deleteICSAccount" parameterType="java.lang.Long">
+      DELETE FROM accounts WHERE product_id = #{productId}
+  </delete>
+
+  <delete id="deleteProductPgroup" parameterType="java.lang.Long">
+    DELETE FROM product_pgroups WHERE product_id = #{productId}
+  </delete>
+
+  <update id="archiveProductStockLevel" parameterType="java.lang.Long">
+    UPDATE product_stock_levels
+    SET is_active = 2,
+        modified = NOW(),
+        modified_by = #{userId}
+    WHERE product_id = #{productId}
+      AND is_active = 1
+  </update>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Products">
+    UPDATE products
+    SET
+    <if test="product.photo != null">photo = #{product.photo},</if>
+    small_val_uom = COALESCE((SELECT value FROM `uom_conversions` WHERE from_uom_id = #{product.priceUomId} AND is_small_uom = 1 LIMIT 1), 1),
+    <if test="product.photoName != null">photo_name = #{product.photoName},</if>
+    <if test="product.companyId != null">company_id = #{product.companyId},</if>
+    <if test="product.brandId != null">brand_id = #{product.brandId},</if>
+    <if test="product.parentId != null">parent_id = #{product.parentId},</if>
+    <if test="product.name != null">`name` = #{product.name},</if>
+    <if test="product.nameKh != null">name_kh = #{product.nameKh},</if>
+    <if test="product.color != null">color = #{product.color},</if>
+    <if test="product.url != null">url = #{product.url},</if>
+    <if test="product.periodFrom != null">period_from = #{product.periodFrom},</if>
+    <if test="product.periodTo != null">period_to = #{product.periodTo},</if>
+    <if test="product.barcode != null">barcode = #{product.barcode},</if>
+    <if test="product.unitCost != null">default_cost = #{product.unitCost},</if>
+    <if test="product.unitCost != null">unit_cost = #{product.unitCost},</if>
+    <if test="product.productRecorderLevel != null">reorder_level = #{product.productRecorderLevel},</if>
+    <if test="product.isExpiredDate != null">is_expired_date = #{product.isExpiredDate},</if>
+    <if test="product.code != null">code = #{product.code},</if>
+    <if test="product.priceUomId != null">price_uom_id = #{product.priceUomId},</if>
+    <if test="product.spec != null">spec = #{product.spec},</if>
+    <if test="product.description != null">description = #{product.description},</if>
+    <if test="product.fileCatalog != null">file_catalog = #{product.fileCatalog},</if>
+    <if test="product.fileCatalogName != null">file_catalog_name = #{product.fileCatalogName},</if>
+    <if test="product.width != null">width = #{product.width},</if>
+    <if test="product.height != null">height = #{product.height},</if>
+    <if test="product.length != null">`length` = #{product.length},</if>
+    <if test="product.sizeUomId != null">size_uom_id = #{product.sizeUomId},</if>
+    <if test="product.cubicMeter != null">cubic_meter = #{product.cubicMeter},</if>
+    <if test="product.weight != null">weight = #{product.weight},</if>
+    <if test="product.weightUomId != null">weight_uom_id = #{product.weightUomId},</if>
+    <if test="product.isPacket != null">is_packet = #{product.isPacket},</if>
+    <if test="product.note != null">note = #{product.note},</if>
+    <if test="product.luckyCode != null">lucky_code = #{product.luckyCode},</if>
+    modified_by = #{product.modifiedBy},
+    modified = NOW(),
+    <if test="product.isActive != null">is_active = #{product.isActive}</if>
+    WHERE id = #{product.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE products SET
+      is_active = -1,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="updateActiveStatus" parameterType="java.lang.Long">
+    UPDATE products SET
+      is_active = #{status.isActive},
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{status.id};
+  </update>
+
+  <select id="getListPriceHistory" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceFilter" resultMap="ProductPriceHistoryResponse">
+    SELECT
+      price_types.id AS priceTypeId,
+      price_types.name AS priceTypeName,
+      products.id AS productId,
+      products.name AS productName,
+      product_prices.uom_id AS uomId,
+      uoms.name AS uom,
+      products.unit_cost AS estimateCost,
+      products.default_cost AS unitCost,
+      product_prices.set_type AS setType,
+      product_prices.amount AS amount,
+      product_prices.percent AS percentage,
+      product_prices.add_on AS addOn,
+      (SELECT total_cost FROM purchase_order_details WHERE product_id = products.id ORDER BY id DESC LIMIT 1) AS lastSellingPrice,
+      product_prices.created AS created,
+      (SELECT CONCAT(users.first_name, ' ', users.last_name) FROM users WHERE users.id = product_prices.created_by) AS createdBy
+    FROM product_prices
+    INNER JOIN products ON products.id = product_prices.product_id
+    INNER JOIN uoms ON uoms.id = product_prices.uom_id
+    INNER JOIN price_types ON price_types.id = product_prices.price_type_id
+    INNER JOIN users ON users.id = product_prices.created_by
+    WHERE product_prices.product_id = #{filter.productId}
+    ORDER BY price_types.ordering, product_prices.id ASC
+  </select>
+
+  <select id="countListPriceHistory" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceFilter" resultType="java.lang.Long">
+    SELECT COUNT(products.id)
+    FROM `price_types`
+           LEFT JOIN products ON products.id = #{filter.productId}
+    WHERE price_types.is_active = 1
+  </select>
+
+  <select id="getListPrice" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceFilter" resultMap="ProductPriceResponse">
+    SELECT
+        price_types.id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        products.id AS productId,
+        products.name AS productName,
+        products.unit_cost AS estimateCost,
+        products.default_cost AS unitCost,
+        IFNULL((SELECT total_cost FROM purchase_order_details WHERE product_id = products.id ORDER BY id DESC LIMIT 1), 0) AS lastSellingPrice,
+        price_types.is_show_catalogue AS isCatalog
+    FROM `price_types`
+    INNER JOIN products ON products.id = #{filter.productId}
+    INNER JOIN product_prices ON product_prices.product_id = products.id
+    WHERE price_types.is_active = 1 AND price_types.id IN (SELECT price_type_id FROM price_type_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+    GROUP BY price_types.id
+    ORDER BY price_types.ordering ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">
+      LIMIT #{filter.page}, #{filter.rowsPerPage}
+    </if>
+  </select>
+
+  <select id="getListPriceDetail" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceFilter" resultMap="ProductPriceDetailResponse">
+    SELECT
+      uom_list.uom_id AS uomId,
+      uoms.name AS uom,
+      price_types.id AS priceTypeId,
+      price_types.name AS priceTypeName,
+      product_prices.set_type AS setType,
+      COALESCE(product_prices.amount, 0) AS amount,
+      COALESCE(product_prices.amount_before, 0) AS amountBefore,
+      COALESCE(product_prices.percent, 0) AS percentage,
+      COALESCE(product_prices.add_on, 0) AS addOn
+    FROM (
+           SELECT price_uom_id AS uom_id FROM products WHERE id = #{filter.productId}
+           UNION
+           SELECT to_uom_id
+           FROM uom_conversions
+           WHERE is_active = 1
+             AND from_uom_id = (SELECT price_uom_id FROM products WHERE id = #{filter.productId})
+           UNION
+           SELECT uom_id
+           FROM product_prices
+           WHERE product_id = #{filter.productId}
+             AND price_type_id = #{filter.priceTypeId}
+         ) AS uom_list
+           LEFT JOIN uoms ON uoms.id = uom_list.uom_id
+           LEFT JOIN product_prices ON product_prices.product_id = #{filter.productId} AND product_prices.uom_id = uom_list.uom_id AND product_prices.price_type_id = #{filter.priceTypeId}
+           LEFT JOIN price_types ON price_types.id = #{filter.priceTypeId}
+  </select>
+
+  <select id="countListPrice" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceFilter" resultType="java.lang.Long">
+    SELECT COUNT(products.id)
+    FROM `price_types`
+        LEFT JOIN products ON products.id = #{filter.productId}
+    WHERE price_types.is_active = 1
+  </select>
+
+  <delete id="deletePrice" parameterType="java.lang.Long">
+    DELETE FROM product_prices WHERE product_id = #{productId}
+  </delete>
+
+  <insert id="addPrice" parameterType="com.ut.nlSystemAPi.model.ProductPrice">
+    INSERT INTO product_prices (
+      product_id,
+      price_type_id,
+      uom_id,
+      amount,
+      amount_before,
+      `percent`,
+      add_on,
+      set_type,
+      created,
+      created_by
+    ) VALUES (
+      #{productPrice.productId},
+      #{productPrice.priceTypeId},
+      #{productPrice.uomId},
+      #{productPrice.amount},
+      #{productPrice.amountBefore},
+      #{productPrice.percentage},
+      #{productPrice.addOn},
+      #{productPrice.setType},
+      NOW(),
+      #{productPrice.createdBy}
+      )
+  </insert>
+
+  <insert id="addPriceHistory" parameterType="com.ut.nlSystemAPi.model.ProductPriceHistory">
+    INSERT INTO product_price_histories (
+      product_id,
+      price_type_id,
+      uom_id,
+      unit_cost,
+      new_amount,
+      new_percent,
+      new_add_on,
+      new_set_type,
+      created,
+      created_by
+    ) VALUES (
+               #{productPriceHistory.productId},
+               #{productPriceHistory.priceTypeId},
+               #{productPriceHistory.uomId},
+               (SELECT unit_cost FROM products WHERE id = #{productPriceHistory.productId}),
+               #{productPriceHistory.amount},
+               #{productPriceHistory.percentage},
+               #{productPriceHistory.addOn},
+               #{productPriceHistory.setType},
+               NOW(),
+               #{productPriceHistory.createdBy}
+             )
+  </insert>
+
+  <update id="updateCost" parameterType="com.ut.nlSystemAPi.model.Products">
+    UPDATE products SET unit_cost = #{product.estimatedCost} WHERE id = #{product.id};
+  </update>
+
+  <update id="isEndOfLife" parameterType="com.ut.nlSystemAPi.model.request.Login.Product.ProductEndOfLife">
+    UPDATE products SET is_end_of_life = #{request.isEndOfLife} WHERE id = #{request.id}
+  </update>
+
+  <select id="getUomSku" parameterType="com.ut.nlSystemAPi.model.filter.UomSkuFilter" resultType="java.lang.String">
+    SELECT `sku` FROM product_with_skus WHERE product_id = #{filter.productId} AND uom_id = #{filter.uomId}
+  </select>
+
+  <select id="getProductGroupPrice" resultMap="ProductGroupPriceSettingResponse">
+    SELECT
+    pgroup_prices.price_type_id AS priceTypeId,
+    pgroup_prices.from_cost AS amountBefore,
+    pgroup_prices.to_cost AS amount,
+    pgroup_prices.percent AS percent,
+    pgroup_prices.add_on AS addOn,
+    pgroup_prices.set_type AS setType
+    FROM pgroup_prices
+    INNER JOIN pgroup_price_settings ON pgroup_price_settings.id = pgroup_prices.pgroup_price_setting_id
+    WHERE `from_cost` &lt;= #{unitCost}
+    AND `to_cost` >= #{unitCost}
+    AND pgroup_prices.pgroup_id = #{productGroupId}
+    AND pgroup_price_settings.is_active = 1
+    AND pgroup_prices.is_active = 1
+  </select>
+
+  <select id="calculateProductUnitPrice" resultType="com.ut.nlSystemAPi.model.response.Product.ProductPriceDetailHistoryResponse">
+    SELECT
+      history.set_type AS setType,
+      IFNULL(history.amount,0) AS amount,
+      IFNULL(history.percent,0) AS percentage,
+      IFNULL(history.add_on,0) AS addOn,
+      IFNULL((SELECT unit_cost FROM products WHERE id = #{request.productId}),0) AS unitCost
+    FROM product_prices AS history
+    INNER JOIN users ON users.id = history.created_by
+    WHERE history.product_id = #{request.productId}
+    <if test="request.priceTypeId != null">
+      AND price_type_id = #{request.priceTypeId}
+      AND uom_id = #{uomId}
+    </if>
+  </select>
+
+
+  <select id="getProductUnitCost" resultType="java.lang.Double">
+    SELECT unit_cost FROM products WHERE id = #{id}
+  </select>
+
+</mapper>

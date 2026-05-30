@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+    
+    <sql id="BASE_FROM_SALES_ORDER">
+        FROM orders
+        INNER JOIN users ON users.id = orders.created_by
+        INNER JOIN customers ON customers.id = orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = orders.currency_center_id
+    </sql>
+
+    <sql id="BASE_WHERE_SALES_ORDER">
+        WHERE orders.status > 0
+        <if test="filter.searchText != null">
+            AND (
+            orders.order_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.type != null">
+            AND orders.type = #{filter.type}
+        </if>
+        <if test="filter.organizationId != null">
+            AND orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.isClose != null">
+            AND orders.is_close = #{filter.isClose}
+        </if>
+        <if test="filter.isApprove != null">
+            AND orders.is_approve = #{filter.isApprove}
+        </if>
+        <if test="filter.createdBy != null">
+            AND orders.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.filterBy != null">
+            AND orders.is_none_vat = #{filter.filterBy}
+        </if>
+        <if test="filter.delivery != null">
+        <choose>
+            <when test="filter.delivery == 1">
+                AND sales_orders.delivery_id IS NOT NULL AND sales_orders.status = 2
+            </when>
+            <when test="filter.delivery == 0">
+                AND sales_orders.delivery_id IS NULL AND sales_orders.status > 0
+            </when>
+        </choose>
+        </if>
+    </sql>
+    
+    
+    
+    
+    
+    <!--Detail-->
+    <select id="getListSalesOrderDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesOrderReportResponse">
+        SELECT
+        orders.id AS id,
+        orders.order_date AS soDate,
+        orders.order_code AS soCode,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName,
+
+
+        (SELECT GROUP_CONCAT(quotation_code SEPARATOR ', ')
+         FROM quotations
+         WHERE id IN (SELECT quotation_id FROM order_quotations WHERE order_id = orders.id)) AS quotationCode,
+
+
+        (SELECT GROUP_CONCAT(code SEPARATOR ', ')
+        FROM deliveries
+        WHERE id IN (SELECT delivery_id
+        FROM sales_orders
+        WHERE order_id = orders.id)
+        LIMIT 1) AS dnCode,
+
+
+        (SELECT GROUP_CONCAT(pr_code SEPARATOR ', ')
+        FROM purchase_requests
+        WHERE status = 1 AND id IN (
+        SELECT purchase_request_id
+        FROM purchase_request_orders
+        WHERE order_id = orders.id)) AS poCode,
+
+
+        IFNULL(orders.total_vat, 0) AS totalVat,
+        orders.total_amount - IFNULL(orders.discount, 0) AS subTotal,
+        orders.total_amount - IFNULL(orders.discount, 0) + IFNULL(orders.total_vat, 0) AS totalAmount,
+        orders.is_close AS isClose,
+        orders.is_approve AS isApprove,
+        orders.type AS `type`,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        currency_centers.symbol AS currencySymbol
+        <include refid="BASE_FROM_SALES_ORDER"/>
+        <include refid="BASE_WHERE_SALES_ORDER"/>
+        GROUP BY orders.id
+        ORDER BY orders.order_date DESC, orders.order_code DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSalesOrderDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(orders.id)
+        <include refid="BASE_FROM_SALES_ORDER"/>
+        <include refid="BASE_WHERE_SALES_ORDER"/>
+    </select>
+
+
+
+    
+    
+    <!--By Product-->
+    <select id="getListSalesOrderByProduct" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesOrderReportResponse">
+        SELECT
+        orders.id AS id,
+        orders.order_date AS soDate,
+        orders.order_code AS soCode,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName
+        <include refid="BASE_FROM_SALES_ORDER"/>
+        <include refid="BASE_WHERE_SALES_ORDER"/>
+        GROUP BY orders.order_code
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSalesOrderByProduct" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(orders.id)
+        <include refid="BASE_FROM_SALES_ORDER"/>
+        <include refid="BASE_WHERE_SALES_ORDER"/>
+    </select>
+
+    <select id="getListSalesOrderByProductDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesOrderReportDetailResponse">
+        (
+            SELECT
+                1 AS type,
+                products.name AS itemName,
+                products.code AS sku,
+                products.barcode AS upc,
+                order_details.qty AS qty,
+                uoms.name AS uomName,
+                order_details.unit_price AS unitCost,
+                order_details.total_price AS totalCost
+            FROM order_details
+                     INNER JOIN products ON products.id = order_details.product_id
+                     LEFT JOIN uoms ON uoms.id = order_details.qty_uom_id
+            WHERE order_details.order_id = #{salesOrderId}
+        )
+
+        UNION ALL
+
+        (
+            SELECT
+                2 AS `type`,
+                services.name AS itemName,
+                services.sku AS sku,
+                services.sku AS upc,
+                order_services.qty AS qty,
+                NULL AS uomName,
+                order_services.unit_price AS unitCost,
+                order_services.total_price AS totalCost
+            FROM order_services
+                     INNER JOIN services ON services.id = order_services.service_id
+            WHERE order_services.order_id = #{salesOrderId}
+        )
+    </select>
+
+
+
+    
+    
+    <!--By Product Summary-->
+    <select id="getListSalesOrderByProductSummary" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesOrderReportResponse">
+        SELECT
+        products.id AS id,
+        orders.order_date AS soDate,
+        orders.order_code AS soCode,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName,
+        products.name AS itemName,
+        products.code AS sku,
+        products.barcode AS upc,
+        order_details.qty AS qty,
+        uoms.name AS uomName,
+        order_details.unit_price AS unitCost,
+        order_details.total_price AS totalCost
+        FROM orders
+        INNER JOIN users ON users.id = orders.created_by
+        INNER JOIN customers ON customers.id = orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = orders.currency_center_id
+        LEFT JOIN order_details ON order_details.quotation_id = orders.id
+        LEFT JOIN order_services ON order_services.quotation_id = orders.id
+        LEFT JOIN products ON products.id = order_details.product_id
+        LEFT JOIN services ON services.id = order_services.service_id
+        LEFT JOIN uoms ON uoms.id = order_details.qty_uom_id
+        <include refid="BASE_WHERE_SALES_ORDER"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSalesOrderByProductSummary" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(products.id)
+        FROM orders
+        INNER JOIN users ON users.id = orders.created_by
+        INNER JOIN customers ON customers.id = orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = orders.currency_center_id
+        LEFT JOIN order_details ON order_details.quotation_id = orders.id
+        LEFT JOIN order_services ON order_services.quotation_id = orders.id
+        LEFT JOIN products ON products.id = order_details.product_id
+        LEFT JOIN services ON services.id = order_services.service_id
+        LEFT JOIN uoms ON uoms.id = order_details.qty_uom_id
+        <include refid="BASE_WHERE_SALES_ORDER"/>
+    </select>
+
+</mapper>

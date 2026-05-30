@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.AttendanceMapper">
+
+  <sql id="BASE_COLUMN_LIST_DETAIL">
+	  ea
+	  .
+	  id
+	  AS `id`,
+		employees.photo AS `profile`,
+		ea.employee_id AS employeeId,
+		employees.name AS employeeName,
+		employees.gender AS gender,
+		positions.`name` AS `position`,
+		departments.`name` AS `department`,
+		ea.working_location_id AS departmentId,
+		departments.`name` AS departmentName,
+		ea.`type` AS `timeClock`,
+		CASE
+		      WHEN ea.work_shift_id IS NULL THEN 'Part-time'
+		      ELSE work_shifts.`name`
+	  END
+	  AS shift,
+		ea.work_shift_id AS shiftId,
+		work_shifts.name AS shiftName,
+		DATE(ea.datetime_scan) AS `date`,
+		TIME(ea.datetime_scan) AS `time`,
+		ea.`status` AS `status`,
+		ea.`minute` AS `minute`,
+		CASE 
+			WHEN ea.type = 2 THEN 
+				TIMESTAMPDIFF(MINUTE, 
+					(SELECT ea2.datetime_scan 
+					 FROM employee_attendances ea2 
+					 WHERE ea2.employee_id = ea.employee_id 
+					 AND DATE(ea2.datetime_scan) = DATE(ea.datetime_scan) 
+					 AND ea2.type = 1 
+					 AND ea2.is_active = 1 
+					 ORDER BY ea2.datetime_scan ASC LIMIT 1), 
+					ea.datetime_scan
+				)
+			ELSE 0
+	  END
+	  AS `totalWorkingMinute`,
+        ea.`shift_time_from` AS shiftTimeFrom,
+        ea.`shift_time_to` AS shiftTimeTo
+  </sql>
+
+	<sql id="BASE_FROM">
+		FROM employee_attendances AS ea
+		LEFT JOIN employees ON employees.id = ea.employee_id
+		LEFT JOIN departments ON departments.id = ea.working_location_id
+		LEFT JOIN positions ON positions.id = employees.position_id
+		LEFT JOIN work_shifts ON work_shifts.id = ea.work_shift_id
+		LEFT JOIN egroups ON egroups.id = departments.group_id
+	</sql>
+
+	<!-- * base where general return -->
+	<sql id="BASE_WHERE">
+    WHERE ea.is_active = 1
+    <if test="filter.employeeId != null">
+      AND ea.employee_id = #{filter.employeeId}
+    </if>
+    <if test="filter.departmentId != null">
+      AND departments.id = #{filter.departmentId}
+    </if>
+    <if test="filter.positionId != null">
+      AND positions.id = #{filter.positionId}
+    </if>
+    <if test="filter.groupId != null">
+      AND egroups.id = #{filter.groupId}
+    </if>
+    <if test="filter.searchText != null">
+        AND (
+            employees.name_en LIKE CONCAT("%", #{filter.searchText}, "%") OR
+            employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR
+            employees.employee_code LIKE CONCAT("%", #{filter.searchText}, "%") OR
+            employees.telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+        )
+    </if>
+  </sql>
+
+	<!-- * base where condition on a date -->
+	<sql id="WHERE_ON_DATE">
+		<if test="filter.dateFrom != null">
+            AND DATE(ea.datetime_scan) &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(ea.datetime_scan) &lt;= #{filter.dateTo}
+        </if>
+	</sql>
+
+	<!-- * get list of attendances -->
+	<select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.AttendanceFilter" resultMap="AttendanceResponse">
+		SELECT
+    <include refid="BASE_COLUMN_LIST_DETAIL"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    <include refid="WHERE_ON_DATE"/>
+    GROUP BY ea.id
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        ea.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <!-- * total count by condition -->
+  <select id="getCount" parameterType="com.ut.nlSystemAPi.model.filter.AttendanceFilter" resultType="java.lang.Long">
+    SELECT COUNT(ea.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    <include refid="WHERE_ON_DATE"/>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Attendance" keyProperty="attendance.id">
+    INSERT INTO employee_attendances (
+      employee_id,
+      working_location_id,
+      type,
+      status,
+      minute,
+      work_shift_id,
+      shift_time_from,
+      shift_time_to,
+      late_check_in_time,
+      leave_early_time,
+      beginning_check_in,
+      ending_check_in,
+      beginning_check_out,
+      ending_check_out,
+      total_working_minute,
+      day,
+      datetime_scan,
+      created,
+      created_by,
+      is_active,
+      modified,
+      modified_by
+    ) VALUES (
+      #{attendance.employeeId},
+      #{attendance.workingLocationId},
+      #{attendance.type},
+      #{attendance.status},
+      #{attendance.minute},
+      #{attendance.workShiftId},
+      #{attendance.shiftTimeFrom},
+      #{attendance.shiftTimeTo},
+      #{attendance.lateCheckInTime},
+      #{attendance.leaveEarlyTime},
+      #{attendance.beginningCheckIn},
+      #{attendance.endingCheckIn},
+      #{attendance.beginningCheckOut},
+      #{attendance.endingCheckOut},
+      0,
+      DATE_FORMAT(#{attendance.datetimeScan}, '%Y-%m-%d'),
+      #{attendance.datetimeScan},
+      NOW(),
+      #{attendance.createdBy},
+      1,
+      <if test="attendance.modifiedBy != null">NOW()</if><if test="attendance.modifiedBy == null">NULL</if>,
+      #{attendance.modifiedBy}
+    )
+  </insert>
+  
+  <select id="getOne" resultMap="AttendanceResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_DETAIL"/>
+    <include refid="BASE_FROM"/>
+    WHERE ea.is_active = 1 AND ea.id = #{id}
+  </select>
+
+  <select id="getCheckInAttendance" resultMap="AttendanceResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_DETAIL"/>
+    <include refid="BASE_FROM"/>
+    WHERE ea.is_active = 1 
+      AND ea.employee_id = #{employeeId} 
+      AND DATE(ea.datetime_scan) = #{date} 
+      AND ea.type = 1
+    ORDER BY ea.datetime_scan ASC 
+    LIMIT 1
+  </select>
+
+  <delete id="delete">
+    UPDATE employee_attendances SET is_active = 0, modified = NOW(), modified_by = #{userId} WHERE id = #{id}
+  </delete>
+
+</mapper>

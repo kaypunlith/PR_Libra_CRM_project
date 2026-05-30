@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProductGroupMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    pgroups.id AS id,
+    companies.id AS companyId,
+    companies.name AS companyName,
+    pgroups.parent_id AS parentId,
+    parent_pg.name AS parentName,
+    pgroups.name AS `name`,
+    pgroups.description AS description,
+    pgroups.ics_apply_sub AS icsApplySub,
+    pgroups.modified AS modified,
+    pgroups.created AS created,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+       FROM pgroups
+        LEFT JOIN pgroups AS parent_pg ON pgroups.parent_id = parent_pg.id
+        LEFT JOIN pgroup_companies AS pc ON pc.pgroup_id = pgroups.id
+        LEFT JOIN companies ON companies.id = pc.company_id
+        LEFT JOIN users AS users1 ON users1.id = pgroups.created_by
+        LEFT JOIN users AS users2 ON users2.id = pgroups.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+      WHERE pgroups.is_active = 1 AND pc.pgroup_id = pgroups.id
+    <if test="filter.searchText != null">
+        AND pgroups.name LIKE CONCAT('%', #{filter.searchText}, '%') OR parent_pg.name LIKE CONCAT('%', #{filter.searchText}, '%')
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ProductGroupResponse">
+     SELECT
+     <include refid="BASE_COLUMN_LIST"/>
+     <include refid="BASE_FROM"/>
+     <include refid="BASE_WHERE"/>
+     ORDER BY
+     <choose>
+          <when test="filter.orderBy != null">
+            ${filter.orderBy}
+          </when>
+          <otherwise>
+              pgroups.id DESC
+          </otherwise>
+     </choose>
+     <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+    <select id="getICSProduct" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ICSResponse">
+        SELECT
+            chart_accounts.id AS chartAccountId,
+            CONCAT(chart_accounts.account_codes,' - ',chart_accounts.account_description) AS chartAccountName,
+            pgroup_accounts.account_type_id AS accountTypeId,
+            account_types.name AS accountTypeName
+        FROM pgroup_accounts
+                 INNER JOIN chart_accounts ON chart_accounts.id = pgroup_accounts.chart_account_id
+                 INNER JOIN account_types ON account_types.id = pgroup_accounts.account_type_id
+        WHERE pgroup_id = #{id}
+    </select>
+
+    <select id="getProductPgroup" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ProductPgroupResponse">
+        SELECT
+            product_pgroups.product_id AS id,
+            products.name AS name
+        FROM product_pgroups
+                 INNER JOIN products ON products.id = product_pgroups.product_id
+        WHERE product_pgroups.pgroup_id = #{id}
+    </select>
+
+    <select id="getUserPgroup" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="UserPgroupResponse">
+        SELECT
+            user_pgroups.user_id AS id,
+            CONCAT(users.first_name, ' ', users.last_name) AS name
+        FROM user_pgroups
+                 INNER JOIN employees ON employees.user_id = user_pgroups.user_id
+        WHERE user_pgroups.pgroup_id = #{id}
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(pgroups.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+    <sql id="BASE_COLUMN_LIST_ONE">
+    pgroups.id AS id,
+    companies.id AS companyId,
+    companies.name AS companyName,
+    pgroups.parent_id AS parentId,
+    (SELECT pg.`name` FROM pgroups AS pg WHERE pg.id = pgroups.parent_id) AS parentName,
+    pgroups.name AS `name`,
+    pgroups.description AS description,
+    pgroups.user_apply AS userApply,
+    pgroups.ics_apply_sub AS icsApplySub,
+    pgroups.modified AS modified,
+    pgroups.created AS created,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM_ONE">
+        FROM pgroups
+            LEFT JOIN pgroup_companies AS pc ON pc.pgroup_id = pgroups.id
+            LEFT JOIN companies ON companies.id = pc.company_id
+            LEFT JOIN users AS users1 ON users1.id = pgroups.created_by
+            LEFT JOIN users AS users2 ON users2.id = pgroups.modified_by
+    </sql>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="ProductGroupResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST_ONE"/>
+      <include refid="BASE_FROM_ONE"/>
+     WHERE pgroups.is_active = 1 AND pgroups.id = #{id}
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ProductGroup" useGeneratedKeys="true" keyProperty="productGroup.id">
+    INSERT INTO pgroups (
+        sys_code,
+        parent_id,
+        name,
+        user_apply,
+        ics_apply_sub,
+        description,
+        created,
+        created_by,
+        is_active
+    ) VALUES (
+      UUID(),
+      #{productGroup.parentId},
+      #{productGroup.name},
+      #{productGroup.userApply},
+      #{productGroup.icsApplySub},
+      #{productGroup.description},
+      NOW(),
+      #{productGroup.createdBy},
+      #{productGroup.isActive}
+    )
+  </insert>
+
+    <insert id="insertPgroupCompany" parameterType="com.ut.nlSystemAPi.model.PgroupCompany" useGeneratedKeys="true">
+        INSERT INTO pgroup_companies (
+            pgroup_id,
+            company_id
+        ) VALUES (
+                     #{pgroupCompany.pgroupId},
+                     #{pgroupCompany.companyId}
+                 )
+    </insert>
+
+    <insert id="insertUserPgroup" parameterType="com.ut.nlSystemAPi.model.UserPgroup" useGeneratedKeys="true">
+        INSERT INTO user_pgroups (
+            user_id,
+            pgroup_id
+
+        ) VALUES (
+                     #{userPgroup.userId},
+                     #{userPgroup.pgroupId}
+                 )
+    </insert>
+
+    <insert id="insertICSAccount" parameterType="com.ut.nlSystemAPi.model.PgroupChartAcount" useGeneratedKeys="true">
+        INSERT INTO pgroup_accounts (
+            pgroup_id,
+            account_type_id,
+            chart_account_id
+        ) VALUES (
+                     #{pgroupChartAcount.pgroupId},
+                     #{pgroupChartAcount.accountTypeId},
+                      #{pgroupChartAcount.chartAccountId}
+                 )
+    </insert>
+
+    <insert id="insertProductPgroup" parameterType="com.ut.nlSystemAPi.model.ProductPgroup" useGeneratedKeys="true" >
+        INSERT INTO product_pgroups (
+            product_id,
+            pgroup_id
+        ) VALUES (
+                     #{productPgroup.productId},
+                     #{productPgroup.pgroupId}
+                 )
+    </insert>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM pgroups
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.ProductGroup">
+        UPDATE pgroups
+        <set>
+            <if test="productGroup.parentId != null">`parent_id` = #{productGroup.parentId},</if>
+            <if test="productGroup.name != null">`name` = #{productGroup.name},</if>
+            <if test="productGroup.description != null">`description` = #{productGroup.description},</if>
+            `modified` = NOW(),
+            <if test="productGroup.modifiedBy != null">`modified_by` = #{productGroup.modifiedBy}</if>
+        </set>
+        WHERE id = #{productGroup.id}
+    </update>
+
+    <delete id="deletePgroupCompany" parameterType="java.lang.Long">
+        DELETE FROM pgroup_companies WHERE pgroup_id=#{id}
+    </delete>
+
+    <delete id="deleteUserPgroup" parameterType="java.lang.Long">
+        DELETE FROM user_pgroups WHERE pgroup_id=#{id}
+    </delete>
+
+    <delete id="deleteICSAccount" parameterType="java.lang.Long">
+        DELETE FROM pgroup_accounts WHERE pgroup_id=#{id}
+    </delete>
+
+    <delete id="deleteProductPgroup" parameterType="java.lang.Long">
+        DELETE FROM product_pgroups WHERE pgroup_id=#{id}
+    </delete>
+
+    <select id="getPriceType" parameterType="java.lang.Long" resultMap="PriceTypePgroupResponse">
+        SELECT
+            price_types.id AS id,
+            price_types.name AS name,
+            pgroup_prices.percent AS percent,
+            pgroup_prices.add_on AS addOn,
+            pgroup_prices.set_type AS setType,
+            pgroup_prices.from_cost AS fromCost,
+            pgroup_prices.to_cost AS toCost
+        FROM price_types
+                 LEFT JOIN pgroup_prices ON pgroup_prices.price_type_id = price_types.id AND pgroup_prices.pgroup_id = #{id} AND pgroup_prices.is_active = 1
+                 INNER JOIN price_type_companies ON price_type_companies.price_type_id = price_types.id AND price_type_companies.company_id IN (
+            SELECT company_id FROM user_companies WHERE user_id = #{userId}) WHERE price_types.is_active = 1;
+    </select>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE pgroups SET
+                                   is_active = 2,
+                                   modified = NOW(),
+                                   modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+</mapper>

@@ -1,0 +1,985 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.EmployeesMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+      employees.id AS id,
+      employees.user_id AS userId,
+      employees.username AS username,
+      employees.id_card AS idCard,
+      employees.name AS `name`,
+      employees.name AS `name`,
+      employees.name_kh AS nameKh,
+      employees.gender AS gender,
+      employees.code AS code,
+      employees.code AS employeeCode,
+      employees.dob AS dob,
+      employees.start_working_date AS dateOfWork,
+      employees.date_from AS dateFrom,
+      employees.date_to AS dateTo,
+      employees.`date` AS `date`,
+      employees.marital_status_id AS maritalId,
+      maritals.name AS maritalName,
+      employees.age AS age,
+      employees.personal_number AS personalNumber,
+      employees.personal_email AS personalEmail,
+      employees.other_number AS otherNumber,
+      employees.email AS email,
+      employees.position_id AS positionId,
+      employees.address AS address,
+      employees.telephone AS telephone,
+      employees.education AS education,
+      employees.work_experience AS workExperience,
+      employees.reference AS reference,
+      employees.is_show_in_sales AS isShowInSales,
+      employees.employee_sys_code AS employeeSysCode,
+      employees.under_supervisor_id AS underSupervisorId,
+      employees.department_id AS departmentId,
+      employees.employee_status_id AS employeeStatusId,
+      employees.employee_type_id AS employeeTypeId,
+      employees.attendance_status AS attendanceStatus,
+      employees.remark AS remark,
+      employees.reason AS reason,
+      employees.emp_reference AS empReference,
+      employees.current_salary AS salary,
+      employees.current_salary AS currentSalary,
+      employees.salary_second_work_shift AS salarySecondWorkshift,
+      0 AS increase,
+      employees.allowance AS allowance,
+      employees.day_rate AS dayRate,
+      employees.weekend_rate AS weekendRate,
+      employees.night_rate AS nightRate,
+      employees.public_holiday_rate AS publicHolidayRate,
+      employees.paid_by AS paidType,
+      employees.is_paid AS isPaid,
+      employees.account_number AS accountNumber,
+      employees.account_id AS accountId,
+      employees.bank_image AS bankImage,
+      employees.bank_image_name AS bankImageName,
+      employees.is_donated AS donate,
+      employees.is_provident_fund AS providentFund,
+      employees.is_deposit AS deposit,
+      employees.num_month AS numMonth,
+      employees.amount_deposit AS amountDeposit,
+      employees.deadline_date AS deadlineDate,
+      employees.chat_id AS chatId,
+      (SELECT username FROM users WHERE id = employees.user_hr_id) AS sysCode,
+      employees.created AS created,
+      CONCAT(user1.first_name, ' ', user1.last_name) AS createdBy,
+      employees.modified AS modified,
+      CONCAT(user2.first_name, ' ', user2.last_name) AS modifiedBy,
+      employees.is_active AS status,
+      positions.name AS positionName,
+      departments.name AS departmentName,
+      employee_status.name AS employeeStatusName,
+      employee_types.name AS employeeTypeName
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM employees
+      LEFT JOIN users AS user1 ON employees.created_by = user1.id
+      LEFT JOIN users AS user2 ON employees.modified_by = user2.id
+      LEFT JOIN positions ON positions.id = employees.position_id
+      LEFT JOIN departments ON departments.id = employees.department_id
+      LEFT JOIN employee_status ON employee_status.id = employees.employee_status_id
+      LEFT JOIN employee_types ON employee_types.id = employees.employee_type_id
+      LEFT JOIN maritals ON maritals.id = employees.marital_status_id
+      LEFT JOIN employee_apply_status AS status_current ON status_current.employee_id = employees.id AND status_current.is_active = 1
+      LEFT JOIN employee_work_shifts AS ews1 ON ews1.employee_id = employees.id AND ews1.is_active = 1 AND ews1.status = 1
+      LEFT JOIN work_shifts AS ws1 ON ws1.id = ews1.work_shift_id AND ws1.is_active = 1
+      LEFT JOIN employee_work_shifts AS ews2 ON ews2.employee_id = employees.id AND ews2.is_active = 1 AND ews2.status = 2
+      LEFT JOIN work_shifts AS ws2 ON ws2.id = ews2.work_shift_id AND ws2.is_active = 1
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE employees.is_active = 1
+    <if test="filter.departmentId != null">
+      AND employees.department_id = #{filter.departmentId}
+    </if>
+    <if test="filter.statusId != null">
+      AND employees.employee_status_id = #{filter.statusId}
+    </if>
+    <if test="filter.dateOfWork != null">
+      AND MONTH(employees.created) = MONTH(#{filter.dateOfWork}) AND YEAR(employees.created) = YEAR(#{filter.dateOfWork})
+    </if>
+    <if test="filter.searchText != null">
+      AND (
+      employees.name LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      employees.code LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      employees.telephone LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      employees.personal_number LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+  </sql>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.EmployeeFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.EmployeeFilter" resultMap="EmployeesResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>,
+    ews1.work_shift_id AS workShift1Ids,
+    ws1.name AS workShift1Name,
+    ews2.work_shift_id AS workShift2Ids,
+    ws2.name AS workShift2Name,
+    status_current.payroll_type AS payroll
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        employees.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="EmployeesResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>,
+    ews1.work_shift_id AS workShift1Ids,
+    ws1.name AS workShift1Name,
+    ews2.work_shift_id AS workShift2Ids,
+    ws2.name AS workShift2Name,
+    status_current.payroll_type AS payroll
+    <include refid="BASE_FROM"/>
+    WHERE employees.is_active = 1 AND employees.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employees
+    WHERE is_active = 1 AND name = #{name} AND name_kh = #{nameKh} AND id_card = #{idCard}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Employee" useGeneratedKeys="true" keyProperty="employee.id">
+    INSERT INTO employees (
+      <if test="employee.userId != null">user_id,</if>
+      <if test="employee.userHrId != null">user_hr_id,</if>
+      employee_sys_code,
+      photo,
+      photo_name,
+      id_card,
+      name,
+      name_kh,
+      gender,
+      sex,
+      code,
+      dob,
+      start_working_date,
+      date_from,
+      date_to,
+      `date`,
+      marital_status_id,
+      age,
+      personal_number,
+      personal_email,
+      other_number,
+      email,
+      position_id,
+      address,
+      telephone,
+      education,
+      work_experience,
+      reference,
+      under_supervisor_id,
+      department_id,
+      employee_status_id,
+      employee_type_id,
+      attendance_status,
+      remark,
+      username,
+      password,
+      reason,
+      emp_reference,
+      current_salary,
+      salary_second_work_shift,
+      allowance,
+      day_rate,
+      weekend_rate,
+      night_rate,
+      public_holiday_rate,
+      paid_by,
+      is_paid,
+      account_number,
+      account_id,
+      bank_image,
+      bank_image_name,
+      is_donated,
+      is_provident_fund,
+      is_deposit,
+      num_month,
+      amount_deposit,
+      deadline_date,
+      is_show_in_sales,
+      is_delivery,
+      is_collector,
+      is_allow_discount,
+      chat_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               <if test="employee.userId != null">#{employee.userId},</if>
+               <if test="employee.userHrId != null">#{employee.userHrId},</if>
+              #{employee.employeeSysCode},
+              #{employee.photo},
+              #{employee.photoName},
+              #{employee.idCard},
+              #{employee.name},
+              #{employee.nameKh},
+              #{employee.gender},
+              #{employee.gender},
+              #{employee.code},
+              #{employee.dob},
+              #{employee.dateOfWork},
+              #{employee.dateFrom},
+              #{employee.dateTo},
+              #{employee.date},
+              #{employee.maritalId},
+              #{employee.age},
+              #{employee.personalNumber},
+              #{employee.personalEmail},
+              #{employee.otherNumber},
+              #{employee.email},
+              #{employee.positionId},
+              #{employee.address},
+              #{employee.telephone},
+              #{employee.education},
+              #{employee.workExperience},
+              #{employee.reference},
+              #{employee.underSupervisorId},
+              #{employee.departmentId},
+              #{employee.employeeStatusId},
+              #{employee.employeeTypeId},
+              #{employee.attendanceStatus},
+              #{employee.remark},
+              #{employee.username},
+              #{employee.password},
+              #{employee.reason},
+              #{employee.empReference},
+              #{employee.currentSalary},
+              #{employee.salarySecondWorkshift},
+              #{employee.allowance},
+              #{employee.dayRate},
+              #{employee.weekendRate},
+              #{employee.nightRate},
+              #{employee.publicHolidayRate},
+              #{employee.paidBy},
+              #{employee.isPaid},
+              #{employee.accountNumber},
+              #{employee.accountId},
+              #{employee.bankImage},
+              #{employee.bankImageName},
+              #{employee.isDonated},
+              #{employee.isProvidentFund},
+              #{employee.isDeposit},
+              #{employee.numMonth},
+              #{employee.amountDeposit},
+              #{employee.deadlineDate},
+              #{employee.isShowInSales},
+              #{employee.isDelivery},
+              #{employee.isCollector},
+              #{employee.isAllowDiscount},
+              #{employee.chatId},
+              NOW(),
+              #{employee.createdBy},
+              #{employee.isActive}
+             );
+  </insert>
+
+  <update id="updateUser">
+    UPDATE employees SET user_id = #{userId} WHERE id = #{id} AND is_active = 1
+  </update>
+
+    <update id="updateQrCode">
+        UPDATE employees SET
+            qr_code = #{urlQRCode}
+        WHERE id = #{employeeId};
+    </update>
+
+
+    <insert id="insertEmpDocument">
+    INSERT INTO employee_documents (
+      employee_id,
+      file_name,
+      file_url
+    ) VALUES (
+               #{empId},
+               #{fileName},
+               #{fileUrl}
+             );
+  </insert>
+
+  <insert id="insertPositionHistory">
+    INSERT INTO employee_position_histories (
+      employee_id,
+      position_id,
+      date,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{employeesId},
+               #{positionId},
+               NOW(),
+               NOW(),
+               #{createdBy},
+               1
+             );
+  </insert>
+
+  <insert id="insertDepartmentHistory">
+    INSERT INTO employee_department_histories (
+      employee_id,
+      department_id,
+      date,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{employeesId},
+               #{departmentId},
+               NOW(),
+               NOW(),
+               #{createdBy},
+               1
+             );
+  </insert>
+
+  <insert id="insertEmployeeStatus">
+      INSERT INTO employee_apply_status (
+          employee_id,
+          employee_status_id,
+          payroll_type,
+          date,
+          date_to,
+          created,
+          created_by,
+          is_active
+      ) VALUES (
+                   #{employee.id},
+                   #{employee.employeeStatusId},
+                   #{employee.payroll},
+                   #{employee.date},
+                   #{employee.dateTo},
+                   NOW(),
+                   #{employee.createdBy},
+                   1
+               );
+  </insert>
+
+  <update id="updateEmployeeStatusHistory" parameterType="com.ut.nlSystemAPi.model.EmployeeMistake">
+    UPDATE employee_apply_status SET
+    date = #{date},
+    date_to = #{dateTo}
+    WHERE employee_id = #{employeesId} ORDER BY id DESC LIMIT 1;
+  </update>
+
+  <update id="updateEmployeeTypes" parameterType="com.ut.nlSystemAPi.model.request.ApplyEmployeeTypesRequest">
+    UPDATE employee_apply_types SET
+    <if test="applyEmployeeTypesRequest.employeeTypeId != null">employee_type_id = #{applyEmployeeTypesRequest.employeeTypeId},</if>
+    <if test="applyEmployeeTypesRequest.dateFrom != null">date_from = #{applyEmployeeTypesRequest.dateFrom},</if>
+    <if test="applyEmployeeTypesRequest.dateTo != null">date_to = #{applyEmployeeTypesRequest.dateTo}</if>
+    WHERE is_active = 1 AND employee_id = #{applyEmployeeTypesRequest.employeeId} AND employee_type_id = #{applyEmployeeTypesRequest.employeeTypeId} ORDER BY id DESC LIMIT 1;
+  </update>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Employee">
+      UPDATE employees SET
+      <if test="employee.userId != null">user_id = #{employee.userId},</if>
+      <if test="employee.userHrId != null">user_hr_id = #{employee.userHrId},</if>
+      <if test="employee.photo != null">photo = #{employee.photo},</if>
+      <if test="employee.photoName != null">photo_name = #{employee.photoName},</if>
+      <if test="employee.idCard != null">id_card = #{employee.idCard},</if>
+      <if test="employee.name != null">name = #{employee.name},</if>
+      <if test="employee.nameKh != null">name_kh = #{employee.nameKh},</if>
+      <if test="employee.username != null">username = #{employee.username},</if>
+      <if test="employee.password != null">password = #{employee.password},</if>
+      <if test="employee.gender != null">gender = #{employee.gender},</if>
+      <if test="employee.gender != null">sex = #{employee.gender},</if>
+      <if test="employee.code != null">code = #{employee.code},</if>
+      <if test="employee.dob != null">dob = #{employee.dob},</if>
+      <if test="employee.dateOfWork != null">start_working_date = #{employee.dateOfWork},</if>
+      <if test="employee.dateFrom != null">date_from = #{employee.dateFrom},</if>
+      <if test="employee.dateTo != null">date_to = #{employee.dateTo},</if>
+      <if test="employee.date != null">`date` = #{employee.date},</if>
+      <if test="employee.maritalId != null">marital_status_id = #{employee.maritalId},</if>
+      <if test="employee.age != null">age = #{employee.age},</if>
+      <if test="employee.personalNumber != null">personal_number = #{employee.personalNumber},</if>
+      <if test="employee.personalEmail != null">personal_email = #{employee.personalEmail},</if>
+      <if test="employee.otherNumber != null">other_number = #{employee.otherNumber},</if>
+      <if test="employee.email != null">email = #{employee.email},</if>
+      <if test="employee.positionId != null">position_id = #{employee.positionId},</if>
+      <if test="employee.address != null">address = #{employee.address},</if>
+      <if test="employee.telephone != null">telephone = #{employee.telephone},</if>
+      <if test="employee.education != null">education = #{employee.education},</if>
+      <if test="employee.workExperience != null">work_experience = #{employee.workExperience},</if>
+      <if test="employee.reference != null">reference = #{employee.reference},</if>
+      <if test="employee.isShowInSales != null">is_show_in_sales = #{employee.isShowInSales},</if>
+      <if test="employee.isDelivery != null">is_delivery = #{employee.isDelivery},</if>
+      <if test="employee.isCollector != null">is_collector = #{employee.isCollector},</if>
+      <if test="employee.isAllowDiscount != null">is_allow_discount = #{employee.isAllowDiscount},</if>
+      <if test="employee.employeeSysCode != null">employee_sys_code = #{employee.employeeSysCode},</if>
+      <if test="employee.underSupervisorId != null">under_supervisor_id = #{employee.underSupervisorId},</if>
+      <if test="employee.departmentId != null">department_id = #{employee.departmentId},</if>
+      <if test="employee.employeeStatusId != null">employee_status_id = #{employee.employeeStatusId},</if>
+      <if test="employee.employeeTypeId != null">employee_type_id = #{employee.employeeTypeId},</if>
+      <if test="employee.attendanceStatus != null">attendance_status = #{employee.attendanceStatus},</if>
+      <if test="employee.remark != null">remark = #{employee.remark},</if>
+      <if test="employee.reason != null">reason = #{employee.reason},</if>
+      <if test="employee.empReference != null">emp_reference = #{employee.empReference},</if>
+      <if test="employee.currentSalary != null">current_salary = #{employee.currentSalary},</if>
+      <if test="employee.salarySecondWorkshift != null">salary_second_work_shift = #{employee.salarySecondWorkshift},</if>
+      <if test="employee.allowance != null">allowance = #{employee.allowance},</if>
+      <if test="employee.dayRate != null">day_rate = #{employee.dayRate},</if>
+      <if test="employee.weekendRate != null">weekend_rate = #{employee.weekendRate},</if>
+      <if test="employee.nightRate != null">night_rate = #{employee.nightRate},</if>
+      <if test="employee.publicHolidayRate != null">public_holiday_rate = #{employee.publicHolidayRate},</if>
+      <if test="employee.paidBy != null">paid_by = #{employee.paidBy},</if>
+      <if test="employee.isPaid != null">is_paid = #{employee.isPaid},</if>
+      <if test="employee.accountNumber != null">account_number = #{employee.accountNumber},</if>
+      <if test="employee.accountId != null">account_id = #{employee.accountId},</if>
+      <if test="employee.bankImage != null">bank_image = #{employee.bankImage},</if>
+      <if test="employee.bankImageName != null">bank_image_name = #{employee.bankImageName},</if>
+      <if test="employee.isDonated != null">is_donated = #{employee.isDonated},</if>
+      <if test="employee.isProvidentFund != null">is_provident_fund = #{employee.isProvidentFund},</if>
+      <if test="employee.isDeposit != null">is_deposit = #{employee.isDeposit},</if>
+      <if test="employee.numMonth != null">num_month = #{employee.numMonth},</if>
+      <if test="employee.amountDeposit != null">amount_deposit = #{employee.amountDeposit},</if>
+      <if test="employee.deadlineDate != null">deadline_date = #{employee.deadlineDate},</if>
+      <if test="employee.chatId != null">chat_id = #{employee.chatId},</if>
+      <if test="employee.created != null">created = #{employee.created},</if>
+      <if test="employee.createdBy != null">created_by = #{employee.createdBy},</if>
+      <if test="employee.isActive &gt; 0">is_active = #{employee.isActive},</if>
+      modified = NOW(),
+      modified_by = #{employee.modifiedBy}
+      WHERE id = #{employee.id}
+  </update>
+
+  <select id="listEmpDocuments" resultType="com.ut.nlSystemAPi.model.response.EmployeeDocumentResponse">
+    SELECT
+      id AS id,
+      employee_id AS employeeId,
+      file_name AS fileDocument,
+      file_url AS filePath
+    FROM employee_documents
+    WHERE employee_id = #{empId}
+  </select>
+
+  <select id="listEmpPositonHistory" resultMap="EmployeePositionHistory">
+    SELECT
+      id,
+      position_id AS positionId,
+      (SELECT name FROM positions WHERE is_active = 1 AND id = position_id) AS name,
+      DATE_FORMAT(date, "%M %d, %Y") AS date
+    FROM employee_position_histories
+    WHERE is_active = 1 AND employee_id = #{employeesId}
+    ORDER BY id ASC
+  </select>
+
+  <select id="listEmpDepartmentHistory" resultMap="EmployeeDepartmentHistory">
+    SELECT
+      id,
+      department_id AS departmentId,
+      (SELECT name FROM departments WHERE is_active = 1 AND id = department_id) AS name,
+      DATE_FORMAT(date, "%M %d, %Y") AS date
+    FROM employee_department_histories
+    WHERE is_active = 1 AND employee_id = #{employeesId}
+    ORDER BY id ASC
+  </select>
+
+    <select id="listEmployeeLocationGroups" resultType="com.ut.nlSystemAPi.model.response.EmployeeDocumentResponse">
+        SELECT DISTINCT location_group_id AS id,
+                        location_groups.name AS name
+        FROM employee_location_groups
+                 INNER JOIN location_groups ON location_groups.id = employee_location_groups.location_group_id
+        WHERE employee_id = #{employeeId}
+        ORDER BY location_group_id
+    </select>
+
+    <select id="listEmployeeSalesReps" resultType="com.ut.nlSystemAPi.model.response.EmployeeDocumentResponse">
+        SELECT DISTINCT sales_rep_id AS id,
+                        sales_rep.name AS name
+        FROM sales_rep_employees
+                 INNER JOIN employees AS sales_rep ON sales_rep.id = sales_rep_employees.sales_rep_id
+        WHERE employee_id = #{employeeId}
+    </select>
+
+    <select id="getProfilePhoto" resultType="com.ut.nlSystemAPi.model.base.BaseFile">
+        SELECT
+            photo AS url,
+            photo_name AS name
+        FROM employees
+        WHERE id = #{id}
+    </select>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE employees SET
+                       is_active = 2,
+                       modified = NOW(),
+                       modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <delete id="deleteEmpDocuments">
+    DELETE FROM employee_documents WHERE employee_id = #{empId}
+  </delete>
+
+  <select id="getListApplyEmployees" parameterType="com.ut.nlSystemAPi.model.response.ApplyEmployeesFilter" resultMap="ApplyEmployeesList">
+    SELECT *
+    FROM employees
+    WHERE is_active = 1 AND user_id IS NULL
+    <if test="filter.employeeId != null and filter.employeeId > 0">
+      OR employees.id = #{filter.employeeId}
+    </if>
+  </select>
+
+  <select id="listEmpTableShiftRequest" parameterType="java.lang.Long" resultMap="EmployeeTableShiftRequestResponse">
+    SELECT
+      work_shifts.id AS workShiftId,
+      work_shifts.name AS workShiftName,
+      employee_table_shifts.total_day_per_month AS totalDay,
+      employee_table_shifts.amount_paid AS paid
+    FROM employee_table_shifts
+           LEFT JOIN work_shifts ON employee_table_shifts.work_shift_id = work_shifts.id
+    WHERE employee_table_shifts.is_active = 1
+      AND employee_table_shifts.employee_id = #{employeesId}
+
+  </select>
+
+  <!--  Report Staff Profile-->
+  <select id="getReportStaffProfile" parameterType="com.ut.nlSystemAPi.model.EmployeeFilter" resultMap="EmployeesResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>,
+    employees.username AS username,
+    positions.ordering AS positionOrdering
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY positionOrdering ASC
+  </select>
+
+  <!--  Update Employees Current Salaries-->
+  <update id="updateEmployeesCurrentSalary" parameterType="com.ut.nlSystemAPi.model.EmployeesIncreaseSalary">
+    UPDATE employees SET
+                       current_salary = #{employeesIncreaseSalary.currentSalary},
+                       modified = NOW(),
+                       modified_by = #{employeesIncreaseSalary.modifiedBy}
+    WHERE id = #{employeesIncreaseSalary.employeeId};
+  </update>
+
+  <!--  Insert to Employees Increase Salaries-->
+  <insert id="insertEmployeesIncreaseSalary" parameterType="com.ut.nlSystemAPi.model.EmployeesIncreaseSalary" useGeneratedKeys="true" keyProperty="employeesIncreaseSalary.id">
+    INSERT INTO employee_increase_salaries (
+      employee_id,
+      increase_salary,
+      date,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{employeesIncreaseSalary.employeeId},
+               #{employeesIncreaseSalary.increaseSalary},
+               #{employeesIncreaseSalary.date},
+               NOW(),
+               #{employeesIncreaseSalary.createdBy},
+               #{employeesIncreaseSalary.isActive}
+             );
+  </insert>
+
+  <update id="updateEmployeesIncreaseSalary" parameterType="com.ut.nlSystemAPi.model.EmployeesIncreaseSalary">
+    UPDATE employee_increase_salaries SET
+      increase_salary = #{employeesIncreaseSalary.increaseSalary}
+    WHERE employee_id = #{employeesIncreaseSalary.employeeId} AND date = #{employeesIncreaseSalary.date};
+  </update>
+
+  <select id="checkEmpIncreaseSalary" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employee_increase_salaries
+    WHERE employee_id = #{employeesId} AND date = #{date} AND is_active = 1
+  </select>
+
+  <select id="getEmployeesIncreaseSalary" parameterType="com.ut.nlSystemAPi.model.EmployeeIncreaseSalarytFilter" resultMap="EmployeesIncreaseSalary">
+    SELECT
+    employee_increase_salaries.*,
+    employee_increase_salaries.employee_id AS employeeId,
+    employee_increase_salaries.increase_salary AS increaseSalary,
+    employees.name_kh AS nameKh,
+    employees.name AS nameEn
+    FROM employee_increase_salaries
+    LEFT JOIN employees ON employees.id = employee_increase_salaries.employee_id
+    WHERE employee_increase_salaries.is_active = 1
+    <if test="filter.employeesId != null and filter.employeesId != null">
+      AND employee_increase_salaries.employee_id = #{filter.employeesId}
+    </if>
+    <if test="filter.date != null and filter.date != null">
+      AND employee_increase_salaries.date = #{filter.date}
+    </if>
+  </select>
+
+  <!--  Saved employee Achievement-->
+  <insert id="insertEmployeeAchievement" parameterType="com.ut.nlSystemAPi.model.EmployeeAchievement" useGeneratedKeys="true" keyProperty="employeeAchievement.id">
+    INSERT INTO employee_apply_achievements (
+      employee_id,
+      title,
+      attach_file,
+      description,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{employeeAchievement.employeeId},
+               #{employeeAchievement.title},
+               #{employeeAchievement.attachFile},
+               #{employeeAchievement.description},
+               NOW(),
+               #{employeeAchievement.createdBy},
+               #{employeeAchievement.isActive}
+             );
+  </insert>
+
+  <insert id="insertEmployeeMistake" parameterType="com.ut.nlSystemAPi.model.EmployeeMistake" useGeneratedKeys="true" keyProperty="employeeMistake.id">
+    INSERT INTO employee_apply_mistakes (
+      employee_id,
+      title,
+      attach_file,
+      description,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{employeeMistake.employeeId},
+               #{employeeMistake.title},
+               #{employeeMistake.attachFile},
+               #{employeeMistake.description},
+               NOW(),
+               #{employeeMistake.createdBy},
+               #{employeeMistake.isActive}
+             );
+  </insert>
+
+  <update id="updateEmployeeAchievement" parameterType="com.ut.nlSystemAPi.model.EmployeeAchievement">
+    UPDATE employee_apply_achievements SET
+    <if test="employeeAchievement.employeeId != null">employee_id = #{employeeAchievement.employeeId},</if>
+    <if test="employeeAchievement.title != null">title = #{employeeAchievement.title},</if>
+    <if test="employeeAchievement.attachFile != null">attach_file = #{employeeAchievement.attachFile},</if>
+    <if test="employeeAchievement.description != null">description = #{employeeAchievement.description},</if>
+    modified = NOW(),
+    modified_by = #{employeeAchievement.modifiedBy}
+    WHERE id = #{employeeAchievement.id};
+  </update>
+
+  <update id="updateEmployeeMistake" parameterType="com.ut.nlSystemAPi.model.EmployeeMistake">
+    UPDATE employee_apply_mistakes SET
+    <if test="employeeMistake.employeeId != null">employee_id = #{employeeMistake.employeeId},</if>
+    <if test="employeeMistake.title != null">title = #{employeeMistake.title},</if>
+    <if test="employeeMistake.attachFile != null">attach_file = #{employeeMistake.attachFile},</if>
+    <if test="employeeMistake.description != null">description = #{employeeMistake.description},</if>
+    modified = NOW(),
+    modified_by = #{employeeMistake.modifiedBy}
+    WHERE id = #{employeeMistake.id};
+  </update>
+
+  <select id="getEmployeeAchievement" parameterType="java.lang.Long" resultMap="EmployeeAchievement">
+    SELECT
+      id AS id,
+      employee_id AS employeeId,
+      title AS title,
+      attach_file AS attachFile,
+      description AS description,
+      DATE_FORMAT(created, "%d/%b/%Y") AS date,
+      created_by AS createdBy
+    FROM employee_apply_achievements
+    WHERE is_active = 1 AND employee_id = #{id}
+    ORDER BY id DESC
+  </select>
+
+  <select id="getEmployeeMistake" parameterType="java.lang.Long" resultMap="EmployeeMistake">
+    SELECT
+      id AS id,
+      employee_id AS employeeId,
+      title AS title,
+      attach_file AS attachFile,
+      description AS description,
+      DATE_FORMAT(created, "%d/%b/%Y") AS date,
+      created_by AS createdBy
+    FROM employee_apply_mistakes
+    WHERE is_active = 1 AND employee_id = #{id}
+    ORDER BY id DESC
+  </select>
+
+  <delete id="deleteEmployeeAchievement" parameterType="java.lang.Long">
+    UPDATE employee_apply_achievements SET
+                                         is_active = 2,
+                                         modified = NOW(),
+                                         modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <delete id="deleteEmployeeMistake" parameterType="java.lang.Long">
+    UPDATE employee_apply_mistakes SET
+                                     is_active = 2,
+                                     modified = NOW(),
+                                     modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <select id="checkUserEditAchievement" resultType="java.lang.Long">
+    SELECT COUNT(permissions.id)
+    FROM permissions
+           INNER JOIN user_groups ON user_groups.group_id = permissions.group_id
+    WHERE user_groups.user_id = #{userId} AND permissions.module_id = 51
+  </select>
+
+  <select id="checkUserEditMistake" resultType="java.lang.Long">
+    SELECT COUNT(permissions.id)
+    FROM permissions
+           INNER JOIN user_groups ON user_groups.group_id = permissions.group_id
+    WHERE user_groups.user_id = #{userId} AND permissions.module_id = 52
+  </select>
+
+  <select id="getLastEmployeeApplyType" resultType="java.lang.Long">
+    SELECT `employee_type_id` FROM `employee_apply_types`
+    WHERE `is_active` = 1 AND `employee_id` = #{employeeId} ORDER BY id DESC LIMIT 1;
+  </select>
+
+  <delete id="deleteEmployeeStatusHistory" parameterType="java.lang.Long">
+    UPDATE employee_apply_status_histories SET
+                                             is_active = 2,
+                                             created_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <!-- * working location -->
+  <insert id="insertEmployeeWorkingLocation">
+    INSERT INTO employee_working_locations (
+      employee_id,
+      location_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{empId},
+               #{deptId},
+               NOW(),
+               #{creatorId},
+               1
+             )
+
+  </insert>
+
+  <select id="listEmpWorkingLocation" resultMap="EmployeeWorkingLocationResponse">
+    SELECT
+      d.id AS locationId,
+      d.`name` as locationName
+    FROM employee_working_locations AS  wl
+           LEFT JOIN departments AS d on wl.location_id = d.id
+    WHERE
+      d.is_active = 1
+      AND wl.employee_id = #{empId}
+      AND wl.is_active = 1
+  </select>
+
+  <select id="listEmpWorkingLocationIds" resultType="java.lang.Long">
+    SELECT location_id
+    FROM employee_working_locations
+    WHERE employee_working_locations.employee_id = #{empId} AND employee_working_locations.is_active = 1
+  </select>
+
+  <delete id="deleteEmpWorkingLocation" parameterType="java.lang.Long">
+    UPDATE employee_working_locations
+    SET is_active = 2,
+        modified_by = #{deletorId},
+        modified = NOW()
+    WHERE employee_id = #{empId}
+  </delete>
+
+  <insert id="insertEmpWorkshift">
+    INSERT INTO employee_work_shifts (
+      employee_id,
+      work_shift_id,
+      status,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{empId},
+               #{workShiftId},
+               #{status},
+               NOW(),
+               #{creatorId},
+               1
+             )
+  </insert>
+
+  <select id="listEmpWorkshift" resultMap="EmployeeWorkshiftResponse">
+    SELECT
+      employee_work_shifts.work_shift_id as workShiftId,
+      work_shifts.`name` as workShiftName
+    FROM employee_work_shifts
+           LEFT JOIN work_shifts on employee_work_shifts.work_shift_id = work_shifts.id
+    WHERE
+      employee_work_shifts.is_active = 1 AND employee_work_shifts.status = 1
+      AND employee_work_shifts.employee_id = #{empId}
+      AND work_shifts.is_active = 1
+  </select>
+
+  <select id="listEmpWorkShiftIds" resultType="java.lang.String">
+    SELECT work_shift_id
+    FROM employee_work_shifts
+    WHERE employee_work_shifts.employee_id = #{empId} AND employee_work_shifts.is_active = 1
+  </select>
+
+  <update id="deleteEmpWorkshift">
+    UPDATE employee_work_shifts
+    SET is_active = 2,
+    modified_by = #{deletorId},
+    modified = NOW()
+    WHERE employee_id = #{empId} AND is_active = 1
+    <if test="status != null">
+      AND status = #{status}
+    </if>
+  </update>
+
+  <insert id="insertEmpSecondWorkshift">
+    INSERT INTO employee_second_work_shifts (
+      employee_id,
+      work_shift_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+               #{empId},
+               #{workShiftId},
+               NOW(),
+               #{creatorId},
+               1
+             )
+  </insert>
+
+  <select id="listEmpSecondWorkshift" resultMap="EmployeeSecondWorkshiftResponse">
+    SELECT
+      employee_work_shifts.work_shift_id as workShiftId,
+      work_shifts.`name` as workShiftName
+    FROM employee_work_shifts
+           LEFT JOIN work_shifts on employee_work_shifts.work_shift_id = work_shifts.id
+    WHERE
+      employee_work_shifts.is_active = 1  AND employee_work_shifts.status = 2
+      AND employee_work_shifts.employee_id = #{empId}
+      AND work_shifts.is_active = 1
+  </select>
+
+  <select id="listEmpSecondWorkShiftIds" resultType="java.lang.Long">
+    SELECT work_shift_id
+    FROM employee_second_work_shifts
+    WHERE employee_second_work_shifts.employee_id = #{empId} AND employee_second_work_shifts.is_active = 1
+  </select>
+
+  <delete id="deleteEmpSecondWorkshift" parameterType="java.lang.Long">
+    UPDATE employee_second_work_shifts
+    SET is_active = 2,
+        modified_by = #{deletorId},
+        modified = NOW()
+    WHERE employee_id = #{empId}
+  </delete>
+
+  <select id="getConnectedDevice" resultMap="EmployeeConnectedDeviceResponse">
+    SELECT
+      oauth_access_token.user_name AS userName,
+      oauth_access_token.client_id AS clientId,
+      oauth_access_token.device_name AS deviceName
+    FROM oauth_access_token
+    INNER JOIN users ON users.username = oauth_access_token.user_name
+    WHERE users.employee_id = #{employeeId}
+  </select>
+
+  <delete id="terminateSession" parameterType="com.ut.nlSystemAPi.model.request.EmployeeTerminateSessionRequest">
+    DELETE FROM `oauth_access_token` WHERE `user_name` = #{employeeTerminateSessionRequest.userName} AND `client_id` = #{employeeTerminateSessionRequest.clientId};
+
+    UPDATE `user_device_tokens` SET `is_active` = 2 WHERE `is_active` = 1 AND `username` = #{employeeTerminateSessionRequest.userName} AND `device_id` = #{employeeTerminateSessionRequest.clientId};
+  </delete>
+
+  <select id="getDepartmentIdByEmployeeId" resultType="java.lang.Long">
+    SELECT department_id
+    FROM employees
+    WHERE is_active = 1 AND id =#{employeesId}
+  </select>
+
+  <select id="getUserIdByEmployeeId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT user_id FROM employees WHERE id = #{employeeId} AND is_active = 1 LIMIT 1
+  </select>
+
+    <insert id="insertEmployeeEgroup" parameterType="java.lang.Long">
+        INSERT INTO employee_egroups (
+            employee_id,
+            egroup_id
+        ) VALUES (
+                     #{employeeId},
+                     (SELECT group_id FROM departments WHERE id = #{departmentId})
+                 );
+    </insert>
+
+    <delete id="deleteEmployeeEgroup" parameterType="java.lang.Long">
+        DELETE FROM employee_egroups WHERE employee_id = #{employeeId};
+    </delete>
+
+    <insert id="insertEmployeeTypes" parameterType="com.ut.nlSystemAPi.model.request.ApplyEmployeeTypesRequest">
+        INSERT INTO employee_apply_types (
+            employee_id,
+            employee_type_id,
+            date_from,
+            date_to,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{applyEmployeeTypesRequest.employeeId},
+                     #{applyEmployeeTypesRequest.employeeTypeId},
+                     #{applyEmployeeTypesRequest.dateFrom},
+                     #{applyEmployeeTypesRequest.dateTo},
+                     NOW(),
+                     #{applyEmployeeTypesRequest.createdBy},
+                     1
+                 );
+    </insert>
+
+    <insert id="insertEmployeeLocationGroup">
+        INSERT INTO employee_location_groups (
+            employee_id,
+            location_group_id
+        ) VALUES (
+                     #{employeeId},
+                     #{locationGroupId}
+                 )
+    </insert>
+
+    <delete id="deleteEmployeeLocationGroups">
+        DELETE FROM employee_location_groups WHERE employee_id = #{employeeId}
+    </delete>
+
+    <insert id="insertEmployeeSalesRep">
+        INSERT INTO sales_rep_employees (
+            employee_id,
+            sales_rep_id
+        ) VALUES (
+                     #{employeeId},
+                     #{salesRepId}
+                 )
+    </insert>
+
+    <delete id="deleteEmployeeSalesRep">
+        DELETE FROM sales_rep_employees WHERE employee_id = #{employeeId}
+    </delete>
+
+    <select id="checkDuplicateUsername" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM employees WHERE username = #{username} AND id != #{id};
+    </select>
+
+</mapper>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.NotificationMapper">
+
+
+    <select id="getDeviceToken" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT CONCAT('"', `device_token`, '"')
+        FROM `user_device_tokens`
+        WHERE `is_active` = 1
+
+        <if test="userId != null">
+            AND user_id != #{userId}
+        </if>
+
+        AND `user_id` IN(SELECT `user_id` FROM `employees` WHERE `is_active` = 1 AND `id` = #{employeeId})
+
+        GROUP BY `device_token`,`user_id`,`device_id`
+    </select>
+
+  <insert id="insertNotification" parameterType="com.ut.nlSystemAPi.model.notification.NotificationRequest" useGeneratedKeys="true" keyProperty="notification.id">
+    INSERT INTO `notifications` (`type`,
+                                 `employee_attendances_id`,
+                                 `announcement_id`,
+                                 `leave_request_id`,
+                                 `leave_request_status`,
+                                 `user_id`,
+                                 `created`,
+                                 `created_by`,
+                                 `is_active`)
+    VALUES
+      (#{notification.type},
+       #{notification.employeeAttendanceId},
+       #{notification.announcementId},
+       #{notification.leaveRequestId},
+       #{notification.leaveRequestStatus},
+       #{notification.userId},
+       NOW(),
+       #{notification.userId},
+       1);
+  </insert>
+
+  <insert id="insertNotificationRecipients" parameterType="com.ut.nlSystemAPi.model.notification.NotificationRecipientRequest">
+    INSERT INTO `notification_recipients` (`notification_id`,
+                                           `recipient_id`,
+                                           `created`,
+                                           `created_by`,
+                                           `is_active`)
+    VALUES
+      (#{notificationRecipientRequest.notificationId},
+       #{notificationRecipientRequest.recipientId},
+       NOW(),
+       #{notificationRecipientRequest.recipientId},
+       1);
+  </insert>
+  
+
+</mapper>

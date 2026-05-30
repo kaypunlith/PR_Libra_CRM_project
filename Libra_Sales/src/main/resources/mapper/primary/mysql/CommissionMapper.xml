@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CommissionMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        commissions.id AS id,
+        commissions.location_group_id AS warehouseId,
+        location_groups.name AS warehouseName,
+        commissions.description AS description,
+        commissions.code AS code,
+        commissions.recurring AS recurring,
+        commissions.`start` AS startDate,
+        commissions.`end` AS endDate,
+        commissions.note AS note,
+        commissions.type AS type,
+        commissions.target AS target,
+        commissions.amount AS amount,
+        commissions.percent AS percent,
+        commissions.status AS status,
+        commissions.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        commissions.modified AS modified,
+        CONCAT(editor.first_name, ' ', editor.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM commissions
+        LEFT JOIN location_groups ON location_groups.id = commissions.location_group_id
+        LEFT JOIN users AS creator ON creator.id = commissions.created_by
+        LEFT JOIN users AS editor ON editor.id = commissions.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE commissions.status >= 1
+        <if test="filter.searchText != null">
+            AND (
+            commissions.description LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR commissions.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND commissions.start >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND commissions.end &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND commissions.status = #{filter.status}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.CommissionFilter" resultType="com.ut.nlSystemAPi.model.response.Commission.CommissionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                commissions.code DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(commissions.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Commission.CommissionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE commissions.status >= 1 AND commissions.id = #{id}
+    </select>
+
+    <select id="getDetails" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Commission.CommissionDetailResponse">
+        SELECT
+            commission_details.id AS id,
+            commission_details.product_id AS productId,
+            products.name AS productName,
+            products.code AS sku,
+            products.barcode AS upc,
+            commission_details.qty AS qty,
+            commission_details.uom_id AS uomId,
+            uoms.name AS uomName,
+            uoms.abbr AS uomAbbr,
+            commission_details.amount AS amount,
+            commission_details.percent AS percent,
+            commission_details.unit_price AS unitPrice
+        FROM commission_details
+        LEFT JOIN products ON products.id = commission_details.product_id
+        LEFT JOIN uoms ON uoms.id = commission_details.uom_id
+        WHERE commission_details.commission_id = #{commissionId}
+    </select>
+
+    <select id="getEmployees" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Commission.CommissionEmployeeResponse">
+        SELECT
+            employees.id AS id,
+            employees.name AS name
+        FROM commission_employees
+        INNER JOIN employees ON employees.id = commission_employees.employee_id
+        WHERE commission_employees.commission_id = #{commissionId}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Commission.Commission" useGeneratedKeys="true" keyProperty="commission.id">
+        INSERT INTO commissions (
+            location_group_id,
+            description,
+            `start`,
+            `end`,
+            note,
+            type,
+            recurring,
+            target,
+            amount,
+            percent,
+            created,
+            created_by,
+            location_group_apply,
+            status
+        ) VALUES (
+            #{commission.locationGroupId},
+            #{commission.description},
+            #{commission.startDate},
+            #{commission.endDate},
+            #{commission.note},
+            #{commission.type},
+            #{commission.recurring},
+            #{commission.target},
+            #{commission.amount},
+            #{commission.percent},
+            NOW(),
+            #{commission.createdBy},
+            #{commission.locationGroupApply},
+            1
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Commission.Commission">
+        UPDATE commissions SET
+            <if test="commission.locationGroupId != null">location_group_id = #{commission.locationGroupId},</if>
+            <if test="commission.description != null">description = #{commission.description},</if>
+            <if test="commission.startDate != null">`start` = #{commission.startDate},</if>
+            <if test="commission.endDate != null">`end` = #{commission.endDate},</if>
+            <if test="commission.note != null">note = #{commission.note},</if>
+            <if test="commission.type != null">type = #{commission.type},</if>
+            <if test="commission.recurring != null">recurring = #{commission.recurring},</if>
+            <if test="commission.target != null">target = #{commission.target},</if>
+            <if test="commission.amount != null">amount = #{commission.amount},</if>
+            <if test="commission.percent != null">percent = #{commission.percent},</if>
+            <if test="commission.locationGroupApply != null">location_group_apply = #{commission.locationGroupApply},</if>
+            modified = NOW(),
+            modified_by = #{commission.modifiedBy}
+        WHERE id = #{commission.id} AND status >= 1
+    </update>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.Commission.CommissionDetail">
+        INSERT INTO commission_details (
+            commission_id,
+            product_id,
+            qty,
+            uom_id,
+            amount,
+            percent,
+            unit_price
+        ) VALUES (
+            #{detail.commissionId},
+            #{detail.productId},
+            #{detail.qty},
+            #{detail.uomId},
+            #{detail.amount},
+            #{detail.percent},
+            #{detail.unitPrice}
+        )
+    </insert>
+
+    <insert id="insertEmployee" parameterType="com.ut.nlSystemAPi.model.entity.Commission.CommissionEmployee">
+        INSERT INTO commission_employees (
+            commission_id,
+            employee_id
+        ) VALUES (
+            #{employee.commissionId},
+            #{employee.employeeId}
+        )
+    </insert>
+
+    <delete id="deleteDetails" parameterType="java.lang.Long">
+        DELETE FROM commission_details WHERE commission_id = #{commissionId}
+    </delete>
+
+    <delete id="deleteEmployees" parameterType="java.lang.Long">
+        DELETE FROM commission_employees WHERE commission_id = #{commissionId}
+    </delete>
+
+</mapper>

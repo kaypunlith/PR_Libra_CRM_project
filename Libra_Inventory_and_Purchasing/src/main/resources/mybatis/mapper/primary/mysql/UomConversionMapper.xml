@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.UomConversionMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        uom_conversions.id AS id,
+        uom_conversions.from_uom_id AS mainUomId,
+        uoms_from.name AS mainUomName,
+        uom_conversions.to_uom_id AS smallUomId,
+        uoms_to.name AS smallUomName,
+        uom_conversions.created AS created,
+        uom_conversions.modified AS modified,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createBy,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <select id="getSmallUomById" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT GROUP_CONCAT(CONCAT_WS(' ', sub_uoms.value, '(', sub_uoms_to.abbr, ')'))
+        FROM `uom_conversions` AS sub_uoms
+        LEFT JOIN uoms AS sub_uoms_to ON sub_uoms_to.id = sub_uoms.to_uom_id
+        WHERE sub_uoms.is_active = 1 AND sub_uoms.from_uom_id IN (SELECT from_uom_id FROM uom_conversions WHERE id = #{id})
+    </select>
+
+    <select id="getSmallUomDetail" parameterType="java.lang.Long" resultMap="UomConversionDetailResponse">
+        SELECT
+            uom_conversions.to_uom_id AS otherUomId,
+            uom_conversions.value AS `value`,
+            other_uom.name AS otherUomName
+        FROM `uom_conversions`
+        LEFT JOIN uoms AS other_uom ON other_uom.id = uom_conversions.to_uom_id
+        WHERE uom_conversions.is_active = 1 AND uom_conversions.is_small_uom = 0 AND uom_conversions.from_uom_id IN (SELECT from_uom_id FROM uom_conversions WHERE id = #{id})
+    </select>
+
+    <sql id="BASE_FROM">
+    FROM uom_conversions
+    LEFT JOIN users AS users1 ON users1.id = uom_conversions.created_by
+    LEFT JOIN users AS users2 ON users2.id = uom_conversions.modified_by
+    LEFT JOIN uoms AS uoms_from ON uoms_from.id = uom_conversions.from_uom_id
+    LEFT JOIN uoms AS uoms_to ON uoms_to.id = uom_conversions.to_uom_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE uom_conversions.is_active = 1 AND uom_conversions.is_small_uom = 1
+        <if test="filter.searchText != null">
+            AND uoms_from.name LIKE CONCAT('%', #{filter.searchText}, '%') OR uoms_to.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="UomConversionResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY uom_conversions.from_uom_id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                uom_conversions.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+              LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(uom_conversions.id)
+      <include refid="BASE_FROM"/>
+      <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="UomConversionResponse">
+      SELECT
+      uom_conversions.id AS id,
+      uom_conversions.from_uom_id AS mainUomId,
+      uom_conversions.to_uom_id AS smallUomId,
+      uoms_from.name AS mainUomName,
+      uoms_to.name AS smallUomName,
+      uom_conversions.value AS `value`
+      <include refid="BASE_FROM"/>
+      WHERE uom_conversions.is_active = 1 AND uom_conversions.is_small_uom = 1 AND uom_conversions.id = #{id}
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.UomConversion" useGeneratedKeys="true" keyProperty="uomConversion.id">
+    INSERT INTO uom_conversions (
+        from_uom_id,
+        to_uom_id,
+        `value`,
+        created,
+        created_by,
+        is_small_uom,
+        is_active
+    ) VALUES (
+      #{uomConversion.mainUom},
+      #{uomConversion.smallUom},
+      #{uomConversion.value},
+      NOW(),
+      #{uomConversion.createdBy},
+      #{uomConversion.isSmallUom},
+      #{uomConversion.isActive}
+    )
+  </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.UomConversion">
+        UPDATE uom_conversions SET
+            <if test="uomConversion.mainUom != null">`from_uom_id` = #{uomConversion.mainUom},</if>
+            <if test="uomConversion.smallUom != null">`to_uom_id` = #{uomConversion.smallUom},</if>
+            <if test="uomConversion.value != null">`value` = #{uomConversion.value},</if>
+            `modified` = NOW(),
+            <if test="uomConversion.modifiedBy != null">`modified_by` = #{uomConversion.modifiedBy}</if>
+        WHERE id = #{uomConversion.id}
+    </update>
+
+    <insert id="insertOther" parameterType="com.ut.nlSystemAPi.model.OtherUomConversion" useGeneratedKeys="true" keyProperty="other.id">
+        INSERT INTO uom_conversions (
+            from_uom_id,
+            to_uom_id,
+            `value`,
+            created,
+            created_by,
+            is_small_uom,
+            is_active
+        ) VALUES (
+                     #{other.mainUom},
+                     #{other.otherUom},
+                     #{other.value},
+                     NOW(),
+                     #{other.createdBy},
+                     #{other.isSmallUom},
+                     #{other.isActive}
+                 )
+    </insert>
+
+    <update id="deleteOther" parameterType="java.lang.Long">
+        UPDATE uom_conversions  SET
+        is_active = 2,
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE uom_conversions.is_active = 1 AND uom_conversions.is_small_uom = 0 AND uom_conversions.from_uom_id IN (SELECT from_uom_id FROM uom_conversions WHERE id = #{id})
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+    UPDATE uom_conversions SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+</mapper>

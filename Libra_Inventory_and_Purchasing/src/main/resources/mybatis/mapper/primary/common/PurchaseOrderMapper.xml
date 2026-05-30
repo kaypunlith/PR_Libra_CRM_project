@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PurchaseOrderMapper">
+
+  <resultMap id="PurchaseOrderResponse" type="com.ut.nlSystemAPi.model.response.PurchaseOrder.PurchaseOrderResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseOrderDetailResponse" type="com.ut.nlSystemAPi.model.response.PurchaseOrder.PurchaseOrderDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="SoNoResponse" type="com.ut.nlSystemAPi.model.response.PurchaseOrder.SoNoResponse">
+
+  </resultMap>
+
+  <resultMap id="VendorPhoto" type="com.ut.nlSystemAPi.model.request.Login.VendorManagement.VendorPhoto">
+
+  </resultMap>
+
+</mapper>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportManualPaidMapper">
+
+  <resultMap id="PayrollDepartmentList" type="com.ut.nlSystemAPi.model.response.PayrollDepartmentList">
+
+  </resultMap>
+
+  <resultMap id="PayrollEmployeesList" type="com.ut.nlSystemAPi.model.response.PayrollEmployeesList">
+
+  </resultMap>
+
+  <resultMap id="ReportPayrollItemType" type="com.ut.nlSystemAPi.model.response.ReportPayrollItemType">
+
+  </resultMap>
+
+  <resultMap id="ReportPayrollItem" type="com.ut.nlSystemAPi.model.response.ReportPayrollItem">
+
+  </resultMap>
+
+</mapper>

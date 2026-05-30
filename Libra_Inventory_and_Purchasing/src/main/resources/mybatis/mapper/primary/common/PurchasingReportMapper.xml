@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PurchasingReportMapper">
+
+  <resultMap id="PurchasingReportResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.PurchaseBillBarcodeResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchasingReportDetailResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.PurchaseBillBarcodeDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="invoicePurchaseBillReportResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.InvoicePurchaseBillResponse">
+
+  </resultMap>
+
+  <resultMap id="invoicePurchaseBillReturnReportResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.InvoicePurchaseBillReturnResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseByItemResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.PurchaseByItemResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseByItemDetailResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.PurchaseByItemDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="PayBillReportResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.PayBillReportResponse">
+
+  </resultMap>
+
+  <resultMap id="PayBillReportDetailResponse" type="com.ut.nlSystemAPi.model.response.PurchasingReport.PayBillReportDetailResponse">
+
+  </resultMap>
+
+</mapper>

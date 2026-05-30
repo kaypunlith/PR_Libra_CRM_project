@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PriceTypeMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        price_types.id AS id,
+        price_types.name AS `name`,
+        companies.id AS companyId,
+        companies.name AS companyName,
+        price_types.is_show_catalogue AS isShowCatalogue,
+        price_types.ordering AS `ordering`
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM price_types
+        INNER JOIN price_type_companies ON price_types.id = price_type_companies.price_type_id
+        INNER JOIN companies ON price_type_companies.company_id = companies.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE price_types.is_active = 1 AND price_types.ordering IS NOT NULL AND price_types.id IN (SELECT price_type_id FROM price_type_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        <if test="filter.searchText != null">
+            AND price_types.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PriceTypeResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY price_types.ordering ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+       SELECT COUNT(price_types.id)
+       <include refid="BASE_FROM"/>
+       <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="PriceTypeResponse">
+       SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+       WHERE price_types.is_active = 1 AND price_types.id = #{id} AND price_types.id IN (SELECT price_type_id FROM price_type_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.PriceType.PriceType" useGeneratedKeys="true" keyProperty="priceType.id">
+        INSERT INTO price_types (
+            `name`,
+            ordering,
+            is_show_catalogue,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{priceType.name},
+            #{priceType.ordering},
+            #{priceType.isShowCatalogue},
+            NOW(),
+            #{priceType.createdBy},
+            #{priceType.isActive}
+        )
+    </insert>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM price_types
+        WHERE is_active = 1
+        AND name = #{name}
+        AND id IN (SELECT price_type_id FROM price_type_companies WHERE company_id = #{companyId})
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <delete id="deletePriceTypeCompany" parameterType="java.lang.Long">
+        DELETE FROM price_type_companies WHERE price_type_id = #{id};
+    </delete>
+
+    <insert id="insertPriceTypeCompany" parameterType="com.ut.nlSystemAPi.model.entity.PriceType.PriceType">
+        INSERT INTO price_type_companies (
+            company_id,
+            price_type_id
+        ) VALUES (
+            #{priceType.companyId},
+            #{priceType.id}
+        )
+    </insert>
+
+    <update id="archivePriceTypePos" parameterType="java.lang.Long">
+        UPDATE pos_price_types SET is_active = 2 WHERE company_id = #{companyId};
+    </update>
+
+    <insert id="insertPriceTypePos" parameterType="com.ut.nlSystemAPi.model.entity.PriceType.PriceType">
+        INSERT INTO pos_price_types (
+            company_id,
+            price_type_id,
+            created,
+            created_by
+        ) VALUES (
+                     #{priceType.companyId},
+                     #{priceType.id},
+                     NOW(),
+                     #{userId}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.PriceType.PriceType">
+        UPDATE price_types SET
+        <if test="priceType.name != null">
+            `name` = #{priceType.name},
+        </if>
+        <if test="priceType.ordering != null">
+            `ordering` = #{priceType.ordering},
+        </if>
+        <if test="priceType.isShowCatalogue != null">
+            `is_show_catalogue` = #{priceType.isShowCatalogue},
+        </if>
+        `modified` = NOW()
+        <if test="priceType.modifiedBy != null">,
+            `modified_by` = #{priceType.modifiedBy}
+        </if>
+        WHERE `id` = #{priceType.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE price_types SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="ordering" parameterType="com.ut.nlSystemAPi.model.entity.PriceType.PriceType">
+        UPDATE price_types SET ordering = #{priceType.ordering} WHERE id = #{priceType.id};
+    </update>
+
+    <select id="checkPos" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COUNT(id) FROM pos_price_types WHERE pos_price_types.price_type_id = #{id} AND pos_price_types.is_active = 1
+    </select>
+
+
+</mapper>

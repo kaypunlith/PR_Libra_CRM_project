@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ICSMapper">
+
+  <select id="getList" resultMap="ICSResponse">
+    SELECT
+      account_types.id AS id,
+      account_types.`name` AS name,
+      account_types.chart_account_id AS chartAccountId,
+      CONCAT(chart_accounts.account_codes, "-", chart_accounts.account_description) AS chartAccountName,
+      account_types.ordering AS ordering
+    FROM account_types
+    LEFT JOIN chart_accounts ON chart_accounts.id = account_types.chart_account_id
+    ORDER BY account_types.ordering ASC
+  </select>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.request.Login.ICS.ICSRequest">
+    UPDATE account_types SET
+      <if test="icsRequest.chartAccountId != null"> `chart_account_id` = #{icsRequest.chartAccountId}</if>
+    WHERE id = #{icsRequest.id}
+  </update>
+
+</mapper>

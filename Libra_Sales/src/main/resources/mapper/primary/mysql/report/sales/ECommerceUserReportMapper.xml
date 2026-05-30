@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE">
+        WHERE user_apps.is_active = 3
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (
+            user_apps.first_name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR user_apps.last_name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR user_apps.username LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR user_apps.telephone LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR user_apps.email LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dobFrom != null and filter.dobFrom != ''">
+            AND user_apps.dob &gt;= #{filter.dobFrom}
+        </if>
+        <if test="filter.dobTo != null and filter.dobTo != ''">
+            AND user_apps.dob &lt;= #{filter.dobTo}
+        </if>
+    </sql>
+
+    <select id="getListECommerceUser" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.ECommerceUserReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.ECommerceUserReportResponse">
+        SELECT
+        user_apps.id AS id,
+        TRIM(CONCAT(IFNULL(user_apps.first_name, ''), ' ', IFNULL(user_apps.last_name, ''))) AS name,
+        user_apps.telephone AS phoneNumber,
+        user_apps.email AS email,
+        user_apps.sex AS gender,
+        DATE_FORMAT(user_apps.dob, '%Y-%m-%d') AS dob,
+        DATE_FORMAT(user_apps.created, '%Y-%m-%d') AS created,
+        user_apps.address AS address
+        FROM user_apps
+        <include refid="BASE_WHERE"/>
+        ORDER BY user_apps.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListECommerceUser" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.ECommerceUserReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(user_apps.id)
+        FROM user_apps
+        <include refid="BASE_WHERE"/>
+    </select>
+
+</mapper>

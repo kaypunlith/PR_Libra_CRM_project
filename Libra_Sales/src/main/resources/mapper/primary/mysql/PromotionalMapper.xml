@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PromotionalMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        promotionals.id AS id,
+        promotionals.title AS title,
+        promotionals.description AS description,
+        promotionals.promotion_type AS promotionType,
+        promotionals.branch_id AS branchId,
+        branches.name AS branchName,
+        promotionals.`start` AS startDate,
+        promotionals.`end` AS endDate,
+        promotionals.apply_to AS applyTo,
+        promotionals.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        promotionals.modified AS modified,
+        CONCAT(editor.first_name, ' ', editor.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM promotionals
+        LEFT JOIN branches ON branches.id = promotionals.branch_id
+        LEFT JOIN users AS creator ON creator.id = promotionals.created_by
+        LEFT JOIN users AS editor ON editor.id = promotionals.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE promotionals.status > 0
+        <if test="filter.searchText != null">
+            AND (
+            promotionals.title LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR promotionals.description LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND promotionals.start >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND promotionals.end &lt;= #{filter.dateTo}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PromotionalFilter" resultType="com.ut.nlSystemAPi.model.response.Promotional.PromotionalResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                promotionals.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.PromotionalFilter" resultType="java.lang.Long">
+        SELECT COUNT(promotionals.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Promotional.PromotionalResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE promotionals.status > 0 AND promotionals.id = #{id}
+    </select>
+
+    <select id="getDetails" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Promotional.PromotionalDetailResponse">
+        SELECT
+            promotional_details.id AS id,
+            promotional_details.product_request_id AS productId,
+            products.name AS productName,
+            products.code AS sku,
+            products.barcode AS upc,
+            promotional_details.uom_request AS uomId,
+            uoms.name AS uomName,
+            uoms.abbr AS uomAbbr,
+            promotional_details.qty_free AS qtyFree,
+            promotional_details.qty_promo AS discountQty,
+            promotional_details.discount_percent AS discountPercent,
+            promotional_details.discount_amount AS discountAmount,
+            promotional_details.price AS specialPrice
+        FROM promotional_details
+        LEFT JOIN products ON products.id = promotional_details.product_request_id
+        LEFT JOIN uoms ON uoms.id = promotional_details.uom_request
+        WHERE promotional_details.promotional_id = #{promotionalId}
+    </select>
+
+    <select id="getSubDetails" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.Promotional.PromotionalSubDetailResponse">
+        SELECT
+            promotional_sub_details.id AS id,
+            promotional_sub_details.product_request_id AS productId,
+            products.name AS productName,
+            products.code AS sku,
+            products.barcode AS upc,
+            promotional_sub_details.uom_request AS uomId,
+            uoms.name AS uomName,
+            uoms.abbr AS uomAbbr,
+            promotional_sub_details.qty AS qty
+        FROM promotional_sub_details
+        LEFT JOIN products ON products.id = promotional_sub_details.product_request_id
+        LEFT JOIN uoms ON uoms.id = promotional_sub_details.uom_request
+        WHERE promotional_sub_details.promotional_detail_id = #{promotionalDetailId}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Promotional.Promotional" useGeneratedKeys="true" keyProperty="promotional.id">
+        INSERT INTO promotionals (
+            title,
+            description,
+            promotion_type,
+            branch_id,
+            `start`,
+            `end`,
+            apply_to,
+            created,
+            created_by,
+            status
+        ) VALUES (
+            #{promotional.title},
+            #{promotional.description},
+            #{promotional.promotionType},
+            #{promotional.branchId},
+            #{promotional.startDate},
+            #{promotional.endDate},
+            #{promotional.applyTo},
+            NOW(),
+            #{promotional.createdBy},
+            #{promotional.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Promotional.Promotional">
+        UPDATE promotionals SET
+            <if test="promotional.title != null">title = #{promotional.title},</if>
+            <if test="promotional.description != null">description = #{promotional.description},</if>
+            <if test="promotional.promotionType != null">promotion_type = #{promotional.promotionType},</if>
+            <if test="promotional.branchId != null">branch_id = #{promotional.branchId},</if>
+            <if test="promotional.startDate != null">`start` = #{promotional.startDate},</if>
+            <if test="promotional.endDate != null">`end` = #{promotional.endDate},</if>
+            <if test="promotional.applyTo != null">apply_to = #{promotional.applyTo},</if>
+            modified = NOW(),
+            modified_by = #{promotional.modifiedBy}
+        WHERE id = #{promotional.id} AND status > 0
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE promotionals SET
+            status = 0,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND status > 0
+    </update>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.Promotional.PromotionalDetail" useGeneratedKeys="true" keyProperty="detail.id">
+        INSERT INTO promotional_details (
+            promotional_id,
+            uom_request,
+            product_request_id,
+            qty_free,
+            qty_promo,
+            discount_percent,
+            discount_amount,
+            price
+        ) VALUES (
+            #{detail.promotionalId},
+            #{detail.uomId},
+            #{detail.productId},
+            #{detail.qtyFree},
+            #{detail.discountQty},
+            #{detail.discountPercent},
+            #{detail.discountAmount},
+            #{detail.price}
+        )
+    </insert>
+
+    <insert id="insertSubDetail" parameterType="com.ut.nlSystemAPi.model.entity.Promotional.PromotionalSubDetail">
+        INSERT INTO promotional_sub_details (
+            promotional_detail_id,
+            product_request_id,
+            uom_request,
+            qty
+        ) VALUES (
+            #{subDetail.promotionalDetailId},
+            #{subDetail.productId},
+            #{subDetail.uomId},
+            #{subDetail.qty}
+        )
+    </insert>
+
+    <delete id="deleteSubDetails" parameterType="java.lang.Long">
+        DELETE sub_details FROM promotional_sub_details AS sub_details
+        INNER JOIN promotional_details AS details ON details.id = sub_details.promotional_detail_id
+        WHERE details.promotional_id = #{promotionalId}
+    </delete>
+
+    <delete id="deleteDetails" parameterType="java.lang.Long">
+        DELETE FROM promotional_details WHERE promotional_id = #{promotionalId}
+    </delete>
+
+</mapper>

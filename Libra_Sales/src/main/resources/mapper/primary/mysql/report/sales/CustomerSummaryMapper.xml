@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <select id="getListCustomerSummary" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.CustomerSummaryFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.CustomerSummaryResponse">
+        SELECT
+        id AS id,
+        name AS organizationName,
+        customer_code AS organizationCode
+        FROM customers
+        WHERE id IN (
+        SELECT customer_id FROM quotations WHERE status > 0
+        AND (IFNULL(quotations.total_amount, 0) - IFNULL(quotations.discount, 0)) > 0
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        )
+        OR id IN (
+        SELECT customer_id FROM sales_orders WHERE status > 0
+        AND (IFNULL(sales_orders.total_amount, 0) - IFNULL(sales_orders.discount, 0)) > 0
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        )
+        OR id IN (
+        SELECT customer_id FROM credit_memos WHERE status > 0
+        AND (IFNULL(credit_memos.total_amount, 0) - IFNULL(credit_memos.discount, 0)) > 0
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        )
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListCustomerSummary" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.CustomerSummaryFilter" resultType="java.lang.Long">
+        SELECT COUNT(customers.id)
+        FROM customers
+        WHERE id IN (
+        SELECT customer_id FROM quotations WHERE status > 0
+        AND (IFNULL(quotations.total_amount, 0) - IFNULL(quotations.discount, 0)) > 0
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        )
+        OR id IN (
+        SELECT customer_id FROM sales_orders WHERE status > 0
+        AND (IFNULL(sales_orders.total_amount, 0) - IFNULL(sales_orders.discount, 0)) > 0
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        )
+        OR id IN (
+        SELECT customer_id FROM credit_memos WHERE status > 0
+        AND (IFNULL(credit_memos.total_amount, 0) - IFNULL(credit_memos.discount, 0)) > 0
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        )
+    </select>
+
+    <select id="getListCustomerSummaryTransaction" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.CustomerSummaryTransactionResponse">
+        SELECT
+            type,
+            `year`,
+            COALESCE(`count`, 0) AS `count`,
+            COALESCE(amount, 0) AS amount
+        FROM (
+                 SELECT
+                     'Quotation' AS type,
+                     #{year} AS `year`,
+                     COUNT(quotations.id) AS `count`,
+                     IFNULL(SUM(IFNULL(quotations.total_amount, 0) - IFNULL(quotations.discount, 0)), 0) AS amount
+                 FROM (SELECT 1 AS dummy) dummy
+                          LEFT JOIN quotations ON quotations.status > 0
+                     AND customer_id = #{customerId}
+                     AND YEAR(quotations.quotation_date) = #{year}
+
+        UNION ALL
+
+        SELECT
+            'Invoice' AS type,
+            #{year} AS `year`,
+            COUNT(sales_orders.id) AS `count`,
+            IFNULL(SUM(IFNULL(sales_orders.total_amount, 0) - IFNULL(sales_orders.discount, 0)), 0) AS amount
+        FROM (SELECT 1 AS dummy) dummy
+                 LEFT JOIN sales_orders ON sales_orders.status > 0
+            AND customer_id = #{customerId}
+            AND YEAR(sales_orders.order_date) = #{year}
+
+        UNION ALL
+
+        SELECT
+            'Credit Memo' AS type,
+            #{year} AS `year`,
+            COUNT(credit_memos.id) AS `count`,
+            IFNULL(SUM(IFNULL(credit_memos.total_amount, 0) - IFNULL(credit_memos.discount, 0)), 0) AS amount
+        FROM (SELECT 1 AS dummy) dummy
+                 LEFT JOIN credit_memos ON credit_memos.status > 0
+            AND customer_id = #{customerId}
+            AND YEAR(credit_memos.order_date) = #{year}
+            ) combined
+    </select>
+
+</mapper>

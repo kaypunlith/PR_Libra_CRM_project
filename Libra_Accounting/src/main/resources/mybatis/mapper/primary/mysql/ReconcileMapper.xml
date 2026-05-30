@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReconcileMapper">
+  <sql id="BASE_COLUMN_LIST">
+    gld.id AS id,
+    gl.`date` AS `date`,
+    gl.reference AS reference,
+    gld.debit AS debit,
+    CASE
+      WHEN (gld.customer_id IS NOT NULL) THEN (SELECT c.`name` FROM customers c WHERE c.id = gld.customer_id)
+      WHEN (gld.vendor_id IS NOT NULL) THEN (SELECT v.`name` FROM vendors v WHERE v.id = gld.vendor_id)
+      WHEN (gld.employee_id IS NOT NULL) THEN (SELECT e.`name` FROM employees e WHERE e.id = gld.employee_id)
+      ELSE ''
+    END AS `name`
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM general_ledgers AS gl
+  INNER JOIN general_ledger_details AS gld ON gl.id = gld.general_ledger_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE gl.is_active = 1
+    AND gl.is_approve = 1
+    AND gld.is_reconcile = 0
+    AND gld.debit > 0
+    <if test="filter != null and filter.companyId != null">
+      AND gld.company_id = #{filter.companyId}
+    </if>
+    <if test="filter != null and filter.chartAccountId != null">
+      AND gld.chart_account_id = #{filter.chartAccountId}
+    </if>
+    <if test="filter != null and filter.branchId != null">
+      AND gld.branch_id = #{filter.branchId}
+    </if>
+    <if test="filter != null">
+      <choose>
+        <when test="filter.isHideFutureData == 1">
+          AND gl.date &lt;= #{filter.dateTo}
+        </when>
+        <when test="filter.dateFrom != null and filter.dateTo != null">
+          AND gl.date >= #{filter.dateFrom} AND gl.date &lt;= #{filter.dateTo}
+        </when>
+      </choose>
+    </if>
+  </sql>
+
+  <select id="getReconcileDebitList" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileFilter" resultMap="ReconcileResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter != null and filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        gld.id ASC
+      </otherwise>
+    </choose>
+<!--    <if test="filter != null and filter.page != null and filter.rowsPerPage != null">-->
+<!--      LIMIT #{filter.page}, #{filter.rowsPerPage}-->
+<!--    </if>-->
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(gld.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <sql id="BASE_CREDIT_COLUMN_LIST">
+    gld.id AS id,
+    gl.`date` AS `date`,
+    gl.reference AS reference,
+    gld.credit AS credit,
+    CASE
+      WHEN (gld.customer_id IS NOT NULL) THEN (SELECT c.`name` FROM customers c WHERE c.id = gld.customer_id)
+      WHEN (gld.vendor_id IS NOT NULL) THEN (SELECT v.`name` FROM vendors v WHERE v.id = gld.vendor_id)
+      WHEN (gld.employee_id IS NOT NULL) THEN (SELECT e.`name` FROM employees e WHERE e.id = gld.employee_id)
+    ELSE ''
+    END AS `name`
+  </sql>
+
+  <sql id="BASE_CREDIT_FROM">
+    FROM general_ledgers AS gl
+  INNER JOIN general_ledger_details AS gld ON gl.id = gld.general_ledger_id
+  </sql>
+
+  <sql id="BASE_CREDIT_WHERE">
+    WHERE gl.is_active = 1
+    AND gl.is_approve = 1
+    AND gld.is_reconcile = 0
+    AND gld.credit > 0
+    <if test="filter != null and filter.companyId != null">
+      AND gld.company_id = #{filter.companyId}
+    </if>
+    <if test="filter != null and filter.chartAccountId != null">
+      AND gld.chart_account_id = #{filter.chartAccountId}
+    </if>
+    <if test="filter != null and filter.branchId != null">
+      AND gld.branch_id = #{filter.branchId}
+    </if>
+    <if test="filter != null">
+      <choose>
+        <when test="filter.isHideFutureData == 1">
+          AND gl.date &lt;= #{filter.dateTo}
+        </when>
+        <when test="filter.dateFrom != null and filter.dateTo != null">
+          AND gl.date >= #{filter.dateFrom} AND gl.date &lt;= #{filter.dateTo}
+        </when>
+      </choose>
+    </if>
+  </sql>
+
+  <select id="getReconcileCreditList" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileFilter" resultMap="ReconcileResponse">
+    SELECT
+    <include refid="BASE_CREDIT_COLUMN_LIST"/>
+    <include refid="BASE_CREDIT_FROM"/>
+    <include refid="BASE_CREDIT_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter != null and filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        gld.id ASC
+      </otherwise>
+    </choose>
+  </select>
+
+  <select id="countCreditList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(gld.id)
+    <include refid="BASE_CREDIT_FROM"/>
+    <include refid="BASE_CREDIT_WHERE"/>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Reconcile" useGeneratedKeys="true" keyProperty="reconcile.id">
+    INSERT INTO reconciles(
+      company_id,
+      branch_id,
+      chart_account_id,
+      `date`,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+       #{reconcile.companyId},
+       #{reconcile.branchId},
+       #{reconcile.chartAccountId},
+       #{reconcile.dateFrom},
+       NOW(),
+       #{reconcile.createdBy},
+       #{reconcile.isActive}
+     );
+  </insert>
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.GeneralLedger" useGeneratedKeys="true" keyProperty="generalLedger.id">
+    INSERT INTO general_ledgers(
+      `date`,
+      reference,
+      created,
+      created_by,
+      is_sys,
+      is_adj,
+      is_active
+    ) VALUES (
+       #{generalLedger.date},
+       #{generalLedger.reference},
+       NOW(),
+       #{generalLedger.createdBy},
+       #{generalLedger.isSys},
+       #{generalLedger.isAdj},
+       #{generalLedger.isActive}
+     );
+  </insert>
+
+  <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.GeneralLedgerDetail">
+    INSERT INTO general_ledger_details(
+      `general_ledger_id`,
+      chart_account_id,
+      company_id,
+      branch_id,
+      `type`,
+      debit,
+      credit,
+      memo,
+      class_id,
+      is_reconcile,
+      reconcile_id,
+      modified
+    ) VALUES (
+       #{generalLedgerDetail.generalLedgerId},
+       #{generalLedgerDetail.chartAccountId},
+       #{generalLedgerDetail.companyId},
+       #{generalLedgerDetail.branchId},
+       #{generalLedgerDetail.type},
+       #{generalLedgerDetail.debit},
+       #{generalLedgerDetail.credit},
+       #{generalLedgerDetail.memo},
+       #{generalLedgerDetail.classId},
+       #{generalLedgerDetail.isReconcile},
+       #{generalLedgerDetail.reconcileId},
+       NOW()
+     );
+  </insert>
+
+  <update id="updateGeneralLedgerDetailIsReconcile" parameterType="java.lang.Long">
+    UPDATE general_ledger_details SET is_reconcile = 1, reconcile_id = #{reconcileId} WHERE id = #{generalLedgerDetailId};
+  </update>
+
+  <update id="updateReconcileServiceChargeGlId" parameterType="java.lang.Long">
+    UPDATE reconciles SET service_charge_gl_id = #{generalLedgerId} WHERE id = #{reconcileId};
+  </update>
+
+  <update id="updateReconcileInterestedEarnedGlId" parameterType="java.lang.Long">
+    UPDATE reconciles SET interested_earned_gl_id = #{generalLedgerId} WHERE id = #{reconcileId};
+  </update>
+
+  <update id="updateReconcileDiffGlId" parameterType="java.lang.Long">
+    UPDATE reconciles SET diff_gl_id = #{generalLedgerId} WHERE id = #{reconcileId};
+  </update>
+
+  <select id="getBeginingBalance" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileFilter" resultType="java.lang.Double">
+    SELECT SUM(debit)-SUM(credit)
+      FROM general_ledgers gl
+      INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+      WHERE is_active=1
+        AND is_approve=1
+        AND is_reconcile=1
+        AND company_id=#{filter.companyId}
+        AND chart_account_id=#{filter.chartAccountId}
+    <if test="filter.branchId != null">
+      AND gld.branch_id = #{filter.branchId}
+    </if>
+    </select>
+
+</mapper>

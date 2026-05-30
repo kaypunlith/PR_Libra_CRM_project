@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PurchaseBillMapper">
+
+  <resultMap id="PurchaseBillResponse" type="com.ut.nlSystemAPi.model.response.PurchaseBill.PurchaseBillResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseBillDetailResponse" type="com.ut.nlSystemAPi.model.response.PurchaseBill.PurchaseBillDetailResponse">
+
+  </resultMap>
+
+</mapper>

@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.GoodReceiptNoteMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        purchase_receive_results.id AS id,
+        purchase_receive_results.date AS `date`,
+        CASE
+        WHEN EXISTS (
+            SELECT 1
+            FROM purchase_receive_results prr
+            INNER JOIN purchase_orders po
+                ON po.purchase_request_id = prr.purchase_request_id
+            INNER JOIN user_location_groups ulg
+                ON prr.location_group_id = ulg.location_group_id
+            WHERE prr.status = 2
+                AND prr.type = 2
+                AND ulg.user_id = #{userId}
+        ) THEN 1
+        ELSE 0
+        END AS isNotAllowDisapproved,
+        purchase_receive_results.code AS code,
+        purchase_receive_results.company_id AS companyId,
+        companies.name AS companyName,
+        location_groups.name AS warehouseName,
+        purchase_receive_results.location_group_id AS warehouseId,
+        locations.name AS locationName,
+        purchase_receive_results.location_id AS locationId,
+        purchase_receive_results.purchase_request_id AS purchaseOrderId,
+        purchase_requests.pr_code AS purchaseOrderCode,
+        purchase_requests.order_date AS purchaseOrderDate,
+        purchase_receive_results.purchase_order_id AS purchaseBillId,
+        purchase_orders.po_code AS purchaseBillCode,
+        CONCAT(vendors.vendor_code, ' - ', vendors.name) AS vendorName,
+        purchase_receive_results.vendor_id AS vendorId,
+        purchase_receive_results.note AS note,
+        purchase_receive_results.approved AS approved,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS approvedBy,
+        purchase_receive_results.disapproved AS disapproved,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS disapprovedBy,
+        purchase_receive_results.status AS status
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM purchase_receive_results
+            LEFT JOIN companies ON companies.id = purchase_receive_results.company_id
+            LEFT JOIN vendors ON vendors.id = purchase_receive_results.vendor_id
+            LEFT JOIN location_groups ON location_groups.id = purchase_receive_results.location_group_id
+            LEFT JOIN locations ON locations.id = purchase_receive_results.location_id
+            LEFT JOIN purchase_orders ON purchase_orders.id = purchase_receive_results.purchase_order_id
+            LEFT JOIN purchase_requests ON purchase_requests.id = purchase_receive_results.purchase_request_id
+            LEFT JOIN users AS users1 ON users1.id = purchase_receive_results.approved_by
+            LEFT JOIN users AS users2 ON users2.id = purchase_receive_results.disapproved_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE purchase_receive_results.status >= 0
+        AND purchase_receive_results.type = 2
+        AND purchase_receive_results.location_group_id IN (
+        SELECT location_group_id FROM user_location_groups WHERE user_id = #{userId}
+        )
+        <if test="filter.warehouseId != null">
+            AND purchase_receive_results.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.status != null">
+            AND purchase_receive_results.status = #{filter.status}
+        </if>
+        <if test="filter.locationId != null">
+            AND purchase_receive_results.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+            vendors.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR purchase_orders.po_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR purchase_requests.pr_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR purchase_receive_results.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="goodReceiptNoteResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                purchase_receive_results.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListVendor" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="listVendorResponse">
+        SELECT
+            vendors.id AS id,
+            vendors.vendor_code AS vendorCode,
+            vendors.name AS name,
+            vendors.work_telephone AS workTelephone,
+            vendors.address AS address,
+            payment_terms.net_days AS netDay
+        FROM vendors
+            LEFT JOIN payment_terms ON payment_terms.id = vendors.payment_term_id
+            INNER JOIN vendor_companies ON vendor_companies.vendor_id = vendors.id
+            WHERE vendors.is_active = 1
+            AND vendor_companies.company_id = 1
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                  ${filter.orderBy}
+            </when>
+            <otherwise>
+                   vendors.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(purchase_receive_results.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="goodReceiptNoteResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+      WHERE purchase_receive_results.id = #{id} AND purchase_receive_results.status >= 0
+      AND purchase_receive_results.type = 2
+      AND purchase_receive_results.location_group_id IN (
+      SELECT location_group_id FROM user_location_groups WHERE user_id = #{userId}
+      )
+  </select>
+
+    <select id="getDetail" parameterType="java.lang.Long" resultMap="goodReceiptNoteDetailResponse">
+        SELECT
+            purchase_receives.purchase_order_detail_id AS purchaseOrderDetailId,
+            purchase_receives.product_id AS productId,
+            pro.unit_cost AS unitCost,
+            purchase_receives.date_expired AS expDate,
+            purchase_receives.qty AS qty,
+            purchase_receives.qty_uom_id AS uomId,
+            IFNULL(purchase_receives.conversion, 1) AS conversion,
+            IFNULL(purchase_receives.lots_number,'0') AS lotNo
+        FROM purchase_receives
+        LEFT JOIN products AS pro ON pro.id = purchase_receives.product_id
+        WHERE purchase_receives.status > 0 AND purchase_receives.purchase_receive_result_id = #{id}
+    </select>
+
+    <select id="getListReceiptDetail" parameterType="java.lang.Long" resultMap="goodReceiptNoteDetailResponse">
+        SELECT
+            purchase_request_details.purchase_request_id AS purchaseOrderId,
+            purchase_receives.purchase_order_detail_id AS purchaseOrderDetailId,
+            purchase_request_details.product_id AS productId,
+            pro.code AS upc,
+            pro.description AS description,
+            pro.barcode AS sku,
+            pro.name AS productName,
+            pro.unit_cost AS unitCost,
+            pro.is_expired_date AS isExpiredDate,
+            purchase_receives.date_expired AS expDate,
+            purchase_request_details.qty AS qty,
+            purchase_receives.qty AS qtyReceive,
+            purchase_request_details.qty_uom_id AS uomId,
+            uom.name AS uom,
+            IFNULL(pro.small_val_uom,1) / IFNULL(purchase_receives.conversion, 1) AS conversion,
+            IFNULL(purchase_receives.lots_number,'0') AS lotNo
+        FROM purchase_receives
+                 LEFT JOIN purchase_receive_results ON purchase_receive_results.id = purchase_receives.purchase_receive_result_id
+                 LEFT JOIN purchase_requests ON purchase_requests.id = purchase_receive_results.purchase_request_id
+                 LEFT JOIN purchase_request_details ON purchase_request_details.purchase_request_id = purchase_requests.id
+                 LEFT JOIN products AS pro ON pro.id = purchase_request_details.product_id
+                 LEFT JOIN uoms AS uom ON uom.id = purchase_request_details.qty_uom_id
+        WHERE purchase_receives.status >= 0 AND purchase_receives.purchase_receive_result_id = #{id} AND purchase_receive_results.type = 2
+        GROUP BY
+            purchase_request_details.product_id, pro.code, pro.description,
+            pro.barcode, pro.name, purchase_receives.date_expired,
+            purchase_request_details.qty_uom_id, uom.name, purchase_receives.lots_number
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.GoodReceiptNote" useGeneratedKeys="true" keyProperty="goodReceiptNote.id">
+        INSERT INTO purchase_receive_results (
+            type,
+            company_id,
+            location_group_id,
+            location_id,
+            code,
+            purchase_request_id,
+            vendor_id,
+            `date`,
+            note,
+            created,
+            created_by,
+            status
+        ) VALUES (
+                     2,
+                     #{goodReceiptNote.companyId},
+                     #{goodReceiptNote.locationGroupId},
+                     #{goodReceiptNote.locationId},
+                     #{goodReceiptNote.code},
+                     #{goodReceiptNote.purchaseRequestId},
+                     #{goodReceiptNote.vendorId},
+                     #{goodReceiptNote.date},
+                     #{goodReceiptNote.note},
+                     NOW(),
+                     #{goodReceiptNote.createdBy},
+                     #{goodReceiptNote.status}
+                 )
+    </insert>
+
+    <insert id="insertReceiptNoteDetail" parameterType="com.ut.nlSystemAPi.model.GoodReceiptNoteDetail" useGeneratedKeys="true">
+        INSERT INTO purchase_receives (
+            purchase_receive_result_id,
+            product_id,
+            qty,
+            qty_uom_id,
+            date_expired,
+            conversion,
+            created,
+            created_by
+        ) VALUES (
+                     #{goodReceiptNoteDetail.purchaseReceiveResultId},
+                     #{goodReceiptNoteDetail.productId},
+                     #{goodReceiptNoteDetail.qty},
+                     #{goodReceiptNoteDetail.qtyUomId},
+                     #{goodReceiptNoteDetail.expireDate},
+                     #{goodReceiptNoteDetail.conversion},
+                     NOW(),
+                     #{goodReceiptNoteDetail.createdBy}
+                 )
+    </insert>
+
+    <insert id="update" parameterType="com.ut.nlSystemAPi.model.GoodReceiptNote" useGeneratedKeys="true" keyProperty="goodReceiptNote.id">
+        INSERT INTO purchase_receive_results (
+            company_id,
+            type,
+            `code`,
+            location_group_id,
+            location_id,
+            purchase_request_id,
+            `date`,
+            vendor_id,
+            note,
+            created,
+            created_by
+        ) VALUES (
+                     #{goodReceiptNote.companyId},
+                     2,
+                     #{goodReceiptNote.code},
+                     #{goodReceiptNote.locationGroupId},
+                     #{goodReceiptNote.locationId},
+                     #{goodReceiptNote.purchaseRequestId},
+                     #{goodReceiptNote.date},
+                     #{goodReceiptNote.vendorId},
+                     #{goodReceiptNote.note},
+                     NOW(),
+                     #{goodReceiptNote.modifiedBy}
+                 )
+    </insert>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE purchase_receive_results SET
+            status = -1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE purchase_receive_results SET
+            status = 0,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateApprove" parameterType="java.util.Map">
+        UPDATE purchase_receive_results SET
+            <choose>
+                <when test="filter.isApproved == 1">
+                    status = #{filter.isApproved},
+                    disapproved = NOW(),
+                    disapproved_by = #{userId}
+                </when>
+                <when test="filter.isApproved == 2">
+                    status = #{filter.isApproved},
+                    approved = NOW(),
+                    approved_by = #{userId}
+                </when>
+            </choose>
+        WHERE id = #{filter.id}
+    </update>
+
+    <delete id="deleteGoodReceiptNoteDetail" parameterType="java.lang.Long">
+        DELETE FROM purchase_receives WHERE `purchase_receive_result_id` = #{id}
+    </delete>
+
+    <select id="getCode" resultType="java.lang.String">
+        SELECT code
+        FROM purchase_receive_results
+        WHERE status > 0 AND id = #{id}
+    </select>
+
+    <select id="getReLastReceivePaymentCode" resultType="java.lang.String">
+        SELECT code
+        FROM purchase_receive_results
+        WHERE status > 0 AND YEAR(date) = YEAR(NOW()) AND code LIKE '%GRR%' ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="getTotalQtyReceive" resultType="java.lang.Long">
+        SELECT SUM(qty * IFNULL(conversion, 1)) AS qty FROM purchase_receives WHERE product_id = #{productId} AND purchase_receive_result_id IN (SELECT id FROM purchase_receive_results WHERE purchase_request_id = #{purchaseOrderId} AND status > 0)
+    </select>
+
+    <update id="updateStatusPurchaseOrder" parameterType="java.lang.Long">
+        UPDATE purchase_requests SET goods_receive_note_status = #{status} WHERE id = #{purchaseOrderId}
+    </update>
+
+</mapper>

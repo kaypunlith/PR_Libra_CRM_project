@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DeliveryScheduleMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        delivery_schedules.id AS id,
+        delivery_schedules.start_date AS startDate,
+        delivery_schedules.end_date AS endDate,
+        delivery_schedules.start_time AS startTime,
+        delivery_schedules.end_time AS endTime,
+        delivery_schedules.privacy AS privacy,
+        delivery_schedules.is_close AS isClose,
+        delivery_schedules.backgroundColor AS backgroundColor,
+        delivery_schedules.title AS title,
+        delivery_schedules.comment AS comment,
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = delivery_schedules.created_by) AS bookedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM delivery_schedules
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE delivery_schedules.is_active = 1 AND delivery_schedules.is_close = 0
+        <if test="filter.searchText != null">
+            AND delivery_schedules.title LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND delivery_schedules.created_by = #{userId}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND (
+            (
+            DATE(delivery_schedules.start_date) >= #{filter.dateFrom} AND DATE(delivery_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(delivery_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(delivery_schedules.end_date) >= #{filter.dateTo}
+            ) OR (
+            DATE(delivery_schedules.start_date) &lt;= #{filter.dateFrom} AND DATE(delivery_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(delivery_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(delivery_schedules.end_date) &lt;= #{filter.dateTo}
+            ) OR (
+            DATE(delivery_schedules.start_date) >= #{filter.dateFrom} AND DATE(delivery_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(delivery_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(delivery_schedules.end_date) &lt;= #{filter.dateTo}
+            ) OR (
+            DATE(delivery_schedules.start_date) &lt;= #{filter.dateFrom} AND DATE(delivery_schedules.end_date) >= #{filter.dateFrom} AND
+            DATE(delivery_schedules.start_date) &lt;= #{filter.dateTo} AND DATE(delivery_schedules.end_date) >= #{filter.dateTo}
+            )
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.DeliveryScheduleFilter" resultMap="DeliveryScheduleResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                delivery_schedules.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.DeliveryScheduleFilter" resultType="java.lang.Long">
+        SELECT COUNT(delivery_schedules.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="DeliveryScheduleResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE delivery_schedules.is_active = 1 AND delivery_schedules.is_close = 0 AND delivery_schedules.id = #{id}
+    </select>
+
+    <select id="getDetail" parameterType="java.lang.Long" resultMap="DeliveryScheduleDetailResponse">
+        SELECT
+            delivery_schedule_details.id AS id,
+            COUNT(delivery_schedule_details.order_id) AS totalOrder,
+            delivery_schedule_details.order_id AS saleOrderId,
+            delivery_schedule_details.amount_due AS amountDue,
+            orders.order_code AS saleOrderCode,
+            orders.total_amount AS totalAmount,
+            customers.name AS customerName
+        FROM delivery_schedule_details
+        INNER JOIN orders ON orders.id = delivery_schedule_details.order_id
+        LEFT JOIN customers ON customers.id = orders.customer_id
+        WHERE delivery_schedule_details.is_active = 1 AND delivery_schedule_details.delivery_schedule_id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.DeliverySchedule.DeliverySchedule" useGeneratedKeys="true" keyProperty="schedule.id">
+        INSERT INTO delivery_schedules (
+            start_date,
+            start_time,
+            end_date,
+            end_time,
+            title,
+            backgroundColor,
+            privacy,
+            created,
+            created_by
+        ) VALUES (
+                     #{schedule.startDate},
+                     #{schedule.startTime},
+                     #{schedule.endDate},
+                     #{schedule.endTime},
+                     #{schedule.title},
+                     #{schedule.backgroundColor},
+                     #{schedule.privacy},
+                     NOW(),
+                     #{schedule.createdBy}
+                 )
+    </insert>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.DeliverySchedule.DeliveryScheduleDetail">
+        INSERT INTO delivery_schedule_details (
+            delivery_schedule_id,
+            order_id,
+            amount_due
+        ) VALUES (
+                     #{detail.deliveryScheduleId},
+                     #{detail.saleOrderId},
+                     #{detail.amountDue}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.DeliverySchedule.DeliverySchedule">
+        UPDATE delivery_schedules SET
+        <if test="schedule.startDate != null">
+            start_date = #{schedule.startDate},
+        </if>
+        <if test="schedule.startTime != null">
+            start_time = #{schedule.startTime},
+        </if>
+        <if test="schedule.endDate != null">
+            end_date = #{schedule.endDate},
+        </if>
+        <if test="schedule.endTime != null">
+            end_time = #{schedule.endTime},
+        </if>
+        <if test="schedule.title != null">
+            title = #{schedule.title},
+        </if>
+        <if test="schedule.backgroundColor != null">
+            backgroundColor = #{schedule.backgroundColor},
+        </if>
+        <if test="schedule.privacy != null">
+            privacy = #{schedule.privacy},
+        </if>
+        <if test="schedule.comment != null">
+            comment = #{schedule.comment},
+        </if>
+            modified = NOW(),
+        <if test="schedule.modifiedBy != null">
+            modified_by = #{schedule.modifiedBy}
+        </if>
+        WHERE id = #{schedule.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE delivery_schedules SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by =#{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteDetail" parameterType="java.lang.Long">
+        UPDATE delivery_schedule_details SET is_active = 2 WHERE delivery_schedule_id = #{id};
+    </update>
+
+</mapper>

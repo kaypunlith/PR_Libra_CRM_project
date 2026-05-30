@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+    <sql id="BASE_WHERE_CUSTOMER_ADDRESS_LIST">
+        WHERE customers.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+            address LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customer_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND DATE(customers.created) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(customers.created) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.code != null">
+            AND customers.customer_code = #{filter.code}
+        </if>
+        <if test="filter.other != null">
+            AND customers.customer_code = #{filter.other}
+        </if>
+        <if test="filter.provinceId != null">
+            AND customers.province_id = #{filter.provinceId}
+        </if>
+        <if test="filter.districtId != null">
+            AND customers.district_id = #{filter.districtId}
+        </if>
+        <if test="filter.villageId != null">
+            AND customers.village_id = #{filter.villageId}
+        </if>
+        <if test="filter.communeId != null">
+            AND customers.commune_id = #{filter.communeId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND customers.id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND customers.id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.createdBy != null">
+            AND customers.created_by = #{filter.createdBy}
+        </if>
+    </sql>
+
+    <select id="getListCustomerAddressList" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerAddressListReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.CustomerAddressReportResponse">
+        SELECT
+            customers.id AS id,
+            customers.customer_code AS code,
+            customers.name AS name,
+            customers.address AS address,
+            COALESCE(customers.main_number, customers.mobile_number, customers.other_number) AS telephone,
+            customers.email AS email
+        FROM customers 
+        LEFT JOIN customer_cgroups ON customers.id = customer_cgroups.customer_id
+        <include refid="BASE_WHERE_CUSTOMER_ADDRESS_LIST"/>
+        GROUP BY customers.id
+        ORDER BY customers.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListCustomerAddressList" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerAddressListReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT customers.id)
+        FROM customers
+        LEFT JOIN customer_cgroups ON customers.id = customer_cgroups.customer_id
+        <include refid="BASE_WHERE_CUSTOMER_ADDRESS_LIST"/>
+    </select>
+
+
+</mapper>

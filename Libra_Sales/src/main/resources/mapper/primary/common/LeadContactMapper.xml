@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LeadContactMapper">
+
+    <resultMap id="LeadContactResponse" type="com.ut.nlSystemAPi.model.response.LeadContact.LeadContactResponse">
+        <id property="id" column="id"/>
+        <result property="leadId" column="leadId"/>
+        <result property="leadName" column="leadName"/>
+        <result property="leadContactName" column="leadContactName"/>
+        <result property="gender" column="gender"/>
+        <result property="contactTelephone" column="contactTelephone"/>
+        <result property="contactEmail" column="contactEmail"/>
+        <result property="position" column="position"/>
+        <result property="personalizeIndexId" column="personalizeIndexId"/>
+        <result property="personalizeIndexName" column="personalizeIndexName"/>
+        <result property="role" column="role"/>
+        <result property="workFlow" column="workFlow"/>
+        <result property="needs" column="needs"/>
+        <result property="wants" column="wants"/>
+        <result property="painPoint" column="painPoint"/>
+        <result property="note" column="note"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+</mapper>

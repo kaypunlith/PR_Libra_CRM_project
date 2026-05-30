@@ -1,0 +1,886 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DropdownMapper">
+
+    <select id="getListNationality" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="NationalityDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `nationalities`
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListGroupApi" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="GroupApiDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `groups` WHERE `is_active` = 1
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListUser" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="UserDropdownResponse">
+        SELECT
+        `id` as id,
+        CONCAT(users.first_name, ' ', users.last_name) as fullName
+        FROM `users` WHERE `is_active` = 1 AND user_type != 3
+        <if test="filter.searchText != null">AND (users.first_name LIKE CONCAT("%", #{filter.searchText}, "%") OR users.last_name LIKE CONCAT("%", #{filter.searchText}, "%"))</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListCompany" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CompanyDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `companies` WHERE `is_active` = 1
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListChartAccountType" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ChartAccountTypeDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `chart_account_types` WHERE `is_active` IN (0, 1)
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListChartAccountGroup" parameterType="com.ut.nlSystemAPi.model.filter.AccountTypeFilter" resultMap="ChartAccountGroupDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `chart_account_groups`
+        WHERE `is_active` IN (0, 1)
+        <if test="filter.accountTypeId != null">
+            AND chart_account_type_id = #{filter.accountTypeId}
+        </if>
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListClass" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ClassDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `classes` WHERE `is_active` = 1
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListProduct" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ProductDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `products` WHERE `is_active` = 1
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListAccountType" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AccountTypeDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `account_types` WHERE 1
+        <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY `ordering` ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListChartAccount" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ChartAccountGroupDropdownResponse">
+        SELECT
+        `id` as id,
+        parent_id AS parentId,
+        CONCAT(`account_codes`, ' - ', `account_description`) as name
+        FROM `chart_accounts` WHERE `is_active` = 1
+        <if test="filter.searchText != null">AND `account_description` LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListChartAccountBalance" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ChartAccountDropdownResponse">
+        SELECT
+            ca.id as id,
+            ca.chart_account_type_id as chartAccountTypeId,
+            ca.parent_id as parentId,
+            CONCAT(ca.account_codes, ' - ', ca.account_description) as name,
+            (SELECT SUM(debit) - SUM(credit)
+                FROM general_ledgers gl
+                INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+                WHERE is_active=1
+                AND is_approve=1
+                AND chart_account_id = ca.id
+            ) AS balance
+        FROM chart_accounts ca
+        LEFT JOIN chart_accounts child ON child.parent_id = ca.id AND child.is_active = 1
+        WHERE ca.is_active = 1
+        <choose>
+            <when test="filter.type != null and filter.type == 1">
+                AND ca.chart_account_type_id = 10
+                AND child.id IS NULL
+            </when>
+            <when test="filter.type != null and filter.type == 2">
+                AND ca.chart_account_type_id IN (11,13,14,15)
+                AND child.id IS NULL
+            </when>
+            <otherwise>
+                <!-- no additional filtering for normal mode -->
+            </otherwise>
+        </choose>
+        <if test="filter.searchText != null">AND ca.account_description LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+        GROUP BY ca.id
+        ORDER BY ca.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    
+
+    <select id="getListProvince" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ProvinceDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `provinces` WHERE `is_active` = 1
+        <if test="filter.searchText != null">
+            AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListModuleType" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ModuleTypeDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `module_types` WHERE `status` = 1
+        <where>
+            <if test="filter.searchText != null">
+                AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+            </if>
+        </where>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListEmployee" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="EmployeeDropdownResponse">
+        SELECT
+            `id` as id,
+            `name` as nameEn,
+            name_kh AS nameKh,
+            code AS code
+        FROM `employees` WHERE `is_active` = 1
+        <if test="filter.searchText != null">
+            AND (`name` LIKE CONCAT("%", #{filter.searchText}, "%") OR `name_kh` LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListVendor" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="VendorDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as nameEn,
+        work_telephone AS nameKh,
+        vendor_code AS code
+        FROM `vendors` WHERE `is_active` = 1
+            <if test="filter.searchText != null">
+               AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+            </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListARInvoice" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ARScheduleInvoiceDropdownResponse">
+        SELECT
+            `id` as id,
+            `so_code` as name,
+            (total_amount + total_vat) AS amount
+        FROM `sales_orders`
+        WHERE balance > 0
+            AND id NOT IN (
+                SELECT sales_order_id FROM ar_schedule_details WHERE is_active = 1
+            )
+            <if test="filter.searchText != null">
+                AND `so_code` LIKE CONCAT("%", #{filter.searchText}, "%")
+            </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListAPInvoice" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="APScheduleInvoiceDropdownResponse">
+        SELECT
+        `id` as id,
+        `po_code` as name,
+        balance AS amount
+        FROM `purchase_orders`
+        WHERE balance > 0 AND status > 0
+            AND id NOT IN (
+                SELECT purchase_order_id FROM ap_schedule_details WHERE is_active = 1
+            )
+            <if test="filter.searchText != null">
+                AND `po_code` LIKE CONCAT("%", #{filter.searchText}, "%")
+            </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListLocation" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="LocationDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `locations` WHERE 1
+            <if test="filter.searchText != null">
+                AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+            </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListAsset" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AssetDropdownResponse">
+        SELECT
+            products.id as id,
+            hr_fix_asset_groups.id as fixAssetGroupId,
+            hr_fix_asset_groups.name as fixAssetGroupName,
+            products.code as code,
+            products.barcode as barcode,
+            products.name as name,
+            uoms.id as uomId,
+            uoms.name as uomName,
+            products.spec as spec,
+            products.note as model
+        FROM products
+        LEFT JOIN hr_fix_asset_groups ON hr_fix_asset_groups.id = products.hr_fix_asset_group_id
+        LEFT JOIN uoms ON uoms.id = products.price_uom_id
+        WHERE products.is_active = 8
+            <if test="filter.searchText != null">
+                AND products.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            </if>
+        ORDER BY products.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListCustomerGroup" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ZoneDropdownResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `cgroups` WHERE 1
+        <if test="filter.searchText != null">
+            AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListCustomeContact" parameterType="com.ut.nlSystemAPi.model.filter.CustomerContactFilter" resultMap="ZoneDropdownResponse">
+        SELECT
+        `id` as id,
+        `contact_name` as name
+        FROM `customer_contacts` WHERE customer_id = #{filter.customerId}
+        <if test="filter.searchText != null">
+            AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListDateFormat" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DateFormatResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `date_formats` WHERE is_active = 1
+           ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListTimeFormat" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DateFormatResponse">
+        SELECT
+        `id` as id,
+        `name` as name
+        FROM `time_formats` WHERE is_active = 1
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getReconcile" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="reconcile">
+        SELECT
+        reconciles.id AS id,
+        reconciles.date AS date,
+        chart_accounts.id AS chartAccountId,
+        chart_accounts.account_codes AS chartAccountCode,
+        chart_accounts.account_description AS chartAccountName
+        FROM reconciles
+        LEFT JOIN chart_accounts ON chart_accounts.id = reconciles.chart_account_id
+        WHERE reconciles.is_active = 1
+        ORDER BY reconciles.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+    <select id="getBranch" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="Branch">
+        SELECT
+            branches.id AS id,
+            branches.name AS name
+        FROM branches
+        WHERE is_active = 1
+
+    </select>
+
+    <select id="getBranchType" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="BranchType">
+        SELECT
+            branche_types.id AS id,
+            branche_types.name AS name
+        FROM branche_types
+        WHERE is_active = 1
+
+    </select>
+
+    <select id="getWarehouse" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="Warehouse">
+        SELECT
+            location_groups.id AS id,
+            location_groups.name AS name
+        FROM location_groups
+        WHERE is_active = 1
+
+    </select>
+
+    <select id="getCountries" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="Countries">
+        SELECT
+            countries.id AS id,
+            countries.name AS name
+        FROM countries
+    </select>
+
+    <select id="getExchangeRate" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ExchangeRate">
+        SELECT
+            company_currencies.currency_center_id AS currencyCenterId,
+            company_currencies.exchange_rate_id AS exchangeRateId,
+            company_currencies.rate_to_sell AS rateToSell,
+            company_currencies.rate_to_purchase AS rateToPurchase,
+            currency_centers.symbol AS symbol,
+            currency_centers.name AS name
+        FROM company_currencies
+            INNER JOIN currency_centers ON currency_centers.id = company_currencies.currency_center_id
+        WHERE company_currencies.is_active = 1
+    </select>
+
+    <select id="getPurchaseOrderList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultMap="PurchaseOrderDropdownResponse">
+        SELECT
+            purchase_requests.id AS id,
+            IFNULL((purchase_requests.total_amount + purchase_requests.total_vat), 0) AS balance,
+            purchase_requests.pr_code AS code,
+            1 AS applyToType,
+            purchase_requests.vendor_id AS applyToId,
+            (SELECT CONCAT(vendor_code , '-', name) FROM vendors WHERE id = purchase_requests.vendor_id) AS applyToName
+        FROM purchase_requests
+        WHERE purchase_requests.is_close = 0
+          AND purchase_requests.status > 0
+          AND (purchase_requests.total_amount + purchase_requests.total_vat) > IFNULL(purchase_requests.total_deposit,0)
+            <if test="filter.companyId != null">
+                AND purchase_requests.company_id = #{filter.companyId}
+            </if>
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getCountPurchaseOrderList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(id)
+        FROM purchase_requests
+        WHERE purchase_requests.is_close = 0
+        AND purchase_requests.status > 0
+        AND (purchase_requests.total_amount + purchase_requests.total_vat) > IFNULL(purchase_requests.total_deposit,0)
+        <if test="filter.companyId != null">
+            AND purchase_requests.company_id = #{filter.companyId}
+        </if>
+    </select>
+
+    <select id="getPurchaseBillList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PurchaseOrderDropdownResponse">
+        SELECT
+            id AS id,
+            IFNULL(balance, 0) AS balance,
+            po_code AS code,
+            1 AS applyToType,
+            purchase_orders.vendor_id AS applyToId,
+            (SELECT CONCAT(vendor_code , '-', name) FROM vendors WHERE id = purchase_orders.vendor_id) AS applyToName
+        FROM purchase_orders
+        WHERE status > 0
+            AND purchase_orders.balance > 0
+            <if test="filter.companyId != null">
+                AND purchase_orders.company_id = #{filter.companyId}
+            </if>
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getCountPurchaseBill" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(id)
+        FROM purchase_orders
+        WHERE status > 0
+        AND purchase_orders.balance > 0
+        <if test="filter.companyId != null">
+            AND purchase_orders.company_id = #{filter.companyId}
+        </if>
+    </select>
+
+    <select id="getQuotationList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PurchaseOrderDropdownResponse">
+        SELECT
+            id AS id,
+            IFNULL(((quotations.total_amount - IFNULL(quotations.discount, 0)) + quotations.total_vat), 0) AS balance,
+            quotation_code AS code,
+            2 AS applyToType,
+            customer_id AS applyToId,
+            (SELECT CONCAT(customer_code , '-', name) FROM customers WHERE id = quotations.customer_id) AS applyToName
+        FROM quotations
+        WHERE status > 0 AND is_close = 0
+          AND ((quotations.total_amount - IFNULL(quotations.discount, 0)) + quotations.total_vat)  > IFNULL(quotations.total_deposit, 0)
+            <if test="filter.companyId != null">
+                AND quotations.company_id = #{filter.companyId}
+            </if>
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getCountQuotation" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(id)
+        FROM quotations
+        WHERE status > 0 AND is_close = 0
+        AND ((quotations.total_amount - IFNULL(quotations.discount, 0)) + quotations.total_vat)  > IFNULL(quotations.total_deposit, 0)
+        <if test="filter.companyId != null">
+            AND quotations.company_id = #{filter.companyId}
+        </if>
+    </select>
+
+
+    <select id="getSalesOrderList" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultMap="PurchaseOrderDropdownResponse">
+        SELECT
+            id AS id,
+            IFNULL(balance, 0) AS balance,
+            so_code AS code,
+            2 AS applyToType,
+            customer_id AS applyToId,
+            (SELECT CONCAT(customer_code , '-', name) FROM customers WHERE id = sales_orders.customer_id) AS applyToName
+        FROM sales_orders
+        WHERE status > 0
+          AND balance > 0
+            <if test="filter.companyId != null">
+                AND company_id = #{filter.companyId}
+            </if>
+        ORDER BY id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getCountSalesOrder" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseOrderFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(id)
+        FROM sales_orders
+        WHERE status > 0
+        AND balance > 0
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+    </select>
+
+
+    <select id="getStatementEndingDate" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileEndingDateReportFilter" resultMap="PurchaseOrderDropdownResponse">
+        SELECT
+            id AS id,
+            LAST_DAY(date) AS name
+        FROM reconciles
+        WHERE company_id= 1 AND is_active = 1
+            <if test="filter.chartAccountId != null">
+                AND chart_account_id = #{filter.chartAccountId}
+            </if>
+        ORDER BY created DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getCountStatementEndingDate" parameterType="com.ut.nlSystemAPi.model.filter.ReconcileEndingDateReportFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(id)
+        FROM reconciles
+        WHERE company_id= 1 AND is_active = 1
+        <if test="filter.chartAccountId != null">
+            AND chart_account_id = #{filter.chartAccountId}
+        </if>
+        <if test="filter.branchId != null">
+            AND branch_id = #{filter.branchId}
+        </if>
+    </select>
+
+    <select id="getBranchCodeByModule" parameterType="com.ut.nlSystemAPi.model.filter.FindReferenceCodeFilter" resultType="java.lang.String">
+        SELECT
+            <if test="filter.moduleId == 1">
+                journal_entry_code
+            </if>
+            <if test="filter.moduleId == 2">
+                receive_payment_code
+            </if>
+            <if test="filter.moduleId == 3">
+                receive_payment_org_code
+            </if>
+            <if test="filter.moduleId == 4">
+                receive_payment_emp_code
+            </if>
+            <if test="filter.moduleId == 5">
+                pay_bill_code
+            </if>
+            <if test="filter.moduleId == 6">
+                pay_journal_code
+            </if>
+        FROM branches WHERE id = #{filter.branchId} AND is_active = 1;
+    </select>
+
+    <select id="getPurchaseBillDetail" parameterType="java.lang.Long" resultMap="PurchaseOrderDetailDropdownResponse">
+        (
+            SELECT
+                1 AS `type`,
+                purchase_order_details.id AS id,
+                purchase_order_details.product_id AS itemId,
+                products.name AS itemName,
+                products.code AS itemCode,
+                products.code AS sku,
+                products.barcode AS upc,
+                purchase_order_details.qty AS qty,
+                IFNULL(products.small_val_uom, 1) / IFNULL(purchase_order_details.conversion, 1) AS conversion,
+                purchase_order_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                purchase_order_details.unit_cost AS unitCost,
+                purchase_order_details.total_cost AS totalCost,
+                purchase_order_details.note AS note
+            FROM purchase_order_details
+                     LEFT JOIN products ON products.id = purchase_order_details.product_id
+                     LEFT JOIN uoms ON uoms.id = purchase_order_details.qty_uom_id
+            WHERE purchase_order_details.purchase_order_id = #{id}
+        )
+        UNION
+        (
+            SELECT
+                2 AS `type`,
+                purchase_order_services.id AS id,
+                purchase_order_services.service_id AS itemId,
+                services.name AS itemName,
+                services.sku AS itemCode,
+                services.sku AS sku,
+                services.sku AS upc,
+                purchase_order_services.qty AS qty,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                purchase_order_services.unit_cost AS unitCost,
+                purchase_order_services.total_cost AS totalCost,
+                purchase_order_services.note AS note
+            FROM purchase_order_services
+                     LEFT JOIN services ON services.id = purchase_order_services.service_id
+            WHERE purchase_order_services.purchase_order_id = #{id}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <select id="getPurchaseOrderDetail" parameterType="java.lang.Long" resultMap="PurchaseOrderDetailDropdownResponse">
+        (
+            SELECT
+                1 AS `type`,
+                purchase_request_details.id AS id,
+                purchase_request_details.product_id AS itemId,
+                products.name AS itemName,
+                products.code AS itemCode,
+                products.code AS sku,
+                products.barcode AS upc,
+                purchase_request_details.qty AS qty,
+                IFNULL(products.small_val_uom,1) / IFNULL(purchase_request_details.conversion, 1) AS conversion,
+                purchase_request_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                purchase_request_details.unit_cost AS unitCost,
+                purchase_request_details.total_cost AS totalCost,
+                purchase_request_details.note AS note
+            FROM purchase_request_details
+                LEFT JOIN products ON products.id = purchase_request_details.product_id
+                LEFT JOIN uoms ON uoms.id = purchase_request_details.qty_uom_id
+            WHERE purchase_request_details.purchase_request_id = #{id}
+        )
+        UNION
+        (
+            SELECT
+                2 AS `type`,
+                purchase_request_services.id AS id,
+                purchase_request_services.service_id AS itemId,
+                services.name AS itemName,
+                services.sku AS itemCode,
+                services.sku AS sku,
+                services.sku AS upc,
+                purchase_request_services.qty AS qty,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                purchase_request_services.unit_cost AS unitCost,
+                purchase_request_services.total_cost AS totalCost,
+                purchase_request_services.note AS note
+            FROM purchase_request_services
+                LEFT JOIN services ON services.id = purchase_request_services.service_id
+            WHERE purchase_request_services.purchase_request_id = #{id}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <!-- Quotation detail: from quotation_details, quotation_services, quotation_miscs, and break headers -->
+    <select id="getQuotationDetail" parameterType="java.lang.Long" resultMap="PurchaseOrderDetailDropdownResponse">
+        (
+            SELECT
+                1 AS `type`,
+                quotation_details.id AS id,
+                quotation_details.product_id AS itemId,
+                products.name AS itemName,
+                products.code AS itemCode,
+                products.code AS sku,
+                products.barcode AS upc,
+                quotation_details.qty AS qty,
+                IFNULL(products.small_val_uom,1) / IFNULL(quotation_details.conversion, 1) AS conversion,
+                quotation_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                quotation_details.unit_cost AS unitCost,
+                quotation_details.total_price AS totalCost,
+                NULL AS note
+            FROM quotation_details
+                LEFT JOIN products ON products.id = quotation_details.product_id
+                LEFT JOIN uoms ON uoms.id = quotation_details.qty_uom_id
+            WHERE quotation_details.quotation_id = #{id} AND quotation_details.is_break = 0
+        )
+        UNION ALL
+        (
+            SELECT
+                2 AS `type`,
+                quotation_services.id AS id,
+                quotation_services.service_id AS itemId,
+                services.name AS itemName,
+                services.sku AS itemCode,
+                services.sku AS sku,
+                services.sku AS upc,
+                quotation_services.qty AS qty,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                quotation_services.unit_price AS unitCost,
+                quotation_services.total_price AS totalCost,
+                NULL AS note
+            FROM quotation_services
+                LEFT JOIN services ON services.id = quotation_services.service_id
+            WHERE quotation_services.quotation_id = #{id}
+        )
+        UNION ALL
+        (
+            SELECT
+                3 AS `type`,
+                quotation_miscs.id AS id,
+                quotation_miscs.id AS itemId,
+                quotation_miscs.description AS itemName,
+                NULL AS itemCode,
+                NULL AS sku,
+                NULL AS upc,
+                quotation_miscs.qty AS qty,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                quotation_miscs.unit_price AS unitCost,
+                quotation_miscs.total_price AS totalCost,
+                NULL AS note
+            FROM quotation_miscs
+            WHERE quotation_miscs.quotation_id = #{id}
+        )
+        UNION
+        (
+            SELECT
+                4 AS `type`,
+                quotation_details.id AS id,
+                quotation_details.id AS itemId,
+                quotation_details.break_name AS itemName,
+                NULL AS itemCode,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS qty,
+                NULL AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                NULL AS unitCost,
+                NULL AS totalCost,
+                NULL AS note
+            FROM quotation_details
+            WHERE quotation_details.quotation_id = #{id} AND quotation_details.is_break = 1
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <!-- Sales Order detail: from sales_order_details, sales_order_services, sales_order_miscs, and break headers -->
+    <select id="getSalesOrderDetail" parameterType="java.lang.Long" resultMap="PurchaseOrderDetailDropdownResponse">
+        (
+            SELECT
+                1 AS `type`,
+                sales_order_details.id AS id,
+                sales_order_details.product_id AS itemId,
+                products.name AS itemName,
+                products.code AS itemCode,
+                products.code AS sku,
+                products.barcode AS upc,
+                sales_order_details.qty AS qty,
+                IFNULL(products.small_val_uom,1) / IFNULL(sales_order_details.conversion, 1) AS conversion,
+                sales_order_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                sales_order_details.unit_price AS unitCost,
+                sales_order_details.total_price AS totalCost,
+                sales_order_details.note AS note
+            FROM sales_order_details
+                LEFT JOIN products ON products.id = sales_order_details.product_id
+                LEFT JOIN uoms ON uoms.id = sales_order_details.qty_uom_id
+            WHERE sales_order_details.sales_order_id = #{id}
+        )
+        UNION ALL
+        (
+            SELECT
+                2 AS `type`,
+                sales_order_services.id AS id,
+                sales_order_services.service_id AS itemId,
+                services.name AS itemName,
+                services.sku AS itemCode,
+                services.sku AS sku,
+                services.sku AS upc,
+                sales_order_services.qty AS qty,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                sales_order_services.unit_price AS unitCost,
+                sales_order_services.total_price AS totalCost,
+                sales_order_services.note AS note
+            FROM sales_order_services
+                LEFT JOIN services ON services.id = sales_order_services.service_id
+            WHERE sales_order_services.sales_order_id = #{id}
+        )
+        UNION ALL
+        (
+            SELECT
+                3 AS `type`,
+                sales_order_miscs.id AS id,
+                sales_order_miscs.id AS itemId,
+                sales_order_miscs.description AS itemName,
+                NULL AS itemCode,
+                NULL AS sku,
+                NULL AS upc,
+                sales_order_miscs.qty AS qty,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                sales_order_miscs.unit_price AS unitCost,
+                sales_order_miscs.total_price AS totalCost,
+                sales_order_miscs.note AS note
+            FROM sales_order_miscs
+            WHERE sales_order_miscs.sales_order_id = #{id}
+        )
+        UNION
+        (
+            SELECT
+                4 AS `type`,
+                sales_order_details.id AS id,
+                sales_order_details.id AS itemId,
+                products.name AS itemName,
+                NULL AS itemCode,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS qty,
+                NULL AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                NULL AS unitCost,
+                NULL AS totalCost,
+                NULL AS note
+            FROM sales_order_details
+            LEFT JOIN products ON products.id = sales_order_details.product_id
+            WHERE sales_order_details.sales_order_id = #{id}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <sql id="BASE_COLUMN_LIST">
+        customers.`id` as id,
+        customers.`name` as nameEn,
+        customers.name_kh AS nameKh,
+        customers.customer_code AS code,
+        customers.sex AS sex,
+    </sql>
+
+    <select id="getListCustomer" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CustomerDropdownResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        3 AS isVat
+        FROM `customers`
+        WHERE `is_active` = 1
+        <if test="filter.searchText != null">
+            AND (customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.customer_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.main_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.mobile_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.other_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR EXISTS (
+            SELECT 1
+            FROM membership_cards
+            WHERE membership_cards.customer_id = customers.id
+            AND membership_cards.is_active = 1
+            AND membership_cards.card_id LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+            )
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListReceivedPaymentCustomer" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CustomerDropdownResponse">
+        SELECT
+            <include refid="BASE_COLUMN_LIST"/>
+            CASE
+                WHEN sales_orders.total_vat > 0 THEN 1
+                WHEN sales_orders.total_vat = 0 THEN 2
+                ELSE 3
+            END AS isVat
+        FROM `customers`
+        INNER JOIN sales_orders ON sales_orders.customer_id = customers.id
+        WHERE customers.`is_active` > 0 AND sales_orders.status > 0 AND sales_orders.balance > 0
+        <if test="filter.searchText != null">
+            AND (customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.customer_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.main_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.mobile_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR customers.other_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR EXISTS (
+            SELECT 1
+            FROM membership_cards
+            WHERE membership_cards.customer_id = customers.id
+            AND membership_cards.is_active = 1
+            AND membership_cards.card_id LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+            )
+        </if>
+        GROUP BY customers.id
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+</mapper>

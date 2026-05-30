@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CreditMemoMapper">
+
+    <resultMap id="CreditMemoResponse" type="com.ut.nlSystemAPi.model.response.CreditMemo.CreditMemoResponse">
+
+    </resultMap>
+
+    <resultMap id="CreditMemoDetailResponse" type="com.ut.nlSystemAPi.model.response.CreditMemo.CreditMemoDetailResponse">
+
+    </resultMap>
+
+    <resultMap id="CreditMemoReceiptResponse" type="com.ut.nlSystemAPi.model.response.CreditMemo.CreditMemoReceiptResponse">
+
+    </resultMap>
+
+</mapper>

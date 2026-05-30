@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_SALES_TOP_BUTTON_CUSTOMER">
+        WHERE invoice.status > 0
+        <if test="filter.searchText != null">
+            AND (
+            invoice.order_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND invoice.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND invoice.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND invoice.status = #{filter.status}
+        </if>
+        <if test="filter.companyId != null">
+            AND invoice.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND invoice.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND invoice.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.productGroupId != null">
+            AND product_pgroups.pgroup_id = #{filter.productGroupId}
+        </if>
+    </sql>
+
+    <select id="getListSalesTopBottomCustomer" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesTopButtonReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesTopBottomCustomerReportResponse">
+        SELECT
+        sub.cus_id AS organizationId,
+        customers.customer_code AS organizationCode,
+        customers.name AS organizationName,
+        sub.total_invoice AS totalInvoice,
+        sub.total_amount AS totalAmount
+        FROM (
+        SELECT
+        cus_id,
+        SUM(total_amount) AS total_amount,
+        SUM(total_invoice) AS total_invoice
+        FROM (
+        SELECT
+        'Invoice' AS mod_type,
+        invoice.customer_id AS cus_id,
+        SUM(invoice_detail.total_price - invoice_detail.discount_amount) AS total_amount,
+        1 AS total_invoice
+        FROM sales_orders AS invoice
+        INNER JOIN sales_order_details AS invoice_detail ON invoice.id = invoice_detail.sales_order_id
+        <include refid="BASE_WHERE_SALES_TOP_BUTTON_CUSTOMER"/>
+        GROUP BY invoice.id, invoice.customer_id
+
+        UNION ALL
+
+        SELECT
+        'CM' AS mod_type,
+        invoice.customer_id AS cus_id,
+        SUM(invoice_detail.total_price - invoice_detail.discount_amount) * -1 AS total_amount,
+        -1 AS total_invoice
+        FROM credit_memos AS invoice
+        INNER JOIN credit_memo_details AS invoice_detail ON invoice.id = invoice_detail.credit_memo_id
+        <include refid="BASE_WHERE_SALES_TOP_BUTTON_CUSTOMER"/>
+
+        GROUP BY invoice.id, invoice.customer_id
+        ) AS inner_sub
+        GROUP BY cus_id
+        HAVING total_invoice > 0 AND total_amount > 0
+        ) AS sub
+        INNER JOIN customers ON sub.cus_id = customers.id
+        ORDER BY
+        <choose>
+            <when test="filter.sortBy == 1">
+                sub.total_amount DESC
+            </when>
+            <otherwise>
+                sub.total_amount ASC
+            </otherwise>
+        </choose>,
+        <choose>
+            <when test="filter.viewBy == 1">
+                sub.cus_id DESC
+            </when>
+            <otherwise>
+                sub.cus_id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSalesTopBottomCustomer" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesTopButtonReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+        SELECT
+        cus_id,
+        SUM(total_amount) AS total_amount,
+        SUM(total_invoice) AS total_invoice
+        FROM (
+        SELECT
+        'Invoice' AS mod_type,
+        invoice.customer_id AS cus_id,
+        SUM(invoice_detail.total_price - invoice_detail.discount_amount) AS total_amount,
+        1 AS total_invoice
+        FROM sales_orders AS invoice
+        INNER JOIN sales_order_details AS invoice_detail ON invoice.id = invoice_detail.sales_order_id
+        <include refid="BASE_WHERE_SALES_TOP_BUTTON_CUSTOMER"/>
+        GROUP BY invoice.id, invoice.customer_id
+
+        UNION ALL
+
+        SELECT
+        'CM' AS mod_type,
+        invoice.customer_id AS cus_id,
+        SUM(invoice_detail.total_price - invoice_detail.discount_amount) * -1 AS total_amount,
+        -1 AS total_invoice
+        FROM credit_memos AS invoice
+        INNER JOIN credit_memo_details AS invoice_detail ON invoice.id = invoice_detail.credit_memo_id
+        <include refid="BASE_WHERE_SALES_TOP_BUTTON_CUSTOMER"/>
+
+        GROUP BY invoice.id, invoice.customer_id
+        ) AS inner_sub
+        GROUP BY cus_id
+        HAVING total_invoice > 0 AND total_amount > 0
+        ) AS sub
+        INNER JOIN customers ON sub.cus_id = customers.id
+    </select>
+
+</mapper>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProductMapper">
+
+  <resultMap id="ProductResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductDetailResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="CategoryResponse" type="com.ut.nlSystemAPi.model.response.Product.CategoryResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductICSResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductICSResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductSkuResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductSkuResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPacketResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductPacketResponse">
+
+  </resultMap>
+
+  <resultMap id="PriceRequestInformationResponse" type="com.ut.nlSystemAPi.model.response.Product.PriceRequestInformationResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPriceResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductPriceResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPriceDetailResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductPriceDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPriceHistoryResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductPriceHistoryResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPriceDetailHistoryResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductPriceDetailHistoryResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductGroupPriceSettingResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductGroupPriceSettingResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductStockLevelResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductStockLevelResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPhotoResponse" type="com.ut.nlSystemAPi.model.response.Product.ProductPhotoResponse">
+
+  </resultMap>
+
+</mapper>

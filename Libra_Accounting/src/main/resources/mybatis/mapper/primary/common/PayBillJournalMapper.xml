@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PayBillJournalMapper">
+
+  <resultMap id="PayBillsJournalResponse" type="com.ut.nlSystemAPi.model.response.PayBillJournal.PayBillsJournalResponse">
+
+  </resultMap>
+
+  <resultMap id="PayBillsPrintResponse" type="com.ut.nlSystemAPi.model.response.PayBills.PayBillsPrintResponse">
+
+  </resultMap>
+
+  <resultMap id="PayBillsPrintDetailResponse" type="com.ut.nlSystemAPi.model.response.PayBills.PayBillsPrintDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="ReceivePaymentFileResponse" type="com.ut.nlSystemAPi.model.response.ReceivePayment.ReceivePayment.ReceivePaymentFileResponse">
+
+  </resultMap>
+
+  <resultMap id="PayBillsDebitDataResponse" type="com.ut.nlSystemAPi.model.response.PayBills.PayBillsDebitDataResponse">
+
+  </resultMap>
+
+</mapper>

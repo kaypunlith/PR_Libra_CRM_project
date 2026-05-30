@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_TOTAL_SALES">
+        WHERE status > 0
+        <if test="filter.searchText != null">
+            AND (
+            code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customer LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND status = #{filter.status}
+        </if>
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND warehouse_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.createdBy != null">
+            AND created_by = #{filter.createdBy}
+        </if>
+    </sql>
+
+    <select id="getListTotalSales" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.TotalSalesReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.TotalSalesReportResponse">
+        SELECT *
+        FROM (
+        SELECT
+        sales_orders.id AS id,
+        order_date AS `date`,
+        CASE WHEN is_pos = 1 THEN 'POS' ELSE 'Invoice' END AS viewBy,
+        sales_orders.so_code AS code,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS organizationName,
+        sales_orders.total_amount - IFNULL(sales_orders.discount,0) + IFNULL(sales_orders.total_vat,0) - IFNULL(sales_orders.total_deposit,0) AS totalAmount,
+        sales_orders.balance AS balance,
+        IF(sales_orders.balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),sales_orders.due_date),'.') AS aging,
+        sales_orders.status AS status,
+        currency_centers.symbol AS currencySymbol,
+        sales_orders.customer_id AS customer_id,
+        sales_orders.company_id AS company_id,
+        sales_orders.location_group_id AS warehouse_id,
+        sales_orders.created_by AS created_by
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        <include refid="BASE_WHERE_TOTAL_SALES"/>
+        <if test="filter.filterBy != null">
+            AND sales_orders.is_none_vat = #{filter.filterBy}
+        </if>
+        <if test="filter.type != null">
+            AND sales_orders.`type` = #{filter.type}
+        </if>
+        <choose>
+            <when test="filter.viewBy == 0">
+                AND sales_orders.is_pos = 1
+            </when>
+            <when test="filter.viewBy == 1">
+                AND sales_orders.is_pos = 0
+            </when>
+            <when test="filter.viewBy == 2">
+                AND 1=0
+            </when>
+        </choose>
+
+        UNION ALL
+
+        SELECT
+        credit_memos.id AS id,
+        order_date AS `date`,
+        'Credit Memo' AS viewBy,
+        credit_memos.cm_code AS code,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS customer,
+        (credit_memos.total_amount - IFNULL(credit_memos.discount,0) + IFNULL(credit_memos.total_vat,0)) * -1 AS totalAmount,
+        (credit_memos.balance * -1) AS balance,
+        IF(credit_memos.balance >0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),credit_memos.due_date),'.') AS aging,
+        credit_memos.status AS status,
+        currency_centers.symbol AS currencySymbol,
+        credit_memos.customer_id AS customer_id,
+        credit_memos.company_id AS company_id,
+        credit_memos.location_group_id AS warehouse_id,
+        credit_memos.created_by AS created_by
+        FROM credit_memos
+        LEFT JOIN customers ON customers.id = credit_memos.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = credit_memos.currency_center_id
+        <include refid="BASE_WHERE_TOTAL_SALES"/>
+        <if test="filter.viewBy != null and filter.viewBy != 2">
+            AND 1=0
+        </if>
+        ) AS result
+        ORDER BY `date` DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListTotalSales" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.TotalSalesReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+        SELECT
+        order_date AS `date`,
+        CASE WHEN is_pos = 1 THEN 'POS' ELSE 'Invoice' END AS viewBy,
+        sales_orders.so_code AS code,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS organizationName,
+        sales_orders.total_amount - IFNULL(sales_orders.discount,0) + IFNULL(sales_orders.total_vat,0) - IFNULL(sales_orders.total_deposit,0) AS totalAmount,
+        sales_orders.balance AS balance,
+        IF(sales_orders.balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),sales_orders.due_date),'.') AS aging,
+        sales_orders.status AS status,
+        currency_centers.symbol AS currencySymbol,
+        sales_orders.customer_id AS customer_id,
+        sales_orders.company_id AS company_id,
+        sales_orders.location_group_id AS warehouse_id,
+        sales_orders.created_by AS created_by
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        <include refid="BASE_WHERE_TOTAL_SALES"/>
+        <if test="filter.filterBy != null">
+            AND sales_orders.is_none_vat = #{filter.filterBy}
+        </if>
+        <if test="filter.type != null">
+            AND sales_orders.`type` = #{filter.type}
+        </if>
+        <choose>
+            <when test="filter.viewBy == 0">
+                AND sales_orders.is_pos = 1
+            </when>
+            <when test="filter.viewBy == 1">
+                AND sales_orders.is_pos = 0
+            </when>
+            <when test="filter.viewBy == 2">
+                AND 1=0
+            </when>
+        </choose>
+
+        UNION ALL
+
+        SELECT
+        order_date AS `date`,
+        'Credit Memo' AS viewBy,
+        credit_memos.cm_code AS code,
+        CONCAT_WS(' - ', customers.customer_code, customers.name) AS customer,
+        (credit_memos.total_amount - IFNULL(credit_memos.discount,0) + IFNULL(credit_memos.total_vat,0)) * -1 AS totalAmount,
+        (credit_memos.balance * -1) AS balance,
+        IF(credit_memos.balance >0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),credit_memos.due_date),'.') AS aging,
+        credit_memos.status AS status,
+        currency_centers.symbol AS currencySymbol,
+        credit_memos.customer_id AS customer_id,
+        credit_memos.company_id AS company_id,
+        credit_memos.location_group_id AS warehouse_id,
+        credit_memos.created_by AS created_by
+        FROM credit_memos
+        LEFT JOIN customers ON customers.id = credit_memos.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = credit_memos.currency_center_id
+        <include refid="BASE_WHERE_TOTAL_SALES"/>
+        <if test="filter.viewBy != null and filter.viewBy != 2">
+            AND 1=0
+        </if>
+        ) AS result
+    </select>
+
+</mapper>

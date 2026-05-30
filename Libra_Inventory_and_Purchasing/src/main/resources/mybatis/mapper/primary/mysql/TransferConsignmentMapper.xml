@@ -1,0 +1,724 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TransferConsignmentMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    transfer_orders.id AS id,
+    transfer_orders.from_location_group_id AS fromWarehouseId,
+    lg_from.name AS fromWarehouseName,
+    transfer_orders.to_location_group_id AS toWarehouseId,
+    lg_to.name AS toWarehouseName,
+    transfer_orders.to_code AS toNumber,
+    transfer_orders.order_date AS toDate,
+    transfer_orders.fulfillment_date AS fulfillmentDate,
+    transfer_orders.status AS status,
+    transfer_orders.note AS memo,
+    transfer_orders.type AS `type`,
+    transfer_orders.created AS created,
+    transfer_orders.modified AS modified,
+    transfer_orders.is_approve AS isApproved,
+    transfer_orders.approved AS approved,
+    CONCAT(users3.first_name, ' ', users3.last_name) AS approvedBy,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM transfer_orders
+    LEFT JOIN location_groups AS lg_from ON lg_from.id = transfer_orders.from_location_group_id
+    LEFT JOIN location_groups AS lg_to ON lg_to.id = transfer_orders.to_location_group_id
+    LEFT JOIN users AS users1 ON users1.id = transfer_orders.created_by
+    LEFT JOIN users AS users2 ON users2.id = transfer_orders.modified_by
+    LEFT JOIN users AS users3 ON users3.id = transfer_orders.approved_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE transfer_orders.status >= 0
+    <if test="filter.searchText != null">
+      AND transfer_orders.to_code LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    <if test="filter.date != null">
+      AND transfer_orders.order_date = #{filter.date}
+    </if>
+    <if test="filter.toType != null">
+      AND transfer_orders.to_type = #{filter.toType}
+    </if>
+    <if test="filter.fromWarehouseId != null">
+      AND transfer_orders.from_location_group_id = #{filter.fromWarehouseId}
+    </if>
+    <if test="filter.toWarehouseId != null">
+      AND transfer_orders.to_location_group_id = #{filter.toWarehouseId}
+    </if>
+    <if test="filter.status != null">
+      AND transfer_orders.status = #{filter.status}
+    </if>
+    <if test="filter.viewByUser == 1">
+      AND transfer_orders.created_by = #{userId}
+    </if>
+  </sql>
+
+    <sql id="BASE_COLUMN_LIST_PRODUCT">
+        products.id AS id,
+        products.code AS code,
+        products.barcode AS barCode,
+        products.name AS `name`,
+        hr_fix_asset_groups.id AS groupId,
+        hr_fix_asset_groups.name AS `group`
+    </sql>
+
+    <sql id="BASE_FROM_PRODUCT">
+        FROM products
+        LEFT JOIN hr_fix_asset_groups ON hr_fix_asset_groups.id = products.hr_fix_asset_group_id
+    </sql>
+
+    <sql id="BASE_WHERE_PRODUCT">
+        WHERE products.is_active = 8
+        <if test="filter.barCode != null and filter.barCode.size > 0">
+            AND products.barcode IN
+            <foreach item="barcode" collection="filter.barCode" open="(" separator="," close=")">
+                #{barcode}
+            </foreach>
+        </if>
+    </sql>
+
+    <select id="getLastToCode" resultType="java.lang.String">
+        SELECT to_code
+        FROM transfer_orders
+        WHERE to_type = 2 ORDER BY id DESC LIMIT 1
+    </select>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TransferConsignmentFilter" resultMap="TransferConsignmentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        transfer_orders.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TransferConsignmentFilter" resultType="java.lang.Long">
+    SELECT COUNT(transfer_orders.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="countListProduct" parameterType="com.ut.nlSystemAPi.model.response.TransferConsignment.ProductConsignmentDetailResponse" resultType="java.lang.Long">
+        SELECT COUNT(products.id)
+        <include refid="BASE_FROM_PRODUCT"/>
+        <include refid="BASE_WHERE_PRODUCT"/>
+    </select>
+
+    <!--Stock-->
+    <select id="getTotalQtyStock" resultType="java.lang.Double">
+        SELECT SUM(total_qty) - SUM(total_order)
+        FROM ${tableName}
+        WHERE product_id = #{productId}
+        AND location_group_id = #{departmentId}
+    </select>
+
+    <select id="getTotalQtyStockInOrder" resultType="java.lang.Double">
+        SELECT IFNULL(SUM(sor.qty), 0) as total_order
+        FROM `stock_orders` as sor
+                 INNER JOIN `sales_orders` as so ON so.id = sor.sales_order_id AND so.status > 0
+        WHERE sor.product_id = #{productId} AND sor.location_group_id = #{departmentId} GROUP BY sor.product_id
+    </select>
+
+    <select id="getLocationStock" resultType="java.lang.Double">
+        SELECT
+            SUM(${tblName}.total_qty)
+        FROM ${tblName}
+        WHERE ${tblName}.product_id = #{productId}
+        GROUP BY ${tblName}.location_id
+    </select>
+
+<!--    end stock-->
+    <select id="getLocationProduct" parameterType="com.ut.nlSystemAPi.model.filter.TransferConsignmentFilter" resultMap="LocationResponse">
+        SELECT
+            id AS id,
+            `name` AS name
+        FROM locations
+        WHERE location_group_id = #{locationGroupId};
+    </select>
+
+  <select id="getConversionByUomId" resultType="java.lang.Long">
+    SELECT `value` FROM uom_conversions WHERE from_uom_id = #{uomId} AND is_active = 1 LIMIT 1
+  </select>
+
+    <select id="listProduct" parameterType="com.ut.nlSystemAPi.model.response.TransferConsignment.ProductConsignmentDetailResponse" resultMap="ProductTransferConsignmentDetailResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRODUCT"/>
+        <include refid="BASE_FROM_PRODUCT"/>
+        <include refid="BASE_WHERE_PRODUCT"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                products.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <sql id="BASE_COLUMN_LIST_ONE">
+    transfer_orders.id AS id,
+    transfer_orders.request_stock_id AS requestStockId,
+    request_stocks.code AS requestStockNumber,
+    request_stocks.date AS requestStockDate,
+    transfer_orders.company_id AS companyId,
+    companies.name AS companyName,
+    transfer_orders.from_location_group_id AS fromWarehouseId,
+    lg_from.name AS fromWarehouseName,
+    lg_from.description AS fromWarehouseDescription,
+    transfer_orders.to_location_group_id AS toWarehouseId,
+    lg_to.name AS toWarehouseName,
+    lg_to.description AS toWarehouseDescription,
+    transfer_orders.to_code AS toNumber,
+    transfer_orders.order_date AS toDate,
+    transfer_orders.fulfillment_date AS fulfillmentDate,
+    transfer_orders.status AS status,
+    transfer_orders.note AS memo,
+    transfer_orders.type AS `type`,
+    transfer_orders.created AS created,
+    transfer_orders.modified AS modified,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM_ONE">
+    FROM transfer_orders
+    LEFT JOIN request_stocks ON request_stocks.id = transfer_orders.request_stock_id
+    LEFT JOIN companies ON companies.id = transfer_orders.company_id
+    LEFT JOIN location_groups AS lg_from ON lg_from.id = transfer_orders.from_location_group_id
+    LEFT JOIN location_groups AS lg_to ON lg_to.id = transfer_orders.to_location_group_id
+    LEFT JOIN users AS users1 ON users1.id = transfer_orders.created_by
+    LEFT JOIN users AS users2 ON users2.id = transfer_orders.modified_by
+  </sql>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TransferConsignmentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_ONE"/>
+    <include refid="BASE_FROM_ONE"/>
+    WHERE transfer_orders.status >= 0 AND transfer_orders.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM transfer_orders
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.TransferConsignment" useGeneratedKeys="true" keyProperty="transferConsignment.id">
+    INSERT INTO transfer_orders (
+      company_id,
+      request_stock_id,
+      from_location_group_id,
+      to_location_group_id,
+      to_code,
+      order_date,
+      fulfillment_date,
+      note,
+      created,
+      created_by,
+      status,
+      `type`,
+      to_type
+    ) VALUES (
+               #{transferConsignment.companyId},
+               #{transferConsignment.requestStockId},
+               #{transferConsignment.fromWarehouseId},
+               #{transferConsignment.toWarehouseId},
+               #{transferConsignment.toNumber},
+               #{transferConsignment.toDate},
+               #{transferConsignment.fulfillmentDate},
+               #{transferConsignment.memo},
+               NOW(),
+               #{transferConsignment.createdBy},
+               #{transferConsignment.status},
+               #{transferConsignment.type},
+               #{transferConsignment.toType}
+             )
+  </insert>
+
+  <select id="getTransferConsignmentDetail" resultMap="TransferConsignmentDetailResponse">
+    SELECT
+      transfer_order_details.po_no AS poNumber,
+      transfer_order_details.product_id AS productId,
+      products.is_expired_date AS isExpiredDate,
+      products.name AS productName,
+      products.code AS sku,
+      products.barcode AS upc,
+      transfer_order_details.expired_date AS expiredDate,
+      transfer_order_details.location_from_id AS locationFromId,
+      locations_from.`name` AS locationFromName,
+      transfer_order_details.location_to_id AS locationToId,
+      locations_to.`name` AS locationToName,
+      transfer_order_details.qty AS qty,
+      transfer_order_details.qty_uom_id AS uomId,
+      uoms.name AS uomName
+    FROM transfer_order_details
+           LEFT JOIN products ON transfer_order_details.product_id = products.id
+           LEFT JOIN locations AS locations_from ON transfer_order_details.location_from_id = locations_from.id
+           LEFT JOIN locations AS locations_to ON transfer_order_details.location_to_id = locations_to.id
+           LEFT JOIN uoms ON transfer_order_details.qty_uom_id = uoms.id
+    WHERE transfer_order_details.transfer_order_id = #{transferConsignmentId}
+  </select>
+
+  <insert id="insertTransferConsignmentDetail" parameterType="com.ut.nlSystemAPi.model.TransferConsignmentDetail">
+    INSERT INTO transfer_order_details (
+      transfer_order_id,
+      lots_number,
+      location_from_id,
+      location_to_id,
+      expired_date,
+      product_id,
+      po_no,
+      qty,
+      qty_uom_id,
+      conversion
+    ) VALUES (
+               #{transferConsignmentDetail.transferOrderId},
+               0,
+               #{transferConsignmentDetail.fromLocationId},
+               #{transferConsignmentDetail.toLocationId},
+               #{transferConsignmentDetail.expiredDate},
+               #{transferConsignmentDetail.productId},
+               #{transferConsignmentDetail.poNumber},
+               #{transferConsignmentDetail.qty},
+               #{transferConsignmentDetail.uomId},
+               #{transferConsignmentDetail.conversion}
+             )
+  </insert>
+
+  <insert id="insertStockOrder" parameterType="com.ut.nlSystemAPi.model.StockOrders">
+    INSERT INTO stock_orders (
+      transfer_order_id,
+      product_id,
+      location_group_id,
+      location_id,
+      lots_number,
+      expired_date,
+      date,
+      qty
+    ) VALUES (
+               #{stockOrders.transferOrderId},
+               #{stockOrders.productId},
+               #{stockOrders.warehouseFromId},
+               #{stockOrders.locationFromId},
+               #{stockOrders.lotsNumber},
+               DATE(#{stockOrders.expireDate}),
+               NOW(),
+               #{stockOrders.qty}
+             )
+  </insert>
+
+  <delete id="deleteTransferConsignmentDetail" parameterType="java.lang.Long">
+    DELETE FROM transfer_order_details WHERE transfer_order_id = #{transferOrderId}
+  </delete>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.TransferConsignment" useGeneratedKeys="true" keyProperty="transferConsignment.id">
+      INSERT INTO transfer_orders (
+      company_id,
+      request_stock_id,
+      from_location_group_id,
+      to_location_group_id,
+      to_code,
+      order_date,
+      fulfillment_date,
+      note,
+      created,
+      created_by,
+      status,
+      `type`,
+      to_type
+      ) VALUES (
+      #{transferConsignment.companyId},
+      #{transferConsignment.requestStockId},
+      #{transferConsignment.fromWarehouseId},
+      #{transferConsignment.toWarehouseId},
+      #{transferConsignment.toNumber},
+      #{transferConsignment.toDate},
+      #{transferConsignment.fulfillmentDate},
+      #{transferConsignment.memo},
+      NOW(),
+      #{transferConsignment.modifiedBy},
+      #{transferConsignment.status},
+      #{transferConsignment.type},
+      #{transferConsignment.toType}
+      )
+  </update>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE transfer_orders SET
+                                   status = -1,
+                                   modified = NOW(),
+                                   modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE transfer_orders SET
+                             status = 0,
+                             modified = NOW(),
+                             modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="approve" parameterType="java.lang.Long">
+    UPDATE transfer_orders SET
+    status = #{status},
+    approved = NOW(),
+    approved_by = #{userId}
+    WHERE id = #{id} AND status >= 0
+  </update>
+
+    <select id="getCode" resultType="java.lang.String">
+        SELECT to_code
+        FROM transfer_orders
+        WHERE id = #{id}
+    </select>
+
+    <select id="getLastCode" resultType="java.lang.String">
+    SELECT to_code
+    FROM transfer_orders
+    WHERE YEAR(created) = YEAR(NOW()) AND to_code LIKE CONCAT('%', #{code}, '%')  ORDER BY id DESC LIMIT 1
+  </select>
+
+    <insert id="insertGroupTotal">
+        INSERT INTO ${tblName} (
+            product_id,
+            lots_number,
+            expired_date,
+            location_id,
+            location_group_id,
+            total_qty,
+            total_order
+        ) VALUES (
+                     #{stockOrders.productId},
+                     #{stockOrders.lotsNumber},
+                     DATE(#{stockOrders.expiredDate}),
+                     #{stockOrders.locationId},
+                     #{stockOrders.warehouseId},
+                     #{stockOrders.totalQty},
+                     #{stockOrders.totalOrder}
+                 )
+        ON DUPLICATE KEY UPDATE
+        total_qty =
+        <choose>
+            <when test="typeOperation == 1">
+                total_qty + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                total_qty - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                total_qty - #{stockOrders.totalQty}
+            </otherwise>
+        </choose>
+    </insert>
+
+    <insert id="insertGroupTotalDetail">
+        INSERT INTO ${tblName} (
+            product_id,
+            location_group_id,
+            `date`,
+            total_cycle,
+            total_so,
+            total_so_free,
+            total_pos,
+            total_pos_free,
+            total_pb,
+            total_pbc,
+            total_cm,
+            total_cm_free,
+            total_to_in,
+            total_to_out,
+            total_order
+        ) VALUES (
+                     #{stockOrders.productId},
+                     #{stockOrders.warehouseId},
+                     NOW(),
+                     #{stockOrders.totalCycle},
+                     #{stockOrders.totalSo},
+                     #{stockOrders.totalSoFree},
+                     #{stockOrders.totalPos},
+                     #{stockOrders.totalPosFree},
+                     #{stockOrders.totalPb},
+                     #{stockOrders.totalPbc},
+                     #{stockOrders.totalCm},
+                     #{stockOrders.totalCmFree},
+                     #{stockOrders.totalToIn},
+                     #{stockOrders.totalToOut},
+                     #{stockOrders.totalOrder}
+                 )
+        ON DUPLICATE KEY UPDATE
+        ${fieldName} =
+        <choose>
+            <when test="typeOperation == 1">
+                ${fieldName} + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                ${fieldName} - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                ${fieldName} + #{stockOrders.totalQty}
+            </otherwise>
+        </choose>
+    </insert>
+
+    <insert id="insertInventoryTotal">
+        INSERT INTO ${tblName} (
+            product_id,
+            lots_number,
+            expired_date,
+            location_id,
+            total_qty,
+            total_order
+        ) VALUES (
+                     #{stockOrders.productId},
+                     #{stockOrders.lotsNumber},
+                     DATE(#{stockOrders.expiredDate}),
+                     #{stockOrders.locationId},
+                     #{stockOrders.totalQty},
+                     #{stockOrders.totalOrder}
+                 )
+        ON DUPLICATE KEY UPDATE
+        total_qty =
+        <choose>
+            <when test="typeOperation == 1">
+                total_qty + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                total_qty - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                total_qty - #{stockOrders.totalQty}
+            </otherwise>
+        </choose>
+    </insert>
+
+    <insert id="insertInventoryTotalDetail">
+        INSERT INTO ${tblName} (
+            product_id,
+            lots_number,
+            expired_date,
+            location_id,
+            `date`,
+            total_cycle,
+            total_so,
+            total_pos,
+            total_pb,
+            total_pbc,
+            total_cm,
+            total_to_in,
+            total_to_out,
+            total_order
+        ) VALUES (
+                     #{stockOrders.productId},
+                     #{stockOrders.lotsNumber},
+                     DATE(#{stockOrders.expiredDate}),
+                     #{stockOrders.locationId},
+                     NOW(),
+                     #{stockOrders.totalCycle},
+                     #{stockOrders.totalSo},
+                     #{stockOrders.totalPos},
+                     #{stockOrders.totalPb},
+                     #{stockOrders.totalPbc},
+                     #{stockOrders.totalCm},
+                     #{stockOrders.totalToIn},
+                     #{stockOrders.totalToOut},
+                     #{stockOrders.totalOrder}
+                 )
+        ON DUPLICATE KEY UPDATE
+        ${fieldName} =
+        <choose>
+            <when test="typeOperation == 1">
+                ${fieldName} + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                ${fieldName} - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                ${fieldName} + #{stockOrders.totalQty}
+            </otherwise>
+        </choose>
+    </insert>
+
+    <insert id="insertInventories">
+        INSERT INTO ${tblName} (
+        transfer_order_id,
+        purchase_return_id,
+        purchase_order_id,
+        type,
+        customer_id,
+        vendor_id,
+        product_id,
+        location_group_id,
+        location_id,
+        qty,
+        unit_cost,
+        date,
+        lots_number,
+        date_expired,
+        created,
+        created_by,
+        modified,
+        modified_by
+        ) VALUES (
+        #{stockOrders.transferOrderId},
+        #{stockOrders.purchaseReturnId},
+        #{stockOrders.purchaseOrderId},
+        #{stockOrders.type},
+        #{stockOrders.customerId},
+        #{stockOrders.vendorId},
+        #{stockOrders.productId},
+        #{stockOrders.warehouseId},
+        #{stockOrders.locationId},
+        <choose>
+            <when test="typeOperation == 1">
+                #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                #{stockOrders.totalQty} * -1
+            </otherwise>
+        </choose>,
+        #{stockOrders.unitCost},
+        NOW(),
+        #{stockOrders.lotsNumber},
+        #{stockOrders.expiredDate},
+        NOW(),
+        #{stockOrders.createdBy},
+        NOW(),
+        #{stockOrders.createdBy}
+        )
+    </insert>
+
+    <insert id="insertInventoryTotalAll">
+        INSERT INTO inventory_totals (
+        product_id,
+        lots_number,
+        expired_date,
+        total_qty,
+        total_order,
+        total_pb,
+        total_cycle,
+        total_pbc
+        ) VALUES (
+        #{stockOrders.productId},
+        #{stockOrders.lotsNumber},
+        DATE(#{stockOrders.expiredDate}),
+        #{stockOrders.totalQty},
+        #{stockOrders.totalOrder},
+        #{stockOrders.totalPb},
+        #{stockOrders.totalCycle},
+        #{stockOrders.totalPbc}
+        )
+        ON DUPLICATE KEY UPDATE
+        total_qty =
+        <choose>
+            <when test="typeOperation == 1">
+                total_qty + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                total_qty - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                total_qty - #{stockOrders.totalQty}
+            </otherwise>
+        </choose>,
+        ${fieldName} =
+        <choose>
+            <when test="typeOperation == 1">
+                ${fieldName} + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                ${fieldName} - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                ${fieldName} + #{stockOrders.totalQty}
+            </otherwise>
+        </choose>
+    </insert>
+
+    <insert id="insertInventoriesAll">
+        INSERT INTO inventories (
+        cycle_product_id,
+        cycle_product_detail_id,
+        purchase_order_id,
+        purchase_return_id,
+        purchase_receive_result_id,
+        transfer_order_id,
+        type,
+        customer_id,
+        vendor_id,
+        product_id,
+        location_group_id,
+        location_id,
+        qty,
+        unit_cost,
+        date,
+        lots_number,
+        date_expired,
+        created,
+        created_by,
+        modified,
+        modified_by
+        ) VALUES (
+        #{stockOrders.cycleProductId},
+        #{stockOrders.cycleProductDetailId},
+        #{stockOrders.purchaseOrderId},
+        #{stockOrders.purchaseReturnId},
+        #{stockOrders.purchaseReceiveResultId},
+        #{stockOrders.transferOrderId},
+        #{stockOrders.type},
+        #{stockOrders.customerId},
+        #{stockOrders.vendorId},
+        #{stockOrders.productId},
+        #{stockOrders.warehouseId},
+        #{stockOrders.locationId},
+        <choose>
+            <when test="typeOperation == 1">
+                #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                #{stockOrders.totalQty} * -1
+            </otherwise>
+        </choose>,
+        #{stockOrders.unitCost},
+        NOW(),
+        #{stockOrders.lotsNumber},
+        #{stockOrders.expiredDate},
+        NOW(),
+        #{stockOrders.createdBy},
+        NOW(),
+        #{stockOrders.createdBy}
+        )
+        ON DUPLICATE KEY UPDATE
+        qty =
+        <choose>
+            <when test="typeOperation == 1">
+                qty + #{stockOrders.totalQty}
+            </when>
+            <when test="typeOperation == 2">
+                qty - #{stockOrders.totalQty}
+            </when>
+            <otherwise>
+                qty
+            </otherwise>
+        </choose>
+    </insert>
+
+
+</mapper>

@@ -1,0 +1,561 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LeadMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        customers.id AS id,
+        (SELECT GROUP_CONCAT(cgroups.name SEPARATOR ', ') FROM cgroups WHERE id IN (SELECT cgroup_id FROM customer_cgroups WHERE customer_id = customers.id GROUP BY cgroup_id)) AS leadGroupName,
+        customers.lead_code AS leadCode,
+        customers.name AS leadName,
+        customers.name_kh AS leadNameKh,
+        customers.main_number AS telephone,
+        customers.mobile_number AS mobile,
+        customers.other_number AS alternateMobile,
+        customers.email AS email,
+        (SELECT GROUP_CONCAT(contact_name SEPARATOR ', ') FROM customer_contacts WHERE customer_contacts.customer_id = customers.id AND customer_contacts.is_active = 3) AS contactName,
+        customers.latitude AS lats,
+        customers.longitude AS longs,
+        customers.photo AS photo,
+        customers.address AS address,
+        customers.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        customers.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy,
+        customers.customer_type_id AS businessTypeId,
+        customer_types.name AS businessTypeName,
+        customers.customer_activity_id AS businessActivityId,
+        customer_activities.name AS businessActivityName,
+        customers.type AS customerType,
+        customers.country_id AS countryId,
+        countries.name AS countryName,
+        customers.fax AS fax,
+        customers.vat AS vat,
+        customers.payment_term_id AS paymentTermId,
+        payment_terms.name AS paymentTermName,
+        customers.payment_every AS paymentMonthly,
+        customers.limit_balance AS limitCredit,
+        customers.limit_total_invoice AS limitNumberInvoice,
+        customers.recurrence AS recurrence,
+        customers.display_term_invoice AS displayOnInvoice,
+        customers.customer_name_in AS settingInvoiceTax,
+        customers.house_no AS houseNo,
+        customers.street_id AS streetId,
+        streets.name AS streetName,
+        customers.province_id AS provinceId,
+        provinces.name AS provinceName,
+        customers.district_id AS districtId,
+        districts.name AS districtName,
+        customers.commune_id AS communeId,
+        communes.name AS communeName,
+        customers.village_id AS villageId,
+        villages.name AS villageName
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM customers
+        LEFT JOIN customer_types ON customer_types.id = customers.customer_type_id
+        LEFT JOIN customer_activities ON customer_activities.id = customers.customer_activity_id
+        LEFT JOIN countries ON countries.id = customers.country_id
+        LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
+        LEFT JOIN streets ON streets.id = customers.street_id
+        LEFT JOIN provinces ON provinces.id = customers.province_id
+        LEFT JOIN districts ON districts.id = customers.district_id
+        LEFT JOIN communes ON communes.id = customers.commune_id
+        LEFT JOIN villages ON villages.id = customers.village_id
+        LEFT JOIN users AS creator ON creator.id = customers.created_by
+        LEFT JOIN users AS modifier ON modifier.id = customers.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE customers.is_active = 3
+        AND customers.customer_type = 2
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        <if test="filter.searchText != null">
+            AND (
+                customers.lead_code LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.main_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND customers.created_by = #{userId}
+        </if>
+        <if test="filter.createdBy != null and filter.viewByUser != 1">
+            AND customers.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.companyId != null">
+            AND customers.id IN (
+                SELECT customer_id FROM customer_companies WHERE company_id = #{filter.companyId}
+            )
+        </if>
+        <if test="filter.leadGroupId != null">
+            AND customers.id IN (
+                SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.leadGroupId}
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND DATE(customers.created) &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(customers.created) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.activityStatus != null">
+            <choose>
+                <when test="filter.activityStatus == 1">
+                    AND customers.id IN (
+                        SELECT customer_id FROM customer_contacts
+                        INNER JOIN crm_activities_cards ON customer_contacts.id = crm_activities_cards.customer_contact_id
+                        WHERE crm_activities_cards.is_active = 1
+                        GROUP BY customer_contacts.customer_id
+                    )
+                </when>
+                <otherwise>
+                    AND customers.id NOT IN (
+                        SELECT customer_id FROM customer_contacts
+                        INNER JOIN crm_activities_cards ON customer_contacts.id = crm_activities_cards.customer_contact_id
+                        WHERE crm_activities_cards.is_active = 1
+                        GROUP BY customer_contacts.customer_id
+                    )
+                </otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="LeadResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY customers.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customers.lead_code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT customers.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="LeadResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE customers.is_active = 3
+        AND customers.customer_type = 2
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        AND customers.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="lead.id">
+        INSERT INTO customers (
+            photo,
+            customer_code,
+            lead_code,
+            name,
+            name_kh,
+            latitude,
+            longitude,
+            main_number,
+            mobile_number,
+            other_number,
+            email,
+            address,
+            customer_type,
+            is_active,
+            created,
+            created_by
+        ) VALUES (
+            #{lead.photo},
+            #{lead.leadCode},
+            #{lead.leadCode},
+            #{lead.name},
+            #{lead.nameKh},
+            #{lead.lats},
+            #{lead.longs},
+            #{lead.telephone},
+            #{lead.mobile},
+            #{lead.alternateMobile},
+            #{lead.email},
+            #{lead.address},
+            2,
+            #{lead.isActive},
+            NOW(),
+            #{lead.createdBy}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE customers SET
+        <if test="lead.photo != null">photo = #{lead.photo},</if>
+        <if test="lead.name != null">name = #{lead.name},</if>
+        <if test="lead.nameKh != null">name_kh = #{lead.nameKh},</if>
+        <if test="lead.lats != null">latitude = #{lead.lats},</if>
+        <if test="lead.longs != null">longitude = #{lead.longs},</if>
+        <if test="lead.telephone != null">main_number = #{lead.telephone},</if>
+        <if test="lead.mobile != null">mobile_number = #{lead.mobile},</if>
+        <if test="lead.alternateMobile != null">other_number = #{lead.alternateMobile},</if>
+        <if test="lead.email != null">email = #{lead.email},</if>
+        <if test="lead.address != null">address = #{lead.address},</if>
+        customer_type = 2,
+        is_active = 3,
+        modified = NOW(),
+        modified_by = #{lead.modifiedBy}
+        WHERE id = #{lead.id}
+        AND customer_type = 2
+    </update>
+
+    <update id="delete">
+        UPDATE customers SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND customer_type = 2
+        AND is_active = 3
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM customers
+        WHERE is_active = 3
+        AND customer_type = 2
+        AND name = #{name}
+        <if test="id != null">
+            AND id != #{id}
+        </if>
+    </select>
+
+    <insert id="insertCustomerCompanies">
+        INSERT INTO customer_companies(customer_id, company_id)
+        VALUES (#{lead.id}, #{lead.companyId})
+    </insert>
+
+    <insert id="insertCustomerCgroups">
+        INSERT INTO customer_cgroups(customer_id, cgroup_id)
+        VALUES (#{lead.id}, #{lead.leadGroupId})
+    </insert>
+
+    <update id="insertCustomerContact">
+        UPDATE customer_contacts
+        SET customer_id = #{lead.id}
+        WHERE id = #{lead.leadContactId}
+        AND is_active = 3
+        AND contact_type = 2
+    </update>
+
+    <insert id="insertDivisionInformation" useGeneratedKeys="true" keyProperty="division.id">
+        INSERT INTO customer_lead_divisions(customer_id, title, making_process)
+        VALUES (#{division.leadId}, #{division.title}, #{division.makingProcess})
+    </insert>
+
+    <insert id="insertDivisionInformationDetail">
+        INSERT INTO customer_lead_devision_negotiations(customer_lead_division_id, customer_lead_negotiation_id)
+        VALUES (#{division.id}, #{division.negotiationId})
+    </insert>
+
+    <delete id="deleteCustomerCompanies">
+        DELETE FROM customer_companies WHERE customer_id = #{leadId}
+    </delete>
+
+    <delete id="deleteCustomerCgroups">
+        DELETE FROM customer_cgroups WHERE customer_id = #{leadId}
+    </delete>
+
+    <update id="deleteCustomerContacts">
+        UPDATE customer_contacts
+        SET customer_id = NULL
+        WHERE customer_id = #{leadId}
+        AND is_active = 3
+        AND contact_type = 2
+    </update>
+
+    <delete id="deleteDivisionInformationDetail">
+        DELETE FROM customer_lead_devision_negotiations
+        WHERE customer_lead_division_id IN (SELECT id FROM customer_lead_divisions WHERE customer_id = #{leadId})
+    </delete>
+
+    <delete id="deleteDivisionInformation">
+        DELETE FROM customer_lead_divisions WHERE customer_id = #{leadId}
+    </delete>
+
+    <select id="getCustomerCompanies" resultMap="LeadDetailResponse">
+        SELECT
+            company_id AS id,
+            (SELECT name FROM companies WHERE id = company_id) AS name
+        FROM customer_companies
+        WHERE customer_id = #{leadId}
+    </select>
+
+    <select id="getCustomerCgroups" resultMap="LeadDetailResponse">
+        SELECT
+            cgroup_id AS id,
+            (SELECT name FROM cgroups WHERE id = cgroup_id) AS name
+        FROM customer_cgroups
+        WHERE customer_id = #{leadId}
+        GROUP BY cgroup_id
+    </select>
+
+    <select id="getCustomerContact" resultMap="LeadDetailResponse">
+        SELECT
+            id AS id,
+            contact_name AS name
+        FROM customer_contacts
+        WHERE customer_id = #{leadId}
+        AND is_active = 3
+        AND contact_type = 2
+    </select>
+
+    <select id="getDivisionInformation" resultMap="LeadDetailResponse">
+        SELECT
+            id AS id,
+            title AS title,
+            making_process AS makingProcess
+        FROM customer_lead_divisions
+        WHERE customer_id = #{leadId}
+    </select>
+
+    <select id="getDivisionInformationDetail" resultMap="LeadDetailResponse">
+        SELECT
+            customer_lead_negotiation_id AS id,
+            (SELECT name FROM customer_lead_negotiations WHERE is_active = 1 AND id = customer_lead_negotiation_id) AS name
+        FROM customer_lead_devision_negotiations
+        WHERE customer_lead_division_id = #{divisionId}
+    </select>
+
+    <insert id="addActivityCard" useGeneratedKeys="true" keyProperty="activityCard.id">
+        INSERT INTO crm_activities_cards (
+            customer_contact_id,
+            position,
+            action_status,
+            issue_date,
+            subject,
+            result_action,
+            other,
+            is_active,
+            created,
+            created_by
+        ) VALUES (
+            #{activityCard.leadContactId},
+            #{activityCard.position},
+            #{activityCard.actionStatusId},
+            #{activityCard.issueDate},
+            #{activityCard.subject},
+            #{activityCard.resultAction},
+            #{activityCard.other},
+            #{activityCard.isActive},
+            NOW(),
+            #{activityCard.createdBy}
+        )
+    </insert>
+
+    <update id="updateLeadContactPosition">
+        UPDATE customer_contacts
+        SET position = #{position}
+        WHERE id = #{leadContactId}
+        AND is_active = 3
+        AND contact_type = 2
+    </update>
+
+    <sql id="BASE_ACTIVITY_CARD_COLUMN_LIST">
+        crm_activities_cards.id AS id,
+        crm_activities_cards.issue_date AS date,
+        crm_activities_cards.action_status AS statusId,
+        crm_activities_status.name AS status,
+        customer_contacts.id AS leadContactId,
+        customer_contacts.contact_name AS contactName,
+        crm_activities_cards.position AS position,
+        crm_activities_cards.subject AS subject,
+        crm_activities_cards.result_action AS result,
+        crm_activities_cards.other AS other
+    </sql>
+
+    <sql id="BASE_ACTIVITY_CARD_FROM">
+        FROM crm_activities_cards
+        INNER JOIN customer_contacts ON customer_contacts.id = crm_activities_cards.customer_contact_id
+        INNER JOIN customers ON customers.id = customer_contacts.customer_id
+        LEFT JOIN crm_activities_status ON crm_activities_status.id = crm_activities_cards.action_status
+    </sql>
+
+    <sql id="BASE_ACTIVITY_CARD_WHERE">
+        WHERE crm_activities_cards.is_active = 1
+        AND customers.customer_type = 2
+        AND customers.is_active = 3
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        <if test="filter.leadId != null">
+            AND customers.id = #{filter.leadId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                crm_activities_cards.issue_date LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_status.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.position LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.subject LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.result_action LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.other LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getListActivityCard" resultMap="LeadActivityCardResponse">
+        SELECT
+        <include refid="BASE_ACTIVITY_CARD_COLUMN_LIST"/>
+        <include refid="BASE_ACTIVITY_CARD_FROM"/>
+        <include refid="BASE_ACTIVITY_CARD_WHERE"/>
+        GROUP BY crm_activities_cards.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                crm_activities_cards.issue_date DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListActivityCard" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT crm_activities_cards.id)
+        <include refid="BASE_ACTIVITY_CARD_FROM"/>
+        <include refid="BASE_ACTIVITY_CARD_WHERE"/>
+    </select>
+
+    <select id="getOneActivityCard" resultMap="LeadActivityCardResponse">
+        SELECT
+        <include refid="BASE_ACTIVITY_CARD_COLUMN_LIST"/>
+        <include refid="BASE_ACTIVITY_CARD_FROM"/>
+        WHERE crm_activities_cards.is_active = 1
+        AND customers.customer_type = 2
+        AND customers.is_active = 3
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        AND crm_activities_cards.id = #{id}
+    </select>
+
+    <select id="getConvert" resultMap="LeadResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE customers.is_active = 3
+        AND customers.customer_type = 2
+        AND customers.id IN (SELECT customer_id FROM customer_companies WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}))
+        AND customers.id = #{id}
+    </select>
+
+    <update id="convert">
+        UPDATE customers SET
+            photo = #{lead.photo},
+            customer_code = #{lead.leadCode},
+            customer_type_id = #{lead.businessTypeId},
+            customer_activity_id = #{lead.businessActivityId},
+            type = #{lead.customerType},
+            country_id = #{lead.countryId},
+            name = #{lead.name},
+            name_kh = #{lead.nameKh},
+            latitude = #{lead.lats},
+            longitude = #{lead.longs},
+            main_number = #{lead.telephone},
+            mobile_number = #{lead.mobile},
+            other_number = #{lead.alternateMobile},
+            email = #{lead.email},
+            fax = #{lead.fax},
+            vat = #{lead.vat},
+            payment_term_id = #{lead.paymentTermId},
+            payment_every = #{lead.paymentMonthly},
+            limit_balance = #{lead.limitCredit},
+            limit_total_invoice = #{lead.limitNumberInvoice},
+            recurrence = #{lead.recurrence},
+            display_term_invoice = #{lead.displayOnInvoice},
+            customer_name_in = #{lead.settingInvoiceTax},
+            house_no = #{lead.houseNo},
+            street_id = #{lead.streetId},
+            province_id = #{lead.provinceId},
+            district_id = #{lead.districtId},
+            commune_id = #{lead.communeId},
+            village_id = #{lead.villageId},
+            address = #{lead.address},
+            customer_type = 1,
+            is_active = 1,
+            modified = NOW(),
+            modified_by = #{lead.modifiedBy}
+        WHERE id = #{lead.id}
+        AND customer_type = 2
+        AND is_active = 3
+    </update>
+
+    <update id="convertLeadContact">
+        UPDATE customer_contacts SET
+            customer_id = #{leadId},
+            is_active = 1,
+            contact_type = 1
+        WHERE id = #{leadContactId}
+        AND is_active = 3
+        AND contact_type = 2
+    </update>
+
+    <insert id="insertCustomerContracts">
+        INSERT INTO customer_contracts(customer_id, contract_name, contract_url, created)
+        VALUES (#{lead.id}, #{lead.customerContract}, #{lead.customerContractUrl}, NOW())
+    </insert>
+
+    <insert id="insertCustomerTerminates">
+        INSERT INTO customer_terminates(customer_id, terminate_name, terminate_url, created)
+        VALUES (#{lead.id}, #{lead.customerTerminate}, #{lead.customerTerminateUrl}, NOW())
+    </insert>
+
+    <insert id="insertCustomerSurveys">
+        INSERT INTO customer_surveys(customer_id, survey_name, survey_url, created)
+        VALUES (#{lead.id}, #{lead.customerSurvey}, #{lead.customerSurveyUrl}, NOW())
+    </insert>
+
+    <delete id="deleteCustomerContracts">
+        DELETE FROM customer_contracts WHERE customer_id = #{leadId}
+    </delete>
+
+    <delete id="deleteCustomerTerminates">
+        DELETE FROM customer_terminates WHERE customer_id = #{leadId}
+    </delete>
+
+    <delete id="deleteCustomerSurveys">
+        DELETE FROM customer_surveys WHERE customer_id = #{leadId}
+    </delete>
+
+    <select id="getCustomerContracts" resultMap="LeadDetailResponse">
+        SELECT id AS id, contract_name AS name, contract_url AS url, created AS created
+        FROM customer_contracts
+        WHERE customer_id = #{leadId}
+    </select>
+
+    <select id="getCustomerTerminates" resultMap="LeadDetailResponse">
+        SELECT id AS id, terminate_name AS name, terminate_url AS url, created AS created
+        FROM customer_terminates
+        WHERE customer_id = #{leadId}
+    </select>
+
+    <select id="getCustomerSurveys" resultMap="LeadDetailResponse">
+        SELECT id AS id, survey_name AS name, survey_url AS url, created AS created
+        FROM customer_surveys
+        WHERE customer_id = #{leadId}
+    </select>
+
+    <select id="getBusinessActivityAbbr" resultType="java.lang.String">
+        SELECT abbr
+        FROM customer_activities
+        WHERE is_active = 1
+        AND id = #{id}
+    </select>
+
+</mapper>

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ClassAccountMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    classes.id AS id,
+    classes.parent_id AS parentId,
+    classes_parent.name AS parentName,
+    classes.name AS `name`,
+    classes.description AS description,
+    classes.ordering AS `ordering`,
+    DATE_FORMAT(classes.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(classes.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM classes
+    LEFT JOIN classes AS classes_parent ON classes_parent.id = classes.parent_id
+    LEFT JOIN users AS users1 ON users1.id = classes.created_by
+    LEFT JOIN users AS users2 ON users2.id = classes.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE classes.is_active = 1
+    <if test="filter.searchText != null">
+      AND (classes.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultMap="ClassAccountResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        classes.ordering ASC, classes.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(classes.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getCompanyByClassId" parameterType="java.lang.Long" resultMap="CompanyResponse">
+    SELECT
+      companies.id AS id,
+      companies.`name` AS name
+    FROM companies
+    INNER JOIN class_companies ON class_companies.company_id = companies.id
+    WHERE companies.is_active = 1 AND class_companies.class_id = #{classId}
+  </select>
+
+  <select id="getUserByClassId" parameterType="java.lang.Long" resultMap="UserResponse">
+    SELECT
+      users.id AS id,
+      CONCAT(users.first_name, ' ', users.last_name) AS fullName
+    FROM users
+       INNER JOIN user_classes ON user_classes.user_id = users.id
+    WHERE users.is_active = 1 AND user_classes.class_id = #{classId}
+  </select>
+
+  <select id="getOne" resultMap="ClassAccountResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+    WHERE classes.id = #{id} AND classes.is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT
+        COUNT(id)
+    FROM classes
+    WHERE is_active = 1 AND `name` = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ClassAccount" useGeneratedKeys="true" keyProperty="classAccount.id">
+    INSERT INTO classes(
+      parent_id,
+      `name`,
+      description,
+      `ordering`,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+         #{classAccount.parentId},
+         #{classAccount.name},
+         #{classAccount.description},
+         #{classAccount.ordering},
+            NOW(),
+         #{classAccount.createdBy},
+         #{classAccount.isActive}
+       );
+  </insert>
+
+  <insert id="insertCompanyId" parameterType="java.lang.Long">
+    INSERT INTO class_companies(
+      class_id,
+      company_id
+    ) VALUES (
+        #{classAccountId},
+        #{companyId}
+    );
+  </insert>
+
+  <insert id="insertUserClass" parameterType="java.lang.Long">
+    INSERT INTO user_classes(
+      class_id,
+      user_id
+    ) VALUES (
+       #{classAccountId},
+       #{userId}
+     );
+  </insert>
+
+  <delete id="deleteClassCompany" parameterType="java.lang.Long">
+    DELETE FROM class_companies WHERE class_id = #{classAccountId};
+  </delete>
+
+  <delete id="deleteClassUser" parameterType="java.lang.Long">
+    DELETE FROM user_classes WHERE class_id = #{classAccountId};
+  </delete>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.ClassAccount">
+    UPDATE classes SET
+      <if test="classAccount.parentId != null"> `parent_id` = #{classAccount.parentId},</if>
+      <if test="classAccount.name != null"> `name` = #{classAccount.name},</if>
+      <if test="classAccount.description != null"> `description` = #{classAccount.description},</if>
+      <if test="classAccount.ordering != null"> `ordering` = #{classAccount.ordering},</if>
+      modified = NOW(),
+      modified_by = #{classAccount.modifiedBy}
+    WHERE id = #{classAccount.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE classes SET
+        is_active = 2,
+        modified = NOW(),
+        modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+</mapper>

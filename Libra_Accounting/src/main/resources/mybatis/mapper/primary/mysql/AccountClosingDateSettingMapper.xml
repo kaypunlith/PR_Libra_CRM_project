@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.AccountClosingDateSettingMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    chart_accounts.id AS id,
+    chart_accounts.parent_id AS parentId,
+    branches.id AS branchId,
+    branches.name AS branchName,
+    chart_account_parent.account_codes AS parentCode,
+    chart_account_parent.account_description AS parentDescription,
+    chart_accounts.chart_account_type_id AS chartAccountTypeId,
+    chart_account_types.name AS chartAccountTypeName,
+    chart_accounts.chart_account_group_id AS chartAccountGroupId,
+    chart_account_groups.name AS chartAccountGroupName,
+    chart_accounts.account_codes AS accountCodes,
+    chart_accounts.account_description AS accountDescription,
+    chart_accounts.manual AS manual,
+    chart_accounts.orcode AS orcode,
+    chart_accounts.pvcode AS pvcode,
+    chart_accounts.is_active AS status,
+    DATE_FORMAT(chart_accounts.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(chart_accounts.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM chart_accounts
+    LEFT JOIN chart_accounts AS chart_account_parent ON chart_account_parent.id = chart_accounts.parent_id
+    LEFT JOIN users AS users1 ON users1.id = chart_accounts.created_by
+    LEFT JOIN users AS users2 ON users2.id = chart_accounts.modified_by
+    LEFT JOIN chart_account_types ON chart_account_types.id = chart_accounts.chart_account_type_id
+    LEFT JOIN chart_account_groups ON chart_account_groups.id = chart_accounts.chart_account_group_id
+    LEFT JOIN chart_account_branches ON chart_account_branches.chart_account_id = chart_accounts.id
+    LEFT JOIN branches ON chart_account_branches.branch_id = branches.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE chart_accounts.is_active &lt; 2
+    <if test="filter.companyId != null">
+      AND chart_accounts.id IN (SELECT chart_account_id FROM chart_account_companies WHERE chart_account_companies.company_id = #{filter.companyId})
+    </if>
+    <if test="filter.accountTypeId != null">
+      AND chart_accounts.chart_account_type_id = #{filter.accountTypeId}
+    </if>
+    <if test="filter.accountGroupId != null">
+      AND chart_accounts.chart_account_group_id = #{filter.accountGroupId}
+    </if>
+    <if test="filter.searchText != null">
+      AND ((chart_accounts.account_codes LIKE CONCAT("%", #{filter.searchText}, "%"))
+        OR (chart_accounts.account_description LIKE CONCAT("%", #{filter.searchText}, "%")))
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultMap="ChartOfAccountResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        chart_accounts.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(chart_accounts.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM chart_accounts
+    WHERE is_active &lt; 2 AND account_codes = #{accountCode}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.AccountClosingDateSetting" useGeneratedKeys="true" keyProperty="accountClosingDateSetting.id">
+    INSERT INTO general_ledgers(
+      `date`,
+      reference,
+      is_retained_earnings,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+         #{accountClosingDateSetting.date},
+         #{accountClosingDateSetting.reference},
+         #{accountClosingDateSetting.isRetainedEarnings},
+         NOW(),
+         #{accountClosingDateSetting.createdBy},
+         #{accountClosingDateSetting.isActive}
+       );
+  </insert>
+
+  <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.AccountClosingDateSettingDetail">
+    INSERT INTO general_ledger_details(
+      `general_ledger_id`,
+        `branch_id`,
+      company_id,
+      chart_account_id,
+      `type`,
+      debit,
+      credit,
+      memo,
+      class_id
+    ) VALUES (
+               #{accountClosingDateSettingDetail.generalLedgerId},
+              #{accountClosingDateSettingDetail.branchId},
+               #{accountClosingDateSettingDetail.companyId},
+               #{accountClosingDateSettingDetail.chartAccountId},
+               #{accountClosingDateSettingDetail.type},
+               #{accountClosingDateSettingDetail.debit},
+               #{accountClosingDateSettingDetail.credit},
+               #{accountClosingDateSettingDetail.memo},
+               #{accountClosingDateSettingDetail.classId}
+             );
+  </insert>
+
+  <select id="getDataIncome" resultType="java.lang.Double">
+    SELECT IFNULL(SUM(credit)-SUM(debit), 0)
+    FROM general_ledgers gl
+    INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+    WHERE gl.is_approve=1
+        AND gl.is_approve=1
+        AND gl.is_active=1
+      AND company_id=#{filter.companyId}
+      AND DATE(`date`) &lt;= DATE(#{filter.date})
+        AND gld.chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (11,14)
+        )
+  </select>
+
+  <select id="getDataCogs" resultType="java.lang.Double">
+    SELECT IFNULL(SUM(debit)-SUM(credit), 0)
+    FROM general_ledgers gl
+    INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+    WHERE gl.is_approve=1
+        AND gl.is_approve=1
+        AND gl.is_active=1
+        AND company_id=#{filter.companyId}
+        AND `date` &lt;= #{filter.date}
+        AND gld.chart_account_id IN (
+            SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (12)
+        )
+  </select>
+
+  <select id="getDataExpense" resultType="java.lang.Double">
+    SELECT IFNULL(SUM(credit)-SUM(debit), 0)
+    FROM general_ledgers gl
+           INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+    WHERE gl.is_approve=1
+      AND gl.is_approve=1
+      AND gl.is_active=1
+      AND company_id=#{filter.companyId}
+      AND `date` &lt;= #{filter.date}
+      AND gld.chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (13,15)
+    )
+  </select>
+
+
+</mapper>

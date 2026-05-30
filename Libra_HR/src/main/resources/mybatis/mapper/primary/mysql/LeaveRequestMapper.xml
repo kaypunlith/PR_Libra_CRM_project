@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LeaveRequestMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    leave_requests.id,
+    leave_requests.employee_id AS employeeId,
+    leave_requests.date_from AS dateFrom,
+    leave_requests.date_to AS dateTo,
+    leave_requests.number_of_day AS numberOfDay,
+    leave_requests.note AS description,
+    leave_requests.status,
+    employees.code AS employeeCode,
+    employees.name_kh AS employeeNameKh,
+    employees.name AS employeeNameEn,
+    departments.id AS departmentId,
+    departments.name AS departmentName,
+    positions.id AS positionId,
+    positions.name AS positionName,
+    DATE_FORMAT(leave_requests.date_from, "%d-%b-%Y") AS dateFrom,
+    DATE_FORMAT(leave_requests.date_to, "%d-%b-%Y") AS dateTo,
+    DATE_FORMAT(leave_requests.modified, "%d-%b-%Y %h:%i %p") AS modified,
+    DATE_FORMAT(leave_requests.created, "%d-%b-%Y %h:%i %p") AS created,
+    CONCAT(IFNULL(creator.first_name,''), ' ', IFNULL(creator.last_name,'')) AS createdBy,
+    CONCAT(IFNULL(modifier.first_name,''), ' ', IFNULL(modifier.last_name,'')) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM leave_requests
+        LEFT JOIN employees ON employees.id = leave_requests.employee_id
+        LEFT JOIN departments ON departments.id = employees.department_id
+        LEFT JOIN positions ON positions.id = employees.position_id
+        LEFT JOIN users AS creator ON leave_requests.created_by = creator.id
+        LEFT JOIN users AS modifier ON leave_requests.modified_by = modifier.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+     WHERE leave_requests.is_active = 1
+     <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+        AND (( DATE(leave_requests.date_from) >= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) >= #{filter.dateTo} ) OR ( DATE(leave_requests.date_from) &lt;= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) &lt;= #{filter.dateTo} ) OR ( DATE(leave_requests.date_from) >= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) &lt;= #{filter.dateTo} ) OR ( DATE(leave_requests.date_from) &lt;= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) >= #{filter.dateTo} ) )
+     </if>
+     <if test="filter.year != null">
+        AND YEAR(leave_requests.date_from) = #{filter.year}
+     </if>
+     <if test="filter.searchText != null">
+        AND (employees.name LIKE CONCAT("%", #{filter.searchText}, "%") OR employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR employees.code LIKE CONCAT("%", #{filter.searchText}, "%") OR employees.telephone LIKE CONCAT("%", #{filter.searchText}, "%") )
+     </if>
+     <if test="filter.employeesId != null">
+        AND leave_requests.employee_id = #{filter.employeesId}
+     </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.LeaveRequestFilter" resultMap="LeaveRequestResponse">
+    SELECT
+    <if test="filter.year == null">
+      leave_requests.leave_type_id AS leaveTypeId,
+      (SELECT `name` FROM `leave_types` WHERE `is_active` = 1 AND `id` = leave_requests.leave_type_id) AS leaveTypeName,
+    </if>
+    <if test="filter.year != null">
+      IFNULL(SUM(leave_requests.number_of_day),0) AS numberOfDay,
+    </if>
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    <if test="filter.year != null">
+    GROUP BY leave_requests.employee_id
+    </if>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+            leave_requests.id DESC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="count" parameterType="com.ut.nlSystemAPi.model.LeaveRequestFilter" resultType="int">
+    <if test="filter.year == null">
+      SELECT COUNT(leave_requests.id)
+    </if>
+    <if test="filter.year != null">
+      SELECT COUNT(DISTINCT leave_requests.employee_id)
+    </if>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="LeaveRequestResponse">
+    SELECT
+    leave_requests.leave_type_id AS leaveTypeId,
+    (SELECT `name` FROM `leave_types` WHERE `is_active` = 1 AND `id` = leave_requests.leave_type_id) AS leaveTypeName,
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE leave_requests.is_active = 1 AND leave_requests.id = #{id}
+  </select>
+
+  <select id="getViewDetail" parameterType="java.lang.String" resultMap="LeaveRequestResponse">
+    SELECT
+      leave_requests.status,
+      DATE_FORMAT(leave_requests.modified, "%d-%b-%Y %h:%i %p") AS modified,
+      DATE_FORMAT(leave_requests.created, "%d-%b-%Y %h:%i %p") AS created,
+      CONCAT(IFNULL(users1.first_name,''), ' ', IFNULL(users1.last_name,'')) AS createdBy,
+      CONCAT(IFNULL(users2.first_name,''), ' ', IFNULL(users2.last_name,'')) AS modifiedBy,
+      leave_requests.employee_id AS employeeId,
+      leave_requests.leave_type_id AS leaveTypeId,
+      (SELECT name FROM leave_types WHERE id = leave_requests.leave_type_id AND is_active = 1 LIMIT 1) AS leaveTypeName,
+      employees.code AS employeeCode,
+      employees.name_kh AS employeeNameKh,
+      employees.name AS employeeNameEn,
+      positions.name AS position,
+      DATE_FORMAT(leave_requests.date_from, "%d-%b-%Y") AS DateFrom,
+      DATE_FORMAT(leave_requests.date_to, "%d-%b-%Y") AS DateTo,
+      SUM(leave_requests.number_of_day) AS numberOfDay,
+      leave_requests.note AS description
+    <include refid="BASE_FROM"/>
+    WHERE leave_requests.is_active = 1 AND leave_requests.employee_id = #{employeeId} AND YEAR(leave_requests.date_from) = #{year}
+    GROUP BY leave_requests.employee_id
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.LeaveRequest" useGeneratedKeys="true" keyProperty="leaveRequest.id">
+    INSERT INTO leave_requests (
+      employee_id,
+      date_from,
+      date_to,
+      leave_type_id,
+      number_of_day,
+      note,
+      status,
+      created,
+      created_by,
+      modified,
+      modified_by,
+      is_active
+    ) VALUES (
+      #{leaveRequest.employeeId},
+      #{leaveRequest.dateFrom},
+      #{leaveRequest.dateTo},
+      #{leaveRequest.leaveTypeId},
+      #{leaveRequest.numberOfDay},
+      #{leaveRequest.note},
+      #{leaveRequest.status},
+      NOW(),
+      #{leaveRequest.createdBy},
+      NOW(),
+      #{leaveRequest.createdBy},
+      #{leaveRequest.isActive}
+    )
+  </insert>
+
+
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE leave_requests SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <select id="getLeaveRequestDetail" resultMap="LeaveRequestDetailResponse">
+    SELECT *,
+    (SELECT IFNULL(SUM(number_of_day),0) FROM leave_requests WHERE is_active = 1 AND employee_id = #{employeeId} AND leave_type_id = leave_types.id AND YEAR(leave_requests.date_from) = #{year}) AS numberOfDay
+    FROM leave_types WHERE is_active = 1
+                      AND (SELECT IFNULL(SUM(number_of_day),0) FROM leave_requests WHERE is_active = 1 AND employee_id = #{employeeId} AND leave_type_id = leave_types.id AND YEAR(leave_requests.date_from) = #{year}) > 0
+  </select>
+
+  <select id="getReportDetail" parameterType="com.ut.nlSystemAPi.model.filter.LeaveReportDetailFilter" resultMap="LeaveReportDetailResponse">
+    SELECT
+    leave_requests.*,
+    leave_requests.note AS description,
+    leave_types.name AS leaveTypeName
+    FROM leave_requests
+    INNER JOIN leave_types ON leave_types.id = leave_requests.leave_type_id
+    WHERE leave_requests.is_active = 1
+    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+      AND
+        (
+          (
+            DATE(leave_requests.date_from) >= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND
+            DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) >= #{filter.dateTo}
+          ) OR (
+            DATE(leave_requests.date_from) &lt;= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND
+            DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) &lt;= #{filter.dateTo}
+          ) OR (
+            DATE(leave_requests.date_from) >= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND
+            DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) &lt;= #{filter.dateTo}
+          ) OR (
+            DATE(leave_requests.date_from) &lt;= #{filter.dateFrom} AND DATE(leave_requests.date_to) >= #{filter.dateFrom} AND
+            DATE(leave_requests.date_from) &lt;= #{filter.dateTo} AND DATE(leave_requests.date_to) >= #{filter.dateTo}
+          )
+        )
+    </if>
+    <if test="filter.employeeId != null">
+      AND leave_requests.employee_id = #{filter.employeeId}
+    </if>
+    ORDER BY leave_types.id ASC
+  </select>
+
+  <select id="getUerIdByEmployeeId" resultType="java.lang.Long">
+    SELECT `user_id` FROM `employees` WHERE `is_active` = 1 AND `id` = #{employeeId} LIMIT 1
+  </select>
+
+</mapper>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+
+    <sql id="BASE_WHERE_ACTIVITY_CARD_TRACKING">
+        WHERE crm_activities_cards.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+             customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND DATE(crm_activities_cards.issue_date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(crm_activities_cards.issue_date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND crm_activities_cards.action_status = #{filter.companyId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND crm_activities_cards.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.organizationId != null">
+            AND customers.id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND customers.id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+    </sql>
+
+    <select id="getListActivityCardTracking" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.ActivityCardTrackingReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.ActivityCardTrackingReportResponse">
+        SELECT
+        IFNULL(customers.id, 0) AS organizationId,
+        IFNULL(customers.name, 'NA') AS organizationName,
+        crm_activities_cards.id AS id,
+        crm_activities_status.name AS name,
+        customer_contacts.contact_name AS contactName,
+        crm_activities_status.name AS status,
+        crm_activities_cards.issue_date AS `date`,
+        crm_activities_cards.position AS `position`,
+        crm_activities_cards.subject AS subject,
+        crm_activities_cards.result_action AS `result`,
+        crm_activities_cards.other AS other,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy
+        FROM crm_activities_cards
+        INNER JOIN users ON users.id = crm_activities_cards.created_by AND users.is_active = 1
+        INNER JOIN crm_activities_status ON crm_activities_cards.action_status = crm_activities_status.id
+        INNER JOIN customer_contacts ON customer_contacts.id = crm_activities_cards.customer_contact_id AND customer_contacts.is_active IN (1,3)
+        LEFT JOIN customers ON customers.id = customer_contacts.customer_id AND customers.is_active IN (1,3)
+        <include refid="BASE_WHERE_ACTIVITY_CARD_TRACKING"/>
+        ORDER BY customers.id ASC, crm_activities_status.id ASC, customer_contacts.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListActivityCardTracking" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.ActivityCardTrackingReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(customers.id)
+        FROM crm_activities_cards
+        INNER JOIN users ON users.id = crm_activities_cards.created_by AND users.is_active = 1
+        INNER JOIN crm_activities_status ON crm_activities_cards.action_status = crm_activities_status.id
+        INNER JOIN customer_contacts ON customer_contacts.id = crm_activities_cards.customer_contact_id AND customer_contacts.is_active IN (1,3)
+        LEFT JOIN customers ON customers.id = customer_contacts.customer_id AND customers.is_active IN (1,3)
+        <include refid="BASE_WHERE_ACTIVITY_CARD_TRACKING"/>
+    </select>
+
+</mapper>

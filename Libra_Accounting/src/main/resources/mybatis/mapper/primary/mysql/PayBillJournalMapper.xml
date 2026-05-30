@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PayBillJournalMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    gld.id AS id,
+    gl.`date` AS `date`,
+    gl.reference AS reference,
+    (SELECT name FROM vendors WHERE id=vendor_id) AS vendorName,
+    gld.vendor_id AS vendor_id,
+    gld.company_id AS companyId,
+    (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = gl.id LIMIT 1) AS branchId,
+    (SELECT name FROM branches WHERE id = (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = gl.id LIMIT 1)) AS branchName,
+    gld.chart_account_id AS chartAccountId,
+    IFNULL(gld.credit, 0) AS totalAmount,
+    CASE
+        WHEN IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND vendor_id = gld.vendor_id), 0) > 0
+            THEN IFNULL(gld.credit, 0) - IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND vendor_id = gld.vendor_id), 0)
+        ELSE IFNULL(gld.credit, 0)
+    END AS amountDue,
+    CASE
+        WHEN IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND vendor_id = gld.vendor_id), 0) > 0
+            THEN IFNULL(gld.credit, 0) - IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND vendor_id = gld.vendor_id), 0)
+        ELSE IFNULL(gld.credit, 0)
+    END AS balance,
+    COALESCE(gld.memo, '') AS memo
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE is_approve=1 AND is_active=1
+    <if test="filter.companyId != null">
+      AND gld.company_id = #{filter.companyId}
+    </if>
+    <if test="filter.vendorId != null">
+      AND vendor_id = #{filter.vendorId}
+    </if>
+    <if test="filter.branchId != null">
+     AND (SELECT branch_id FROM general_ledger_details WHERE general_ledger_id = gl.id LIMIT 1) = #{filter.branchId}
+    </if>
+    AND chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name='Accounts Payable'))
+    AND sales_order_id IS NULL
+    AND credit_memo_id IS NULL
+    AND purchase_order_id IS NULL
+    AND purchase_return_id IS NULL
+    AND gl.landed_cost_id IS NULL
+    AND (credit-(IFNULL((SELECT IFNULL(SUM(debit),0) FROM ${tableName} WHERE main_gl_id=gld.main_gl_id AND chart_account_id=gld.chart_account_id AND company_id = gld.company_id AND vendor_id = gld.vendor_id), 0)))>0.001
+    AND credit>0
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PayBillsJournalFilter" resultMap="PayBillsJournalResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY `date`
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.PayBillsJournalFilter" resultType="java.lang.Long">
+    SELECT COUNT(gld.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getReLastPayBillCode" resultType="java.lang.String">
+    SELECT reference
+    FROM ap_agings
+    WHERE is_active = 1 AND YEAR(date) = YEAR(NOW()) AND `reference` LIKE '%PV%' ORDER BY id DESC LIMIT 1
+  </select>
+
+  <insert id="insertApAgings" parameterType="com.ut.nlSystemAPi.model.PayBills" useGeneratedKeys="true" keyProperty="payBills.id">
+    INSERT INTO ap_agings(
+      `date`,
+      `company_id`,
+        branch_id,
+      vendor_id,
+      deposit_to,
+      reference,
+      cheque_number,
+      bank_number,
+      note,
+      created,
+      created_by
+    ) VALUES (
+       #{payBills.date},
+       #{payBills.companyId},
+       #{payBills.branchId},
+       #{payBills.vendorId},
+       #{payBills.depositTo},
+       #{payBills.reference},
+       #{payBills.chequeNumber},
+       #{payBills.bankNo},
+       #{payBills.note},
+       NOW(),
+        #{payBills.createdBy}
+     );
+  </insert>
+
+    <insert id="insertApAgingDetail" parameterType="com.ut.nlSystemAPi.model.PayBillsDetail">
+        INSERT INTO ap_aging_details(
+            `ap_aging_id`,
+            `general_ledger_id`,
+            vendor_id,
+            amount_due,
+            paid,
+            balance,
+            memo
+        ) VALUES (
+                     #{payBillsDetail.apAgingId},
+                     #{payBillsDetail.glId},
+                     #{payBillsDetail.vendorId},
+                     #{payBillsDetail.amountDue},
+                     #{payBillsDetail.amountPaid},
+                     #{payBillsDetail.balance},
+                     #{payBillsDetail.memo}
+                 );
+    </insert>
+
+    <insert id="insertGeneralLedger" parameterType="com.ut.nlSystemAPi.model.JournalEntry" useGeneratedKeys="true" keyProperty="journalEntry.id">
+        INSERT INTO general_ledgers(
+            `ap_aging_id`,
+            `date`,
+            reference,
+            created_by,
+            is_sys,
+            is_adj,
+            created,
+            is_active
+        ) VALUES (
+             #{journalEntry.apAgingId},
+             #{journalEntry.date},
+             #{journalEntry.reference},
+             #{journalEntry.createdBy},
+             #{journalEntry.isSys},
+             #{journalEntry.adj},
+            NOW(),
+             #{journalEntry.isActive}
+         );
+    </insert>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.JournalEntryDetail">
+        INSERT INTO general_ledger_details(
+            general_ledger_id,
+            `main_gl_id`,
+            `chart_account_id`,
+            company_id,
+             branch_id,
+            type,
+            debit,
+            credit,
+            memo,
+            class_id,
+            vendor_id
+        ) VALUES (
+             #{journalEntryDetail.generalLedgerId},
+             #{journalEntryDetail.mainGlId},
+             #{journalEntryDetail.chartAccountId},
+             #{journalEntryDetail.companyId},
+             #{journalEntryDetail.branchId},
+             #{journalEntryDetail.type},
+             #{journalEntryDetail.debit},
+             #{journalEntryDetail.credit},
+             #{journalEntryDetail.memo},
+             #{journalEntryDetail.classId},
+             #{journalEntryDetail.vendorId}
+         );
+    </insert>
+
+    <sql id="BASE_COLUMN_LIST_PRINT">
+        ap_agings.id AS id,
+        ap_agings.date AS `date`,
+        ap_agings.reference AS reference,
+        (SELECT name FROM vendors WHERE id = ap_agings.vendor_id) AS venderName,
+        (SELECT name FROM vendors WHERE id = ap_agings.vendor_id) AS paidTo,
+         branches.id AS branchId,
+         branches.name AS branchName,
+        4000 AS exChangeRate,
+        (SELECT CONCAT(account_codes, '-',account_description) FROM chart_accounts WHERE id = ap_agings.deposit_to) AS chartAccountName,
+        (SELECT SUM(paid) FROM ap_aging_details WHERE ap_aging_id = ap_agings.id) AS totalAmount,
+        COALESCE(ap_agings.note, '') AS note,
+        COALESCE(ap_agings.cheque_number, '') AS chequeNumber,
+        (SELECT general_ledger_id FROM ap_aging_details WHERE ap_aging_id = ap_agings.id LIMIT 1) AS glId,
+        '' AS exchangeRate,
+        (SELECT COALESCE(account_codes, '') FROM chart_accounts WHERE id = ap_agings.deposit_to) AS accountCode,
+        (SELECT name FROM companies WHERE id = ap_agings.company_id) AS `companyName`
+    </sql>
+
+    <sql id="BASE_FROM_PRINT">
+        FROM ap_agings
+        LEFT JOIN branches ON branches.id = ap_agings.branch_id
+    </sql>
+
+    <sql id="BASE_WHERE_PRINT">
+        WHERE ap_agings.is_active = 1
+        <if test="filter.reference != null and filter.reference != ''">
+            AND (ap_agings.reference LIKE CONCAT("%", #{filter.reference}, "%"))
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != ''">
+            AND ap_agings.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateTo != null">
+            AND DATE(ap_agings.date) >= DATE(#{filter.dateFrom}) AND DATE(ap_agings.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+    </sql>
+
+    <select id="getListPrint" parameterType="com.ut.nlSystemAPi.model.filter.PayBillPrintFilter" resultMap="PayBillsPrintResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRINT"/>
+        <include refid="BASE_FROM_PRINT"/>
+        <include refid="BASE_WHERE_PRINT"/>
+        ORDER BY ap_agings.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countListPrint" parameterType="com.ut.nlSystemAPi.model.filter.PayBillPrintFilter" resultType="java.lang.Long">
+        SELECT COUNT(ap_agings.id)
+        <include refid="BASE_FROM_PRINT"/>
+        <include refid="BASE_WHERE_PRINT"/>
+    </select>
+
+    <select id="find" parameterType="java.lang.Long" resultMap="PayBillsPrintResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_PRINT"/>
+        <include refid="BASE_FROM_PRINT"/>
+        WHERE ap_agings.id = #{id}
+        AND ap_agings.is_active = 1
+    </select>
+
+    <select id="gePayBillNormalDetail" parameterType="java.lang.Long" resultMap="PayBillsPrintDetailResponse">
+        SELECT
+            ap_aging_details.paid AS totalAmount,
+            COALESCE(ap_aging_details.memo, '') AS description,
+            COALESCE(general_ledgers.reference, '') AS invoiceCode
+        FROM ap_aging_details
+            LEFT JOIN general_ledger_details ON general_ledger_details.id = ap_aging_details.general_ledger_id
+            LEFT JOIN general_ledgers ON general_ledgers.id = general_ledger_details.general_ledger_id
+        WHERE ap_aging_details.ap_aging_id = #{apAgingId}
+    </select>
+
+    <select id="getGlFile" parameterType="java.lang.Long" resultMap="ReceivePaymentFileResponse">
+        SELECT file_name AS fileName, file_url AS fileUrl FROM general_ledger_files WHERE general_ledger_id IN (
+            SELECT id FROM general_ledgers WHERE ap_aging_id = #{glId}
+            );
+    </select>
+
+    <select id="dropTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        DROP TABLE ${tableName};
+    </select>
+
+    <select id="createTable" parameterType="java.lang.String" resultType="java.lang.Boolean">
+        CREATE TABLE IF NOT EXISTS ${tableName} (
+            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+            `main_gl_id` int(11) DEFAULT NULL,
+            `chart_account_id` int(11) DEFAULT NULL,
+            `company_id` int(11) DEFAULT NULL,
+            `debit` double DEFAULT NULL,
+            `vendor_id` bigint(20) DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `main_gl_id` (`main_gl_id`),
+            KEY `chart_account_id` (`chart_account_id`),
+            KEY `company_id` (`company_id`),
+            KEY `vendor_id` (`vendor_id`)
+            ) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+    </select>
+
+    <select id="getDebitData" parameterType="com.ut.nlSystemAPi.model.filter.PayBillsJournalFilter" resultMap="PayBillsDebitDataResponse">
+        SELECT
+            IFNULL(SUM(debit),0) AS debit,
+            `main_gl_id` AS mainGlId,
+            `chart_account_id` AS chartAccountId,
+            `company_id` AS companyId,
+            `vendor_id` AS vendorId
+        FROM general_ledgers gl2
+        INNER JOIN general_ledger_details gld2 ON gl2.id=gld2.general_ledger_id
+        WHERE gl2.is_approve=1
+        AND gl2.is_active=1
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.vendorId != null">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        AND chart_account_id IN (SELECT id FROM chart_accounts WHERE is_active=1 AND chart_account_type_id IN (SELECT id FROM chart_account_types WHERE name='Accounts Payable'))
+        AND sales_order_id IS NULL
+        AND credit_memo_id IS NULL
+        AND purchase_order_id IS NULL
+        AND purchase_return_id IS NULL
+        AND debit > 0
+        GROUP BY `main_gl_id`, `chart_account_id`, `company_id`, `vendor_id`
+    </select>
+
+    <insert id="insertDebitData" parameterType="com.ut.nlSystemAPi.model.response.PayBills.PayBillsDebitDataResponse">
+        INSERT INTO ${tableName} (
+            main_gl_id,
+            chart_account_id,
+            company_id,
+            debit,
+            vendor_id
+        ) VALUES (
+                     #{payBillsDebitDataResponse.mainGlId},
+                     #{payBillsDebitDataResponse.chartAccountId},
+                     #{payBillsDebitDataResponse.companyId},
+                     #{payBillsDebitDataResponse.debit},
+                     #{payBillsDebitDataResponse.vendorId}
+                 )
+    </insert>
+
+    <select id="getMainGlId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT main_gl_id FROM general_ledger_details WHERE id=#{gldId};
+    </select>
+
+    <update id="updateMainGlToGld" parameterType="java.lang.Long">
+        UPDATE general_ledger_details SET main_gl_id=#{gldId} WHERE id=#{gldId};
+    </update>
+
+    <update id="updateMainGl" parameterType="java.lang.Long">
+        UPDATE general_ledger_details SET main_gl_id=#{gldId} WHERE main_gl_id=#{mainGlId};
+    </update>
+
+    <select id="getJournalClassId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT class_id FROM general_ledger_details WHERE id=#{gldId};
+    </select>
+
+</mapper>

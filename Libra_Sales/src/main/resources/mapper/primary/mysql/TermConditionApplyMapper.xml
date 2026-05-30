@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TermConditionApplyMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+      term_condition_applies.id AS id,
+      term_condition_applies.module_type_id AS moduleTypeId,
+      module_types.name AS moduleTypeName,
+      term_condition_applies.term_condition_type_id AS termConditionTypeId,
+      term_condition_types.name AS termConditionTypeName,
+      term_condition_applies.term_condition_default_id AS termConditionDefaultId,
+      term_conditions.name AS termConditionDefaultName
+  </sql>
+
+  <sql id="BASE_FROM">
+      FROM term_condition_applies
+      INNER JOIN module_types ON module_types.id = term_condition_applies.module_type_id
+      INNER JOIN term_condition_types ON term_condition_types.id = term_condition_applies.term_condition_type_id
+      LEFT JOIN term_conditions ON term_conditions.id = term_condition_applies.term_condition_default_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+        WHERE term_condition_applies.is_active = 1
+        <if test="filter.moduleTypeId != null">
+            AND term_condition_applies.module_type_id = #{filter.moduleTypeId}
+        </if>
+        <if test="filter.searchText != null">
+          AND module_types.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TermConditionApplyFilter" resultMap="TermConditionApplyResponse">
+     SELECT
+     <include refid="BASE_COLUMN_LIST"/>
+     <include refid="BASE_FROM"/>
+     <include refid="BASE_WHERE"/>
+     <if test="filter.moduleTypeId != null">
+     GROUP BY term_condition_applies.term_condition_type_id
+     </if>
+     ORDER BY
+     <choose>
+          <when test="filter.orderBy != null">
+            ${filter.orderBy}
+          </when>
+          <otherwise>
+              term_condition_applies.id DESC
+          </otherwise>
+     </choose>
+     <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TermConditionApplyFilter" resultType="java.lang.Long">
+    SELECT COUNT(term_condition_applies.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="TermConditionApplyResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE term_condition_applies.is_active = 1 AND term_condition_applies.id = #{id}
+  </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.TermConditionApply.TermConditionApply" useGeneratedKeys="true" keyProperty="termConditionApply.id">
+        INSERT INTO term_condition_applies (
+            module_type_id,
+            term_condition_type_id,
+            term_condition_default_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{termConditionApply.moduleTypeId},
+                     #{termConditionApply.termConditionTypeId},
+                     #{termConditionApply.termConditionId},
+                     NOW(),
+                     #{termConditionApply.createdBy},
+                     #{termConditionApply.isActive}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.TermConditionApply.TermConditionApply">
+        UPDATE term_condition_applies SET
+        <if test="termConditionApply.moduleTypeId != null">module_type_id = #{termConditionApply.moduleTypeId},</if>
+        <if test="termConditionApply.termConditionTypeId != null">term_condition_type_id = #{termConditionApply.termConditionTypeId},</if>
+        <if test="termConditionApply.termConditionId != null">term_condition_default_id = #{termConditionApply.termConditionId},</if>
+        modified = NOW(),
+        <if test="termConditionApply.modifiedBy != null">modified_by = #{termConditionApply.modifiedBy}</if>
+        WHERE id = #{termConditionApply.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE term_condition_applies SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+</mapper>

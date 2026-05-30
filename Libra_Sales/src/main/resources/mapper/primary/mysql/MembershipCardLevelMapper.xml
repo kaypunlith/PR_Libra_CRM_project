@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.MembershipCardLevelMapper">
+
+    <resultMap id="MembershipCardLevelResponse" type="com.ut.nlSystemAPi.model.response.MembershipCardLevel.MembershipCardLevelResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="discountPercent" column="discountPercent"/>
+        <result property="bdDiscountPercent" column="bdDiscountPercent"/>
+        <result property="amount" column="amount"/>
+        <result property="point" column="point"/>
+        <result property="requiredPoint" column="requiredPoint"/>
+        <result property="memo" column="memo"/>
+        <result property="color" column="color"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        membership_card_types.id AS id,
+        membership_card_types.name AS name,
+        membership_card_types.discount_percent AS discountPercent,
+        membership_card_types.bd_discount_percent AS bdDiscountPercent,
+        membership_card_types.amount AS amount,
+        membership_card_types.point AS point,
+        membership_card_types.required_point AS requiredPoint,
+        membership_card_types.memo AS memo,
+        membership_card_types.color AS color,
+        membership_card_types.created AS created,
+        CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+        membership_card_types.modified AS modified,
+        CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM membership_card_types
+        LEFT JOIN users AS creator ON membership_card_types.created_by = creator.id
+        LEFT JOIN users AS modifier ON membership_card_types.modified_by = modifier.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE membership_card_types.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                membership_card_types.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR membership_card_types.memo LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="MembershipCardLevelResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                IFNULL(membership_card_types.required_point, 0) ASC,
+                membership_card_types.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(membership_card_types.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="MembershipCardLevelResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE membership_card_types.is_active = 1 AND membership_card_types.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM membership_card_types
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.MembershipCardLevel.MembershipCardLevel" useGeneratedKeys="true" keyProperty="membershipCardLevel.id">
+        INSERT INTO membership_card_types (
+            name,
+            discount_percent,
+            bd_discount_percent,
+            amount,
+            point,
+            required_point,
+            memo,
+            color,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{membershipCardLevel.name},
+            #{membershipCardLevel.discountPercent},
+            #{membershipCardLevel.bdDiscountPercent},
+            #{membershipCardLevel.amount},
+            #{membershipCardLevel.point},
+            #{membershipCardLevel.requiredPoint},
+            #{membershipCardLevel.memo},
+            #{membershipCardLevel.color},
+            NOW(),
+            #{membershipCardLevel.createdBy},
+            #{membershipCardLevel.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.MembershipCardLevel.MembershipCardLevel">
+        UPDATE membership_card_types SET
+            <if test="membershipCardLevel.name != null">name = #{membershipCardLevel.name},</if>
+            <if test="membershipCardLevel.discountPercent != null">discount_percent = #{membershipCardLevel.discountPercent},</if>
+            <if test="membershipCardLevel.bdDiscountPercent != null">bd_discount_percent = #{membershipCardLevel.bdDiscountPercent},</if>
+            <if test="membershipCardLevel.amount != null">amount = #{membershipCardLevel.amount},</if>
+            <if test="membershipCardLevel.point != null">point = #{membershipCardLevel.point},</if>
+            <if test="membershipCardLevel.requiredPoint != null">required_point = #{membershipCardLevel.requiredPoint},</if>
+            <if test="membershipCardLevel.memo != null">memo = #{membershipCardLevel.memo},</if>
+            <if test="membershipCardLevel.color != null">color = #{membershipCardLevel.color},</if>
+            modified = NOW(),
+            modified_by = #{membershipCardLevel.modifiedBy}
+        WHERE id = #{membershipCardLevel.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE membership_card_types SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

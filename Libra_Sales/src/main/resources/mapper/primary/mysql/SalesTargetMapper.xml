@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesTargetMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        sale_targets.id AS id,
+        sale_targets.company_id AS companyId,
+        companies.name AS companyName,
+        sale_targets.sale_target_code AS targetCode,
+        sale_targets.target_name AS targetName,
+        sale_targets.team_target_amount AS targetAmount,
+        sale_targets.employee_id AS employeeId,
+        employees.name AS employeeName,
+        sale_targets.currency_center_id AS currencyId,
+        currency_centers.symbol AS currencySymbol,
+        sale_targets.organization_target AS organizationTarget,
+        sale_targets.indicator_first AS indicatorFirst,
+        sale_targets.indicator_second AS indicatorSecond,
+        sale_targets.indicator_third AS indicatorThird,
+        (
+            SELECT GROUP_CONCAT(customer_markets.name ORDER BY customer_markets.name SEPARATOR ', ')
+            FROM sale_target_customer_markets
+            INNER JOIN customer_markets ON customer_markets.id = sale_target_customer_markets.market_id
+            WHERE sale_target_customer_markets.is_active = 1
+              AND customer_markets.is_active = 1
+              AND sale_target_customer_markets.sale_target_id = sale_targets.id
+        ) AS marketNames,
+        sale_targets.period_id AS periodId,
+        sale_target_periods.period_name AS periodName,
+        sale_targets.is_approve AS isApprove,
+        sale_targets.is_close AS isClose
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM sale_targets
+        LEFT JOIN companies ON companies.id = sale_targets.company_id
+        LEFT JOIN employees ON employees.id = sale_targets.employee_id
+        LEFT JOIN currency_centers ON currency_centers.id = sale_targets.currency_center_id
+        LEFT JOIN sale_target_periods ON sale_target_periods.id = sale_targets.period_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE sale_targets.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+            sale_targets.target_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR sale_targets.sale_target_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR sale_targets.id IN (
+                SELECT sale_target_customer_markets.sale_target_id
+                FROM sale_target_customer_markets
+                INNER JOIN customer_markets ON customer_markets.id = sale_target_customer_markets.market_id
+                WHERE sale_target_customer_markets.is_active = 1
+                  AND customer_markets.is_active = 1
+                  AND customer_markets.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+            )
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND sale_targets.created_by = #{userId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="SalesTargetResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                sale_targets.sale_target_code DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(sale_targets.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="SalesTargetResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE sale_targets.is_active = 1 AND sale_targets.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.SalesTarget.SalesTarget" useGeneratedKeys="true" keyProperty="salesTarget.id">
+        INSERT INTO sale_targets (
+            year,
+            company_id,
+            employee_id,
+            target_name,
+            team_target_amount,
+            currency_center_id,
+            organization_target,
+            indicator_first,
+            indicator_second,
+            indicator_third,
+            period_id,
+            created,
+            created_by
+        ) VALUES (
+            YEAR(NOW()),
+            #{salesTarget.companyId},
+            #{salesTarget.employeeId},
+            #{salesTarget.targetName},
+            #{salesTarget.targetAmount},
+            #{salesTarget.currencyId},
+            #{salesTarget.organizationTarget},
+            #{salesTarget.indicatorFirst},
+            #{salesTarget.indicatorSecond},
+            #{salesTarget.indicatorThird},
+            #{salesTarget.periodId},
+            NOW(),
+            #{salesTarget.createdBy}
+        )
+    </insert>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE sale_targets SET
+            is_active = 0,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <select id="getDetails" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT month_id FROM sale_target_details WHERE is_active = 1 AND sale_target_id = #{saleTargetId}
+    </select>
+
+    <update id="deleteDetails">
+        UPDATE sale_target_details SET
+           is_active = #{value},
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE sale_target_id = #{saleTargetId} AND is_active = 1
+    </update>
+
+    <insert id="insertDetails" parameterType="java.lang.Long">
+        INSERT INTO sale_target_details (
+            sale_target_id,
+            month_id,
+            created,
+            created_by
+        ) VALUES (
+            #{saleTargetId},
+            #{monthId},
+            NOW(),
+            #{userId}
+        )
+    </insert>
+
+    <select id="getEmployeeTargetId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT id FROM sale_target_employees WHERE is_active = 1 AND sale_target_id = #{saleTargetId}
+    </select>
+
+    <select id="getEmployeeTarget" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.SalesTarget.SalesTargetEmployeeResponse">
+        SELECT
+            sale_target_employees.id AS id,
+            employees.id AS employeeId,
+            employees.name AS employeeName,
+            employee_target_existing AS targetAmountExisting,
+            organization_target_employee_existing AS targetOrgExisting,
+            employee_target_new AS targetAmountNew,
+            organization_target_employee_new AS targetOrgNew
+        FROM sale_target_employees
+        INNER JOIN employees ON sale_target_employees.employee_id = employees.id AND employees.is_active = 1
+        WHERE sale_target_employees.is_active = 1 AND sale_target_employees.sale_target_id = #{saleTargetId}
+    </select>
+
+    <select id="getEmployeeTargetOrganization" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.SalesTarget.SalesTargetEmployeeOrganizationResponse">
+        SELECT
+            customers.id AS id,
+            customers.name AS name
+        FROM sale_target_employee_organizations
+        INNER JOIN customers ON sale_target_employee_organizations.customer_id = customers.id
+        WHERE sale_target_employee_organizations.is_active = 1 AND sale_target_employee_organizations.sale_target_employee_id = #{saleTargetEmployeeId}
+    </select>
+
+    <select id="getCustomerMarkets" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.SalesTarget.SalesTargetMarketResponse">
+        SELECT
+            customer_markets.id AS id,
+            customer_markets.name AS name
+        FROM sale_target_customer_markets
+        INNER JOIN customer_markets ON sale_target_customer_markets.market_id = customer_markets.id
+        WHERE sale_target_customer_markets.is_active = 1
+          AND customer_markets.is_active = 1
+          AND sale_target_customer_markets.sale_target_id = #{saleTargetId}
+        ORDER BY customer_markets.name ASC
+    </select>
+
+    <update id="deleteEmployeeTarget">
+        UPDATE sale_target_employees SET
+            is_active = #{value},
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE sale_target_id = #{saleTargetId} AND is_active = 1
+    </update>
+
+    <insert id="insertEmployeeTarget" parameterType="com.ut.nlSystemAPi.model.entity.SalesTarget.SalesTargetEmployee" useGeneratedKeys="true" keyProperty="salesTargetEmployee.id">
+        INSERT INTO sale_target_employees (
+            sale_target_id,
+            employee_id,
+            employee_target_existing,
+            organization_target_employee_existing,
+            employee_target_new,
+            organization_target_employee_new,
+            created,
+            created_by
+        ) VALUES (
+                     #{salesTargetEmployee.saleTargetId},
+                     #{salesTargetEmployee.employeeId},
+                     #{salesTargetEmployee.targetAmountExisting},
+                     #{salesTargetEmployee.organizationTargetAmountExisting},
+                     #{salesTargetEmployee.targetAmountNew},
+                     #{salesTargetEmployee.organizationTargetAmountNew},
+                     NOW(),
+                     #{salesTargetEmployee.createdBy}
+                 )
+    </insert>
+
+    <update id="deleteEmployeeTargetOrganization">
+        UPDATE sale_target_employee_organizations SET
+            is_active = #{value},
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE sale_target_employee_id = #{saleTargetEmployeeId}
+    </update>
+
+    <insert id="insertEmployeeTargetOrganization" parameterType="java.lang.Long">
+        INSERT INTO sale_target_employee_organizations (
+            sale_target_employee_id,
+            customer_id,
+            created,
+            created_by
+        ) VALUES (
+                     #{salesTargetEmployeeId},
+                     #{organizationId},
+                     NOW(),
+                     #{userId}
+                 )
+    </insert>
+
+    <update id="deleteCustomerMarkets">
+        UPDATE sale_target_customer_markets SET
+            is_active = #{value},
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE sale_target_id = #{saleTargetId} AND is_active = 1
+    </update>
+
+    <insert id="insertCustomerMarket" parameterType="java.lang.Long">
+        INSERT INTO sale_target_customer_markets (
+            sale_target_id,
+            market_id,
+            created,
+            created_by
+        ) VALUES (
+            #{saleTargetId},
+            #{marketId},
+            NOW(),
+            #{userId}
+        )
+    </insert>
+
+</mapper>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.StaffLoanMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    staff_loans.id AS id,
+    staff_loans.employee_id AS employeeId,
+    employees.name AS employeeName,
+    employees.gender AS gender,
+    departments.name AS departmentName,
+    staff_loans.position_id AS positionId,
+    positions.name AS positionName,
+    staff_loans.payback_period AS paybackPeriod,
+    staff_loans.payback_date AS paybackDate,
+    staff_loans.amount AS amount,
+    staff_loans.created AS created,
+    staff_loans.modified AS modified,
+    CONCAT(user1.first_name, ' ', user1.last_name) AS createdBy,
+    CONCAT(user2.first_name, ' ', user2.last_name) AS modifiedBy,
+    staff_loans.status AS status
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM staff_loans
+    INNER JOIN employees ON staff_loans.employee_id = employees.id
+    LEFT JOIN departments ON departments.id = employees.department_id AND departments.is_active = 1
+    LEFT JOIN positions ON staff_loans.position_id = positions.id
+    LEFT JOIN users AS user1 ON staff_loans.created_by = user1.id
+    LEFT JOIN users AS user2 ON staff_loans.modified_by = user2.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE staff_loans.status > 0
+    <if test="filter.searchText != null">
+      AND (
+        CAST(staff_loans.employee_id AS CHAR) LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR CAST(staff_loans.position_id AS CHAR) LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employees.code LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employees.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR departments.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR positions.name LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="StaffLoanResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="int">
+    SELECT COUNT(staff_loans.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="StaffLoanResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE staff_loans.status > 0 AND staff_loans.id = #{id}
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.StaffLoan" useGeneratedKeys="true" keyProperty="staffLoan.id">
+    INSERT INTO staff_loans (
+      employee_id,
+      position_id,
+      payback_period,
+      payback_date,
+      amount,
+      created,
+      created_by
+    ) VALUES (
+      #{staffLoan.employeeId},
+      #{staffLoan.positionId},
+      #{staffLoan.paybackPeriod},
+      DATE_ADD(DATE(NOW()), INTERVAL #{staffLoan.paybackPeriod} MONTH),
+      #{staffLoan.amount},
+      NOW(),
+      #{staffLoan.createdBy}
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.StaffLoan">
+    UPDATE staff_loans SET
+    <if test="staffLoan.employeeId != null">employee_id = #{staffLoan.employeeId},</if>
+    <if test="staffLoan.positionId != null">position_id = #{staffLoan.positionId},</if>
+    <if test="staffLoan.paybackPeriod != null">
+      payback_period = #{staffLoan.paybackPeriod},
+      payback_date = DATE_ADD(DATE(created), INTERVAL #{staffLoan.paybackPeriod} MONTH),
+    </if>
+    <if test="staffLoan.amount != null">amount = #{staffLoan.amount},</if>
+    modified = NOW(),
+    modified_by = #{staffLoan.modifiedBy}
+    WHERE id = #{staffLoan.id}
+  </update>
+
+  <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.StaffLoan">
+    UPDATE staff_loans SET
+      status = #{staffLoan.status},
+      modified = NOW(),
+      modified_by = #{staffLoan.modifiedBy}
+    WHERE id = #{staffLoan.id}
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE staff_loans SET
+      status = 0,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+</mapper>

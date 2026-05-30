@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PriceRequestMapper">
+
+    <resultMap id="PriceRequestResponse" type="com.ut.nlSystemAPi.model.response.PriceRequest.PriceRequestResponse">
+
+    </resultMap>
+
+    <resultMap id="PriceRequestResponseDetail" type="com.ut.nlSystemAPi.model.response.PriceRequest.PriceRequestResponseDetail">
+
+    </resultMap>
+
+    <resultMap id="PriceRequest" type="com.ut.nlSystemAPi.model.PriceRequest">
+
+    </resultMap>
+
+    <resultMap id="PriceRequestResponseSummary" type="com.ut.nlSystemAPi.model.response.PriceRequest.PriceRequestResponseSummary">
+
+    </resultMap>
+
+    <resultMap id="PriceRequestApproveResponse" type="com.ut.nlSystemAPi.model.response.PriceRequest.PriceRequestApproveResponse">
+
+    </resultMap>
+
+    <resultMap id="QuotationResponse" type="com.ut.nlSystemAPi.model.response.PriceRequestTracking.PriceRequestTrackingReportQuotationResponse">
+
+    </resultMap>
+
+    <resultMap id="SaleOrderResponse" type="com.ut.nlSystemAPi.model.response.PriceRequestTracking.PriceRequestTrackingReportSaleOrderResponse">
+
+    </resultMap>
+
+</mapper>

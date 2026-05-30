@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.APScheduleMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    ap_schedules.id AS id,
+    branches.id AS branchId,
+    branches.name AS branchName,
+    CONCAT(ap_schedules.start_date, ' ', ap_schedules.start_time ) AS startDate,
+    CONCAT(ap_schedules.end_date, ' ', ap_schedules.end_time ) AS endDate,
+    ap_schedules.title AS title,
+    ap_schedules.backgroundColor AS backgroundColor,
+    ap_schedules.privacy AS privacy,
+    DATE_FORMAT(ap_schedules.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(ap_schedules.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM ap_schedules
+       LEFT JOIN branches ON branches.id = ap_schedules.branch_id
+       LEFT JOIN users AS users1 ON users1.id = ap_schedules.created_by
+       LEFT JOIN users AS users2 ON users2.id = ap_schedules.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE ap_schedules.is_active = 1
+      <if test="filter.branchId != null and filter.branchId != ''">
+          AND ap_schedules.branch_id == #{filter.branchId}
+      </if>
+    <if test="filter.dateFrom != null">
+      AND ap_schedules.start_date >= #{filter.dateFrom}
+    </if>
+    <if test="filter.dateTo != null">
+      AND ap_schedules.start_date &lt;= #{filter.dateTo}
+    </if>
+    <if test="filter.searchText != null and filter.searchText != ''">
+      AND (purchase_orders.po_code LIKE CONCAT('%', #{filter.searchText}, '%'))
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        ap_schedules.id ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultType="java.lang.Long">
+    SELECT COUNT(ap_schedules.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getDetails" parameterType="java.lang.Long" resultMap="APScheduleResponseDetails">
+    SELECT
+      purchase_orders.id AS id,
+      purchase_orders.po_code AS name,
+      purchase_orders.balance AS amountDue,
+      (SELECT name FROM vendors WHERE id = purchase_orders.vendor_id) AS vendorName
+    FROM ap_schedule_details
+           LEFT JOIN purchase_orders ON purchase_orders.id = ap_schedule_details.purchase_order_id
+    WHERE ap_schedule_details.ap_schedule_id = #{apScheduleId} AND ap_schedule_details.is_active = 1 LIMIT 1;
+  </select>
+
+  <select id="getOne" resultMap="APScheduleResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE ap_schedules.id = #{id} AND ap_schedules.is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM chart_accounts
+    WHERE is_active &lt; 2 AND account_codes = #{accountCode}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.APSchedule" useGeneratedKeys="true" keyProperty="apSchedule.id">
+    INSERT INTO ap_schedules(
+       branch_id,
+      start_date,
+      start_time,
+      end_date,
+      end_time,
+      title,
+      backgroundColor,
+      privacy,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+              #{apSchedule.branchId},
+               #{apSchedule.startDate},
+               #{apSchedule.startTime},
+               #{apSchedule.endDate},
+               #{apSchedule.endTime},
+               #{apSchedule.title},
+               #{apSchedule.backgroundColor},
+               #{apSchedule.privacy},
+               NOW(),
+               #{apSchedule.createdBy},
+               #{apSchedule.isActive}
+             );
+  </insert>
+
+  <insert id="insertDetails" parameterType="com.ut.nlSystemAPi.model.APScheduleDetails">
+    INSERT INTO ap_schedule_details (ap_schedule_id, purchase_order_id, amount_due)
+    VALUES (#{apScheduleDetails.apScheduleId}, #{apScheduleDetails.purchasesOrderId}, #{apScheduleDetails.amountDue});
+  </insert>
+
+  <update id="deleteDetails" parameterType="java.lang.Long">
+    UPDATE ap_schedule_details SET is_active = 2 WHERE ap_schedule_id = #{apScheduleId};
+  </update>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.request.Login.ARAPSchedule.ARAPScheduleUpdateRequest">
+    UPDATE ap_schedules SET
+      <if test="apSchedule.branchId != null"> `branch_id` = #{apSchedule.branchId},</if>
+    <if test="apSchedule.startDate != null"> `start_date` = #{apSchedule.startDate},</if>
+    <if test="apSchedule.endDate != null"> `end_date` = #{apSchedule.endDate},</if>
+    <if test="apSchedule.startTime != null"> `start_time` = #{apSchedule.startTime},</if>
+    <if test="apSchedule.endTime != null"> `end_time` = #{apSchedule.endTime},</if>
+    <if test="apSchedule.title != null"> `title` = #{apSchedule.title},</if>
+    <if test="apSchedule.backgroundColor != null"> `backgroundColor` = #{apSchedule.backgroundColor},</if>
+    <if test="apSchedule.privacy != null"> `privacy` = #{apSchedule.privacy},</if>
+    modified = NOW(),
+    modified_by = #{apSchedule.modifiedBy}
+    WHERE id = #{apSchedule.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE ap_schedules SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <select id="getPBBookingOverdue" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleTotalBookingInformationResponse">
+    SELECT
+          CASE
+              WHEN po_type = 1 THEN 'Product'
+              ELSE 'Fix Asset'
+          END AS name,
+        COUNT(purchase_orders.vendor_id) AS total,
+        IFNULL(SUM(purchase_orders.balance), 0) AS totalBalance
+    FROM purchase_orders
+    WHERE purchase_orders.status > 0
+        AND purchase_orders.balance > 0
+        AND purchase_orders.id IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE ap_schedules.is_close = 0
+              AND ap_schedules.is_active = 1 AND ap_schedule_details.is_active = 1
+              <if test="filter.branchId != null">
+                  AND ap_schedules.branch_id = #{filter.branchId}
+              </if>
+            AND ap_schedules.start_date &lt;= NOW()
+    )
+      GROUP BY po_type
+  </select>
+
+  <select id="getPBBooked" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="APScheduleTotalBookingInformationResponse">
+    SELECT
+      CASE
+          WHEN po_type = 1 THEN 'Product'
+          ELSE 'Fix Asset'
+      END AS name,
+      COUNT(purchase_orders.vendor_id) AS total,
+      SUM(purchase_orders.balance) As totalBalance
+    FROM purchase_orders
+    WHERE purchase_orders.status >= 1
+      AND purchase_orders.balance > 0
+      AND purchase_orders.id IN (
+      SELECT purchase_order_id FROM ap_schedule_details
+      INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+        WHERE ap_schedules.is_close = 0
+          AND ap_schedules.is_active = 1 AND ap_schedule_details.is_active = 1
+          <if test="filter.branchId  != null">
+              AND ap_schedules.branch_id = #{filter.branchId}
+         </if>
+    )
+      GROUP BY po_type
+  </select>
+
+  <select id="getPBBookedByUser" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="APScheduleTotalBookingInformationResponse">
+        SELECT
+            (SELECT CONCAT(last_name, ' ',first_name) FROM users WHERE id = ap_schedules.created_by) AS name,
+          COUNT(purchase_orders.vendor_id) AS total,
+          IFNULL(SUM(purchase_orders.balance), 0) As totalBalance
+        FROM purchase_orders
+          INNER JOIN ap_schedule_details ON purchase_orders.id = ap_schedule_details.purchase_order_id AND ap_schedule_details.is_active = 1
+          INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+        WHERE purchase_orders.status > 0
+          AND purchase_orders.balance > 0
+          AND ap_schedules.is_active = 1
+          AND purchase_orders.id IN (
+          SELECT purchase_order_id FROM ap_schedule_details
+          INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id AND ap_schedule_details.is_active = 1
+          WHERE ap_schedules.is_close = 0
+              AND ap_schedules.is_active = 1
+              <if test="filter.branchId  != null">
+                  AND ap_schedules.branch_id = #{filter.branchId}
+              </if>
+        )
+      GROUP BY po_type
+  </select>
+
+
+  <select id="getPBBookedByWeek" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleWeekFilter" resultMap="APScheduleTotalBookingInformationResponse">
+        SELECT
+                purchase_orders.vendor_id,
+               IFNULL(SUM(purchase_orders.balance), 0) As totalAmountPBBookedByWeek
+        FROM purchase_orders
+        WHERE purchase_orders.status > 0
+            AND purchase_orders.balance > 0
+            AND purchase_orders.id IN (
+                SELECT purchase_order_id FROM ap_schedule_details
+                INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+                WHERE ap_schedules.is_close = 0
+                  AND ap_schedules.is_active = 1
+                  <if test="filter.branchId  != null">
+                      AND ap_schedules.branch_id = #{filter.branchId}
+                  </if>
+                  AND ap_schedules.start_date BETWEEN DATE_SUB(CURDATE(), INTERVAL DAYOFWEEK(CURDATE()) - 2 DAY)
+                  AND DATE_ADD(DATE_SUB(CURDATE(), INTERVAL DAYOFWEEK(CURDATE()) - 2 DAY), INTERVAL 6 DAY)
+        )
+        GROUP BY purchase_orders.vendor_id
+        ORDER BY purchase_orders.id ASC
+  </select>
+
+<!--    <select id="getVendorTotalList" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="APScheduleVendorTotalResponse">-->
+<!--        SELECT-->
+<!--            purchase_orders.vendor_id AS vendorId,-->
+<!--            (SELECT name FROM vendors WHERE id = purchase_orders.vendor_id) As vendorName,-->
+<!--            IFNULL(SUM(purchase_orders.balance), 0) As totalBalanceTD-->
+<!--        FROM purchase_orders-->
+<!--        WHERE purchase_orders.status > 0-->
+<!--          AND purchase_orders.balance > 0-->
+<!--          AND purchase_orders.id IN (-->
+<!--            SELECT purchase_order_id FROM ap_schedule_details-->
+<!--            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id-->
+<!--            WHERE ap_schedules.is_close = 0-->
+<!--            AND ap_schedules.is_active = 1-->
+<!--            <if test="filter.branchId  != null">-->
+<!--                  AND ap_schedules.branch_id = #{filter.branchId}-->
+<!--            </if>-->
+<!--            <if test="filter.dateFrom != null and filter.dateTo != null">-->
+<!--                AND ap_schedules.start_date >= DATE(#{filter.dateFrom})-->
+<!--                AND ap_schedules.start_date &lt;= DATE(#{filter.dateTo})-->
+<!--            </if>-->
+<!--        )-->
+<!--        GROUP BY purchase_orders.vendor_id-->
+<!--        ORDER BY totalBalanceTD DESC-->
+<!--    </select>-->
+
+    <select id="getVendorTotalList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleVendorTotalResponse">
+        SELECT
+            purchase_orders.vendor_id AS vendorId,
+            (SELECT name FROM vendors WHERE id = purchase_orders.vendor_id) As vendorName,
+            IFNULL(SUM(purchase_orders.balance), 0) As totalBalanceTD
+        FROM purchase_orders
+        WHERE purchase_orders.status >= 1
+        AND purchase_orders.balance > 0
+        AND purchase_orders.id NOT IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE ap_schedules.is_close = 0
+            AND ap_schedules.is_active = 1
+            <if test="filter.branchId  != null">
+                AND ap_schedules.branch_id = #{filter.branchId}
+            </if>
+        )
+        GROUP BY purchase_orders.vendor_id
+        ORDER BY totalBalanceTD DESC
+    </select>
+
+    <select id="getVendorTopTotalList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleTopVendorTotalResponse">
+        SELECT
+            vendors.id As vendorId,
+            vendors.photo AS vendorPhoto,
+            vendors.work_telephone AS vendorWorkTelephone,
+            vendors.email_address AS vendorEmail,
+            vendors.address AS vendorAddress,
+            vendors.vendor_code AS vendorCode,
+            vendors.name AS vendorName,
+            SUM(purchase_orders.balance) As totalBalanceTD
+        FROM purchase_orders
+            INNER JOIN vendors ON vendors.id = purchase_orders.vendor_id
+        WHERE purchase_orders.status >= 1
+          AND purchase_orders.balance > 0
+          AND purchase_orders.id NOT IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE ap_schedules.is_close = 0
+            AND ap_schedules.is_active = 1 AND ap_schedule_details.is_active = 1
+            <if test="filter.branchId  != null">
+                AND ap_schedules.branch_id = #{filter.branchId}
+            </if>
+            )
+        GROUP BY purchase_orders.vendor_id
+        ORDER BY totalBalanceTD DESC LIMIT 3
+    </select>
+
+    <select id="getVendorTopTotalDetails" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleTopVendorTotalResponseDetails">
+        SELECT
+            purchase_orders.id AS purchaseOrderId,
+            purchase_orders.order_date AS orderDate,
+            TIMESTAMPDIFF(DAY, purchase_orders.order_date, NOW()) AS daysDifference,
+            purchase_orders.po_code AS purchaseOrderCode
+        FROM purchase_orders
+                 INNER JOIN vendors ON vendors.id = purchase_orders.vendor_id
+        WHERE purchase_orders.vendor_id = #{filter.vendorId}
+          AND purchase_orders.status > 0
+          AND purchase_orders.balance > 0
+          AND purchase_orders.id NOT IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+                INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE ap_schedules.is_close = 0
+                AND ap_schedules.is_active = 1
+                <if test="filter.branchId  != null">
+                    AND ap_schedules.branch_id = #{filter.branchId}
+                </if>
+                <if test="filter.dateFrom != null and filter.dateTo != null">
+                    AND ap_schedules.start_date >= DATE(#{filter.dateFrom})
+                    AND ap_schedules.start_date &lt;= DATE(#{filter.dateTo})
+                </if>
+        )
+        ORDER BY vendors.id,purchase_orders.order_date DESC LIMIT 10
+    </select>
+
+    <select id="getVendorBookedTotalList" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="APScheduleVendorBookedTotalResponse">
+        SELECT
+            purchase_orders.vendor_id,
+            (SELECT name FROM vendors WHERE id = purchase_orders.vendor_id) AS vendorName,
+            SUM(purchase_orders.balance) AS totalBalanceTD
+        FROM purchase_orders
+        WHERE purchase_orders.status >= 1
+          AND purchase_orders.balance > 0
+          AND purchase_orders.id IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE ap_schedules.is_close = 0
+            AND ap_schedules.is_active = 1
+            <if test="filter.branchId  != null">
+                AND ap_schedules.branch_id = #{filter.branchId}
+            </if>
+        )
+        GROUP BY purchase_orders.vendor_id
+        ORDER BY totalBalanceTD DESC
+    </select>
+
+
+    <select id="getVendorBookedTopTotalList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleTopVendorBookedTotalResponse">
+        SELECT
+            vendors.id As vendorId,
+            vendors.photo AS vendorPhoto,
+            vendors.work_telephone AS vendorWorkTelephone,
+            vendors.email_address AS vendorEmail,
+            vendors.address AS vendorAddress,
+            vendors.vendor_code AS vendorCode,
+            vendors.name AS vendorName,
+            SUM(purchase_orders.balance) AS totalBalanceTD
+        FROM purchase_orders
+                 INNER JOIN vendors ON vendors.id = purchase_orders.vendor_id
+        WHERE purchase_orders.status >= 1
+          AND purchase_orders.balance > 0
+          AND purchase_orders.id IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE
+                ap_schedules.is_close = 0
+                AND ap_schedules.is_active = 1
+                <if test="filter.branchId  != null">
+                    AND ap_schedules.branch_id = #{filter.branchId}
+                </if>
+        )
+        GROUP BY purchase_orders.vendor_id
+        ORDER BY totalBalanceTD DESC LIMIT 3
+    </select>
+
+
+    <select id="getVendorBookedTopTotalDetails" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="APScheduleTopVendorBookedTotalResponseDetails">
+        SELECT
+            purchase_orders.id AS purchaseOrderId,
+            purchase_orders.order_date AS orderDate,
+            ap_schedules.start_date AS date,
+            purchase_orders.po_code AS purchaseOrderCode,
+            SUM(purchase_orders.balance) AS totalBalanceTD
+        FROM purchase_orders
+            INNER JOIN vendors ON vendors.id = purchase_orders.vendor_id
+            INNER JOIN ap_schedule_details ON purchase_orders.id = ap_schedule_details.purchase_order_id AND ap_schedule_details.is_active = 1
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+        WHERE purchase_orders.vendor_id = #{filter.vendorId}
+              AND purchase_orders.status >= 1
+              AND purchase_orders.balance > 0
+            AND ap_schedules.is_active = 1
+          AND purchase_orders.id IN (
+            SELECT purchase_order_id FROM ap_schedule_details
+            INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+            WHERE ap_schedules.is_close = 0
+                AND ap_schedules.is_active = 1 AND ap_schedule_details.is_active = 1
+                <if test="filter.branchId  != null">
+                    AND ap_schedules.branch_id = #{filter.branchId}
+                </if>
+        )
+        ORDER BY vendors.id, purchase_orders.order_date DESC
+    </select>
+
+    <select id="getInvoiceBookingThisWeek" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="APScheduleTotalBookingInformationResponse">
+        SELECT
+            CONCAT('Week ',
+                CEIL(DAY(ap_schedules.start_date) / 7)
+            ) AS name,
+            COUNT(purchase_orders.vendor_id) AS total,
+            IFNULL(SUM(purchase_orders.balance), 0) AS totalBalance
+        FROM purchase_orders
+        INNER JOIN ap_schedule_details ON purchase_orders.id = ap_schedule_details.purchase_order_id AND ap_schedule_details.is_active = 1
+        INNER JOIN ap_schedules ON ap_schedules.id = ap_schedule_details.ap_schedule_id
+        WHERE purchase_orders.status > 0
+            AND purchase_orders.balance > 0
+            AND ap_schedules.is_active = 1
+            AND ap_schedules.is_close = 0
+                <if test="filter.branchId != null">
+                    AND ap_schedules.branch_id = #{filter.branchId}
+                </if>
+            AND MONTH(ap_schedules.start_date) = MONTH(NOW())
+            AND YEAR(ap_schedules.start_date) = YEAR(NOW())
+        GROUP BY CEIL(DAY(ap_schedules.start_date) / 7)
+        ORDER BY CEIL(DAY(ap_schedules.start_date) / 7);
+    </select>
+
+
+    <select id="getTotalVendorAmount" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="APScheduleTotalBookingInformationResponse">
+        SELECT
+            COUNT(DISTINCT purchase_orders.vendor_id) AS totalOrganization,
+            IFNULL(SUM(purchase_orders.balance), 0) AS totalBalance
+        FROM purchase_orders
+        WHERE purchase_orders.status > 0
+        AND purchase_orders.balance > 0
+        <if test="filter.branchId != null">
+            AND branch_id = #{filter.branchId}
+        </if>
+    </select>
+
+</mapper>

@@ -1,0 +1,15 @@
+package com.ut.nlSystemAPi.model.response.Commission;
+
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+@Data
+public class CommissionEmployeeResponse {
+
+    @ApiModelProperty(position = 2)
+    private Long id;
+
+    @ApiModelProperty(position = 3)
+    private String name;
+}
+

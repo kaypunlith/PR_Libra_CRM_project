@@ -1,0 +1,497 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InvestmentAssetMapper">
+
+  <!-- Base Column List -->
+  <sql id="BASE_COLUMN_LIST">
+        fixed_assets.id AS id,
+        fixed_assets.date AS date,
+        fixed_assets.fixed_asset_code AS code,
+        companies.name AS companyName,
+        branches.name AS branchName,
+        locations.name AS locationName,
+        fixed_assets.name AS assetName,
+        fixed_assets.cost AS cost,
+        fixed_assets.asset_life AS assetLife,
+        fixed_assets.depr_method AS deprMethod,
+        fixed_assets.salvage_value AS salvageValue,
+        fixed_assets.business_use_percentage AS businessUsePercentage,
+        CASE 
+            WHEN is_depre = 0 THEN 0
+            ELSE DATEDIFF(NOW(), fixed_assets.date)
+        END AS depreciationDayAmount,
+        IFNULL(CONCAT(users_fa.first_name, ' ', users_fa.last_name), '') AS createdBy,
+        IFNULL(CONCAT(users_fm.first_name, ' ', users_fm.last_name), '') AS modifiedBy,
+        fixed_assets.photo AS photo,
+        fixed_assets.photo_name AS photoName,
+        fixed_assets.description AS description,
+        fixed_assets.cost_remain AS costRemain,
+        fixed_assets.is_in_used AS isInUsed,
+        fixed_assets.purchase_order_number AS purchaseOrderNumber,
+        fixed_assets.serial_number AS serialNumber,
+        fixed_assets.warranty_expires AS warrantyExpires,
+        fixed_assets.is_depre AS isDepre,
+        fixed_assets.created AS created,
+        fixed_assets.modified AS modified
+    </sql>
+
+  <!-- Base From Clause -->
+  <sql id="BASE_FROM">
+    FROM fixed_assets
+        LEFT JOIN companies ON companies.id = fixed_assets.company_id
+        LEFT JOIN branches ON branches.id = fixed_assets.branch_id
+        LEFT JOIN locations ON locations.id = fixed_assets.location_id
+        LEFT JOIN users AS users_fa ON users_fa.id = fixed_assets.created_by
+        LEFT JOIN users AS users_fm ON users_fm.id = fixed_assets.modified_by
+  </sql>
+
+  <!-- Base Where Clause -->
+  <sql id="BASE_WHERE">
+      WHERE fixed_assets.is_active = 1
+      AND fixed_assets.type = 3
+      <if test="filter.companyId != null and filter.companyId != 0">
+        AND fixed_assets.company_id = #{filter.companyId}
+      </if>
+      <if test="filter.branchId != null and filter.branchId != 0">
+          AND fixed_assets.branch_id = #{filter.branchId}
+      </if>
+      <if test="filter.locationId != null and filter.locationId != 0">
+        AND fixed_assets.location_id = #{filter.locationId}
+      </if>
+      <if test="filter.vendorId != null and filter.vendorId != 0">
+        AND fixed_assets.vendor_id = #{filter.vendorId}
+      </if>
+      <if test="filter.searchText != null and filter.searchText != ''">
+        AND (
+        fixed_assets.fixed_asset_code LIKE CONCAT("%", #{filter.searchText}, "%")
+        OR fixed_assets.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        )
+      </if>
+  </sql>
+
+  <sql id="BASE_COLUMN_DETAIL">
+        fixed_assets.id AS id,
+        fixed_assets.date AS date,
+        fixed_assets.company_id AS companyId,
+        companies.name AS companyName,
+        fixed_assets.branch_id AS branchId,
+        branches.name AS branchName,
+        fixed_assets.location_id AS locationId,
+        locations.name AS locationName,
+        fixed_assets.vendor_id AS vendorId,
+        vendors.name AS vendorName,
+        fixed_assets.fixed_asset_code AS assetCode,
+        fixed_assets.name AS assetName,
+        fixed_assets.purchase_order_number AS purchaseOrderNumber,
+        fixed_assets.serial_number AS serialNumber,
+        fixed_assets.warranty_expires AS warrantyExpires,
+        fixed_assets.asset_account AS assetAccountId,
+        CONCAT(assetAcc.account_codes, " - ", assetAcc.account_description) AS assetAccountName,
+        fixed_assets.cost AS cost,
+        fixed_assets.photo AS photo,
+        fixed_assets.photo_name AS photoName,
+        fixed_assets.asset_life AS assetLife,
+        fixed_assets.is_depre AS isDepre,
+        fixed_assets.accum_account AS accumulatedDepartmentId,
+        CONCAT(accumulateAcc.account_codes, " - ", accumulateAcc.account_description) AS accumulatedDepartmentName,
+        fixed_assets.depr_account AS deprExpenseId,
+        CONCAT(deprExp.account_codes, ' - ' , deprExp.account_description) AS deprExpenseName,
+        fixed_assets.depr_method AS deprMethod,
+        fixed_assets.salvage_value AS salvageValue,
+        fixed_assets.business_use_percentage AS businessUsePercentage,
+        CASE 
+            WHEN is_depre = 0 THEN 0
+            ELSE DATEDIFF(NOW(), fixed_assets.date)
+        END AS depreciationDayAmount,
+        fixed_assets.description AS description,
+        fixed_assets.cost_remain AS costRemain,
+        fixed_assets.is_in_used AS isInUsed
+  </sql>
+
+  <!-- Base From Clause -->
+  <sql id="BASE_FROM_DETAIL">
+    FROM fixed_assets
+        LEFT JOIN companies ON companies.id = fixed_assets.company_id
+        LEFT JOIN branches ON branches.id = fixed_assets.branch_id
+        LEFT JOIN locations ON locations.id = fixed_assets.location_id
+        LEFT JOIN vendors ON vendors.id = fixed_assets.vendor_id
+        LEFT JOIN chart_accounts AS assetAcc ON assetAcc.id = fixed_assets.asset_account
+        LEFT JOIN chart_accounts AS accumulateAcc ON accumulateAcc.id = fixed_assets.accum_account
+        LEFT JOIN chart_accounts AS deprExp ON deprExp.id = fixed_assets.depr_account
+        LEFT JOIN users AS users_fa ON users_fa.id = fixed_assets.created_by
+        LEFT JOIN users AS users_fm ON users_fm.id = fixed_assets.modified_by
+  </sql>
+
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.InvestmentAssetFilter" resultMap="InvestmentAssetResponse">
+      SELECT
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+      <include refid="BASE_WHERE"/>
+      ORDER BY
+      <choose>
+        <when test="filter.orderBy != null and filter.orderBy != ''">
+          ${filter.orderBy}
+        </when>
+        <otherwise>
+          fixed_assets.id DESC
+        </otherwise>
+      </choose>
+      <if test="filter.page != null and filter.rowsPerPage != null">
+        LIMIT #{filter.page}, #{filter.rowsPerPage}
+      </if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.InvestmentAssetFilter" resultType="java.lang.Long">
+      SELECT COUNT(fixed_assets.id)
+      <include refid="BASE_FROM"/>
+      <include refid="BASE_WHERE"/>
+  </select>
+
+
+  <select id="getOne" resultMap="InvestmentAssetResponse">
+      SELECT
+      <include refid="BASE_COLUMN_DETAIL"/>
+      <include refid="BASE_FROM_DETAIL"/>
+      WHERE fixed_assets.id = #{id}
+      AND fixed_assets.is_active = 1
+      AND fixed_assets.type = 3
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+      SELECT COUNT(1)
+      FROM fixed_assets
+      WHERE is_active = 1
+      AND `type` = 3
+      AND fixed_asset_code = #{investmentAssetCode}
+      <if test="id != null">
+        AND id != #{id}
+      </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.InvestmentAsset" useGeneratedKeys="true" keyProperty="investmentAsset.id">
+      INSERT INTO fixed_assets (
+          company_id,
+          branch_id,
+          location_id,
+          vendor_id,
+          asset_account,
+          accum_account, depr_account, depr_method,
+          fixed_asset_code, purchase_order_number, serial_number,
+          `date`, warranty_expires, cost, photo,
+          is_depre, asset_life, salvage_value,
+          business_use_percentage, description, created_by, name, photo_name, created,
+          cost_remain, is_in_used, `type`
+      )
+      VALUES (
+          #{investmentAsset.companyId},
+          #{investmentAsset.branchId},
+          #{investmentAsset.locationId},
+          #{investmentAsset.vendorId},
+          #{investmentAsset.assetAccount},
+          #{investmentAsset.accumulatedDepartment},
+          #{investmentAsset.deprExpense},
+          #{investmentAsset.deprMethod},
+          #{investmentAsset.fixedAssetCode},
+          #{investmentAsset.purchaseOrderNumber},
+          #{investmentAsset.serialNumber},
+          #{investmentAsset.date},
+          #{investmentAsset.warrantyExpires},
+          #{investmentAsset.cost},
+          #{investmentAsset.photo},
+          #{investmentAsset.isDepre},
+          #{investmentAsset.assetLife},
+          #{investmentAsset.salvageValue},
+          #{investmentAsset.businessUsePercentage},
+          #{investmentAsset.description},
+          #{investmentAsset.createdBy},
+          #{investmentAsset.name},
+          #{investmentAsset.photoName},
+          NOW(),
+          #{investmentAsset.costRemain},
+          #{investmentAsset.isInUsed},
+          #{investmentAsset.type}
+      )
+  </insert>
+
+  <insert id="insertInvestmentAssetFile">
+      INSERT INTO fixed_asset_files (
+          fixed_asset_id,
+          file_name,
+          file_url,
+          created,
+          created_by,
+          modified,
+          modified_by,
+          is_active
+      ) VALUES (
+          #{investmentAssetId},
+          #{investmentAssetFileRequest.name},
+          #{investmentAssetFileRequest.url},
+          NOW(),
+          #{investmentAssetFileRequest.createdBy},
+          NOW(),
+          #{investmentAssetFileRequest.modifiedBy},
+          1
+      );
+  </insert>
+
+  <select id="getInvestmentAssetFile" parameterType="java.lang.Long" resultMap="InvestmentAssetFileResponse">
+    SELECT
+    file_name AS name,
+    file_url AS url
+    FROM fixed_asset_files
+      WHERE is_active = 1
+      AND fixed_asset_id = #{investmentAssetFileId}
+  </select>
+  <update id="deleteInvestmentAssetFile" parameterType="java.lang.Long">
+    UPDATE fixed_asset_files SET
+        is_active = 2,
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE fixed_asset_id = #{inId};
+  </update>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.request.Login.InvestmentAsset.InvestmentAssetUpdateRequest">
+    UPDATE fixed_assets SET
+        <if test="investmentAsset.companyId != null"> company_id = #{investmentAsset.companyId}, </if>
+        <if test="investmentAsset.branchId != null"> branch_id = #{investmentAsset.branchId}, </if>
+        <if test="investmentAsset.locationId != null"> location_id = #{investmentAsset.locationId}, </if>
+        <if test="investmentAsset.vendorId != null"> vendor_id = #{investmentAsset.vendorId}, </if>
+        <if test="investmentAsset.assetAccount != null"> asset_account = #{investmentAsset.assetAccount}, </if>
+        <if test="investmentAsset.accumulatedDepartment != null"> accum_account = #{investmentAsset.accumulatedDepartment}, </if>
+        <if test="investmentAsset.deprExpense != null"> depr_account = #{investmentAsset.deprExpense}, </if>
+        <if test="investmentAsset.deprMethod != null"> depr_method = #{investmentAsset.deprMethod}, </if>
+        <if test="investmentAsset.fixedAssetCode != null"> fixed_asset_code = #{investmentAsset.fixedAssetCode}, </if>
+        <if test="investmentAsset.purchaseOrderNumber != null"> purchase_order_number = #{investmentAsset.purchaseOrderNumber}, </if>
+        <if test="investmentAsset.serialNumber != null"> serial_number = #{investmentAsset.serialNumber}, </if>
+        <if test="investmentAsset.date != null"> date = #{investmentAsset.date}, </if>
+        <if test="investmentAsset.warrantyExpires != null"> warranty_expires = #{investmentAsset.warrantyExpires}, </if>
+        <if test="investmentAsset.cost != null"> cost = #{investmentAsset.cost}, </if>
+        <if test="investmentAsset.photo != null"> photo = #{investmentAsset.photo}, </if>
+        <if test="investmentAsset.isDepre != null"> is_depre = #{investmentAsset.isDepre}, </if>
+        <if test="investmentAsset.assetLife != null"> asset_life = #{investmentAsset.assetLife}, </if>
+        <if test="investmentAsset.salvageValue != null"> salvage_value = #{investmentAsset.salvageValue}, </if>
+        <if test="investmentAsset.businessUsePercentage != null"> business_use_percentage = #{investmentAsset.businessUsePercentage}, </if>
+        <if test="investmentAsset.description != null"> description = #{investmentAsset.description}, </if>
+        <if test="investmentAsset.name != null"> name = #{investmentAsset.name}, </if>
+        <if test="investmentAsset.photoName != null"> photo_name = #{investmentAsset.photoName}, </if>
+        <if test="investmentAsset.costRemain != null"> cost_remain = #{investmentAsset.costRemain}, </if>
+        <if test="investmentAsset.isInUsed != null"> is_in_used = #{investmentAsset.isInUsed}, </if>
+        <if test="investmentAsset.type != null"> type = #{investmentAsset.type}, </if>
+        modified = NOW(),
+        modified_by = #{investmentAsset.modifiedBy}
+        WHERE id = #{investmentAsset.id}
+        AND `type` = 3
+        AND `is_active` = 1
+  </update>
+
+
+  <!-- Delete Statements -->
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE fixed_assets SET
+    is_active = 2, modified = NOW(), modified_by = #{userId}
+    WHERE id = #{id}
+    AND type = 3
+  </update>
+
+  <select id="getListPostToJournal" parameterType="com.ut.nlSystemAPi.model.filter.PostToJournalFilter" resultMap="PostToJournalResponse">
+    SELECT
+    depr_account AS accountId,
+    (SELECT CONCAT(account_codes, ' · ', account_description) FROM chart_accounts WHERE id = fixed_assets.depr_account) AS accountName,
+    1 AS isDepreAcc
+    FROM fixed_assets
+    WHERE is_active = 1
+    AND `type` = 3
+    AND is_depre = 1
+    <if test="filter.companyId != null and filter.companyId != 0">
+      AND company_id = #{filter.companyId}
+    </if>
+    <if test="filter.branchId != null and filter.branchId != 0">
+      AND branch_id = #{filter.branchId}
+    </if>
+    <if test="filter.date != null and filter.date != ''">
+      AND `date` &lt;= #{filter.date}
+    </if>
+    GROUP BY fixed_assets.depr_account
+    ORDER BY fixed_assets.date
+  </select>
+
+  <select id="addListPostToJournal" parameterType="com.ut.nlSystemAPi.model.filter.PostToJournalFilter" resultMap="PostToJournalResponse">
+    SELECT
+    accum_account AS accountId,
+    (SELECT CONCAT(account_codes, ' · ', account_description) FROM chart_accounts WHERE id = fixed_assets.accum_account) AS accountName,
+    0 AS isDepreAcc
+    FROM fixed_assets
+    WHERE is_active = 1
+    AND `type` = 3
+    AND is_depre = 1
+    <if test="filter.companyId != null and filter.companyId != 0">
+      AND company_id = #{filter.companyId}
+    </if>
+    <if test="filter.branchId != null and filter.branchId != 0">
+      AND branch_id = #{filter.branchId}
+    </if>
+    <if test="filter.date != null and filter.date != ''">
+      AND `date` &lt;= #{filter.date}
+    </if>
+    GROUP BY fixed_assets.accum_account
+    ORDER BY fixed_assets.date
+  </select>
+
+  <select id="getLastPostedAmount" resultType="java.lang.Double">
+    SELECT SUM(debit)-SUM(credit) AS amount
+    FROM general_ledgers gl
+    INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+    WHERE is_approve=1 AND is_active=1 AND is_depreciated=1 AND is_investment = 1 AND is_appreciation = 0
+    AND chart_account_id = #{accountId}
+    <if test="filter.companyId != null and filter.companyId != 0">
+      AND company_id = #{filter.companyId}
+    </if>
+      <if test="filter.branchId != null and filter.branchId != 0">
+          AND branch_id = #{filter.branchId}
+      </if>
+    <if test="filter.date != null and filter.date != ''">
+      AND `date` &lt;= #{filter.date}
+    </if>
+  </select>
+
+    <select id="getCreditAmount" resultType="java.lang.Double">
+        SELECT ROUND(SUM(credit), 2)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_approve=1 AND is_active=1 AND is_depreciated=1 AND is_investment = 1 AND is_appreciation = 0
+        AND chart_account_id = #{accountId}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id &lt;= #{filter.companyId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId != 0">
+            AND branch_id = #{filter.branchId}
+        </if>
+        <if test="filter.date != null and filter.date != ''">
+            AND `date` &lt;= #{filter.date}
+        </if>
+    </select>
+
+    <select id="getDebitAmount" resultType="java.lang.Double">
+        SELECT ROUND(SUM(debit), 2)
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE is_approve=1 AND is_active=1 AND is_depreciated=1 AND is_investment = 1 AND is_appreciation = 0
+        AND chart_account_id = #{accountId}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id &lt;= #{filter.companyId}
+        </if>
+        <if test="filter.branchId != null and filter.branchId != 0">
+            AND branch_id = #{filter.branchId}
+        </if>
+        <if test="filter.date != null and filter.date != ''">
+            AND `date` &lt;= #{filter.date}
+        </if>
+    </select>
+
+  <select id="getPostToJournalDetails" parameterType="com.ut.nlSystemAPi.model.filter.PostToJournalFilter" resultMap="FixedAssetResponse">
+    SELECT
+      fixed_assets.id AS id,
+      fixed_assets.date AS date,
+      fixed_assets.fixed_asset_code AS code,
+      fixed_assets.name AS assetName,
+      fixed_assets.name AS name,
+      fixed_assets.cost AS cost,
+      fixed_assets.asset_life AS assetLife,
+      fixed_assets.depr_method AS deprMethod,
+      fixed_assets.salvage_value AS salvageValue,
+      fixed_assets.business_use_percentage AS businessUsePercentage,
+      CASE
+      WHEN is_depre = 0 THEN 0
+      ELSE DATEDIFF(#{filter.date}, fixed_assets.date)
+      END AS depreciationDayAmount,
+      IFNULL(CONCAT(users_fa.first_name, ' ', users_fa.last_name), '') AS createdBy,
+      IFNULL(CONCAT(users_fm.first_name, ' ', users_fm.last_name), '') AS modifiedBy,
+      fixed_assets.photo_name AS photoName,
+      fixed_assets.description AS description,
+      fixed_assets.cost_remain AS costRemain,
+      fixed_assets.is_in_used AS isInUsed,
+      fixed_assets.purchase_order_number AS purchaseOrderNumber,
+      fixed_assets.serial_number AS serialNumber,
+      fixed_assets.warranty_expires AS warrantyExpires,
+      fixed_assets.is_depre AS isDepre,
+      fixed_assets.created AS created,
+      fixed_assets.modified AS modified
+  FROM fixed_assets
+  LEFT JOIN users AS users_fa ON users_fa.id = fixed_assets.created_by
+  LEFT JOIN users AS users_fm ON users_fm.id = fixed_assets.modified_by
+    WHERE fixed_assets.is_active = 1
+    AND fixed_assets.`type` = 3
+    AND fixed_assets.is_depre = 1
+    <if test="filter.companyId != null and filter.companyId != 0">
+      AND fixed_assets.company_id = #{filter.companyId}
+    </if>
+      <if test="filter.branchId != null and filter.branchId != 0">
+          AND fixed_assets.branch_id = #{filter.branchId}
+      </if>
+    <if test="filter.date != null and filter.date != ''">
+      AND fixed_assets.`date` &lt;= #{filter.date}
+    </if>
+  <if test="isDepreAcc == 1">
+      AND fixed_assets.depr_account = #{accountId}
+  </if>
+  <if test="isDepreAcc == 0">
+      AND fixed_assets.accum_account = #{accountId}
+  </if>
+  </select>
+
+  <insert id="savePostToJournal" parameterType="com.ut.nlSystemAPi.model.PostToJournal" useGeneratedKeys="true" keyProperty="postToJournal.id">
+    INSERT INTO general_ledgers(
+        sys_code,
+      `date`,
+      reference,
+      note,
+        created,
+      created_by,
+      is_approve,
+      is_depreciated,
+        is_investment,
+      is_active
+    ) VALUES (
+                UUID(),
+               #{postToJournal.date},
+               #{postToJournal.reference},
+               #{postToJournal.note},
+                NOW(),
+               #{postToJournal.createdBy},
+               #{postToJournal.isApproved},
+               #{postToJournal.isDepreciated},
+                #{postToJournal.isInvestment},
+               #{postToJournal.isActive}
+             );
+  </insert>
+
+  <insert id="saveDetailPostToJournal" parameterType="com.ut.nlSystemAPi.model.PostToJournalDetails">
+    INSERT INTO general_ledger_details(
+      general_ledger_id,
+      company_id,
+      branch_id,
+      chart_account_id,
+      `type`,
+      debit,
+      credit,
+      memo
+    ) VALUES (
+               #{details.generalLedgerId},
+               #{details.companyId},
+               #{details.branchId},
+               #{details.chartAccountId},
+               #{details.type},
+               #{details.debit},
+               #{details.credit},
+               #{details.memo}
+             );
+  </insert>
+
+  <update id="updateAsset">
+    UPDATE fixed_assets SET is_in_used = 1 WHERE is_active = 1 AND is_depre = 1
+  </update>
+
+
+</mapper>

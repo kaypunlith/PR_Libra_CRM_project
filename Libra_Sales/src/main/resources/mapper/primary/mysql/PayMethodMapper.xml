@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PayMethodMapper">
+
+    <resultMap id="PayMethodResponse" type="com.ut.nlSystemAPi.model.response.PayMethod.PayMethodResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="chartAccountId" column="chartAccountId"/>
+        <result property="chartAccountName" column="chartAccountName"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        pos_pay_methods.id AS id,
+        pos_pay_methods.`name` AS name,
+        pos_pay_methods.chart_account_id AS chartAccountId,
+        CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS chartAccountName
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM pos_pay_methods
+        LEFT JOIN chart_accounts ON pos_pay_methods.chart_account_id = chart_accounts.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE pos_pay_methods.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                pos_pay_methods.`name` LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR chart_accounts.account_codes LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR chart_accounts.account_description LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PayMethodResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                pos_pay_methods.`id` DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(pos_pay_methods.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="PayMethodResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE pos_pay_methods.is_active = 1 AND pos_pay_methods.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.PayMethod.PayMethod" useGeneratedKeys="true" keyProperty="payMethod.id">
+        INSERT INTO pos_pay_methods (
+            `name`,
+            chart_account_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{payMethod.name},
+            #{payMethod.chartAccountId},
+            NOW(),
+            #{payMethod.createdBy},
+            #{payMethod.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.PayMethod.PayMethod">
+        UPDATE pos_pay_methods SET
+            <if test="payMethod.name != null">`name` = #{payMethod.name},</if>
+            <if test="payMethod.chartAccountId != null">chart_account_id = #{payMethod.chartAccountId},</if>
+            modified = NOW(),
+            modified_by = #{payMethod.modifiedBy}
+        WHERE id = #{payMethod.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE pos_pay_methods SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

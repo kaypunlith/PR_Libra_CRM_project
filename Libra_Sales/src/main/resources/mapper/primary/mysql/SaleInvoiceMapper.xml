@@ -1,0 +1,990 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SaleInvoiceMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        sales_orders.id AS id,
+        sales_orders.type AS `type`,
+        sales_orders.order_date AS invoiceDate,
+        sales_orders.so_code AS invoiceNo,
+        customers.id AS organizationId,
+        customers.name AS organizationName,
+        customers.name_kh AS organizationNameKh,
+        customers.main_number AS organizationTelephone,
+        customers.customer_code AS organizationCode,
+        customers.address AS organizationAddress,
+        customers.vat AS organizationVat,
+        DATEDIFF(NOW(), sales_orders.order_date) AS dateDiff,
+        IFNULL(sales_orders.customer_contact_id, 0) AS organizationContactId,
+        customer_contacts.contact_name AS organizationContactName,
+        customer_contacts.contact_telephone AS organizationContactTelephone,
+        sales_orders.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        currency_centers.id AS currencyId,
+        currency_centers.name AS currencyName,
+        currency_centers.symbol AS currencySymbol,
+        IFNULL(sales_orders.customer_po_number, '') AS organizationPoNo,
+        sales_orders.total_amount AS subTotal,
+        sales_orders.total_amount + IFNULL(sales_orders.total_vat,0) - IFNULL(sales_orders.discount,0) - IFNULL(sales_orders.total_deposit,0) AS totalAmount,
+        sales_orders.balance AS balance,
+        sales_orders.payment_term_id AS paymentTermId,
+        payment_terms.name AS paymentTermName,
+        payment_terms.net_days AS netDays,
+        sales_orders.order_id AS soId,
+        (SELECT delivery_date FROM orders WHERE id = sales_orders.order_id) AS deliveryDate,
+        IFNULL(vat_setting_rates.rate_to_sell,0) AS vatExchangeRate,
+        sales_orders.order_number AS soNo,
+        sales_orders.vat_setting_id AS vatId,
+        vat_settings.name AS vatName,
+        IFNULL(companies.vat_number, '') AS companyVat,
+        IFNULL(sales_orders.total_deposit, 0) AS totalDeposit,
+        IFNULL(sales_orders.total_vat, 0) AS totalVat,
+        IFNULL(sales_orders.vat_percent, 0) AS vatPercent,
+        IFNULL(sales_orders.discount, 0) AS discountAmount,
+        IFNULL(sales_orders.discount_percent, 0) AS discountPercent,
+        IFNULL(sales_orders.price_type_id, 0) AS priceTypeId,
+        sales_orders.memo AS note,
+        sales_orders.is_apply AS isApply,
+        sales_orders.is_approve AS isApprove,
+        sales_orders.is_none_vat AS isNoneVat,
+        sales_orders.ut_system_type_id AS departmentId,
+        sales_orders.sales_rep_id AS saleRepId,
+        sales_rep.name AS saleRepName,
+        credit_memos.cm_code AS cmCode,
+        sales_orders.deliver_id AS deliverId,
+        deliver.name AS deliverName,
+        sales_orders.collector_id AS collectorId,
+        collector.name AS collectorName,
+        sales_orders.location_group_id AS warehouseId,
+        location_groups.name AS warehouseName,
+        sales_orders.ar_id AS chartAccountId,
+        CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS chartAccountName,
+        sales_orders.vat_chart_account_id AS vatChartAccountId,
+        CONCAT_WS(' - ', vat_chart_accounts.account_codes, vat_chart_accounts.account_description) AS vatChartAccountName,
+        sales_orders.quotation_id AS quotationId,
+        sales_orders.quotation_number AS quotationNumber,
+        sales_orders.transfer_order_id AS transferOrderId,
+        sales_orders.to_code AS transferOrderNumber,
+        customers.recurrence AS organizationRecurrence,
+        sales_orders.recurrence AS recurrence,
+        sales_orders.bom_id AS bomId,
+        sales_orders.bom_code AS bomCode,
+        sales_orders.company_id AS companyId,
+        companies.name AS companyName,
+        companies.email_address AS companyEmail,
+        companies.business_number AS companyTelephone,
+        companies.address AS companyAddress,
+        companies.website AS companyWebsite,
+        sales_orders.is_pos AS isPos,
+        sales_orders.is_deposit AS isDeposit,
+        sales_orders.is_close_deposit AS isCloseDeposit,
+        sales_orders.status AS status,
+        sales_orders.created AS created,
+        sales_orders.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM sales_orders
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        LEFT JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = sales_orders.customer_contact_id
+        LEFT JOIN price_types ON price_types.id = sales_orders.price_type_id
+        LEFT JOIN vat_settings ON vat_settings.id = sales_orders.vat_setting_id
+        LEFT JOIN vat_setting_rates ON vat_setting_rates.id = sales_orders.vat_setting_rate_id
+        LEFT JOIN users AS creator ON creator.id = sales_orders.created_by
+        LEFT JOIN users AS modifier ON modifier.id = sales_orders.modified_by
+        LEFT JOIN employees AS sales_rep ON sales_rep.id = sales_orders.sales_rep_id
+        LEFT JOIN employees AS deliver ON deliver.id = sales_orders.deliver_id
+        LEFT JOIN employees AS collector ON collector.id = sales_orders.collector_id
+        LEFT JOIN location_groups ON location_groups.id = sales_orders.location_group_id
+        LEFT JOIN chart_accounts ON chart_accounts.id = sales_orders.ar_id
+        LEFT JOIN chart_accounts AS vat_chart_accounts ON vat_chart_accounts.id = sales_orders.vat_chart_account_id
+        LEFT JOIN companies ON companies.id = sales_orders.company_id
+        LEFT JOIN payment_terms ON payment_terms.id = sales_orders.payment_term_id
+        LEFT JOIN credit_memos ON sales_orders.id = credit_memos.sales_order_id AND credit_memos.status > 0
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE (sales_orders.status >= 0 OR sales_orders.status = -2) AND sales_orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.viewByUser == 1">
+            AND sales_orders.created_by = #{userId}
+        </if>
+        <if test="filter.type != null">
+            AND sales_orders.type = #{filter.type}
+        </if>
+        <if test="filter.isDn == 1">
+            AND sales_orders.id NOT IN (SELECT sales_order_id FROM delivery_details WHERE delivery_id IS NOT NULL)
+        </if>
+        <if test="filter.warehouseId != null">
+            AND sales_orders.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND sales_orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.organizationId != null">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.dateFrom != null">
+            AND sales_orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND sales_orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND sales_orders.status = #{filter.status}
+        </if>
+        <if test="filter.isPos != null">
+            AND sales_orders.is_pos = #{filter.isPos}
+        </if>
+        <if test="filter.indebted != null">
+            <choose>
+                <when test="filter.indebted == 1">
+                    AND sales_orders.balance > 0
+                </when>
+                <otherwise>
+                    AND sales_orders.balance = 0
+                </otherwise>
+            </choose>
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (sales_orders.so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.customer_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR sales_orders.order_number LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR (SELECT cm_code FROM credit_memos WHERE credit_memos.sales_order_id = sales_orders.id AND credit_memos.status > 0 LIMIT 1) LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.SaleInvoiceFilter" resultMap="SaleInvoiceResponse">
+        SELECT
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY sales_orders.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.SaleInvoiceFilter" resultType="java.lang.Long">
+        SELECT COUNT(sales_orders.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="SaleInvoiceResponse">
+        SELECT
+        customers.customer_name_in AS showName,
+        (SELECT COALESCE(`name_kh`, `name`) FROM employees WHERE user_id = sales_orders.created_by) AS createdBy,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdByUser,
+        (SELECT amount_us FROM sales_order_receipts WHERE sales_order_id = #{id} AND is_void = 0) AS paidAmount,
+        (SELECT `change` FROM sales_order_receipts WHERE sales_order_id = #{id} AND is_void = 0) AS `change`,
+        (SELECT exchange_rates.rate_to_sell
+        FROM exchange_rates
+        WHERE exchange_rates.is_active = 1 AND exchange_rates.currency_center_id = 2
+        ORDER BY id DESC LIMIT 1) AS rateToSell,
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE (sales_orders.status >= 0 OR sales_orders.status = -2) AND sales_orders.id = #{id} AND sales_orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+    </select>
+
+    <select id="getIdByCode" parameterType="java.lang.String" resultType="java.lang.Long">
+        SELECT id
+        FROM sales_orders
+        WHERE so_code = #{code}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoice" useGeneratedKeys="true" keyProperty="saleInvoice.id">
+        INSERT INTO sales_orders (
+            type,
+            company_id,
+            location_group_id,
+            customer_id,
+            customer_contact_id,
+            currency_center_id,
+            ar_id,
+            payment_term_id,
+            price_type_id,
+            sales_rep_id,
+            quotation_id,
+            quotation_number,
+            order_id,
+            order_number,
+            transfer_order_id,
+            to_code,
+            ut_system_type_id,
+            bom_id,
+            bom_code,
+            customer_po_number,
+            order_date,
+            memo,
+            total_vat,
+            vat_percent,
+            vat_setting_id,
+            vat_setting_rate_id,
+            vat_chart_account_id,
+            vat_calculate,
+            discount,
+            discount_percent,
+            total_amount,
+            balance,
+            total_deposit,
+            recurrence,
+            is_apply,
+            is_pos,
+            is_none_vat,
+            is_deposit,
+            is_approve,
+            is_deposit_reference,
+            status,
+            created,
+            created_by
+        ) VALUES (
+                     #{saleInvoice.type},
+                     #{saleInvoice.companyId},
+                     #{saleInvoice.warehouseId},
+                     #{saleInvoice.organizationId},
+                     #{saleInvoice.organizationContactId},
+                     #{saleInvoice.currencyId},
+                     #{saleInvoice.chartAccountId},
+                     #{saleInvoice.paymentTermId},
+                     #{saleInvoice.priceTypeId},
+                     #{saleInvoice.saleRepId},
+                     #{saleInvoice.quotationId},
+                     #{saleInvoice.quotationNumber},
+                     #{saleInvoice.saleOrderId},
+                     #{saleInvoice.saleOrderNumber},
+                     #{saleInvoice.transferOrderId},
+                     #{saleInvoice.transferOrderNumber},
+                     #{saleInvoice.departmentId},
+                     #{saleInvoice.bomId},
+                     #{saleInvoice.bomCode},
+                     #{saleInvoice.organizationPoNo},
+                     #{saleInvoice.invoiceDate},
+                     #{saleInvoice.note},
+                     #{saleInvoice.totalVat},
+                     #{saleInvoice.vatPercent},
+                     #{saleInvoice.vatSettingId},
+                     #{saleInvoice.vatSettingRateId},
+                     #{saleInvoice.vatChartAccountId},
+                     #{saleInvoice.vatCalculate},
+                     #{saleInvoice.discountAmount},
+                     #{saleInvoice.discountPercent},
+                     #{saleInvoice.totalAmount},
+                     #{saleInvoice.balance},
+                     #{saleInvoice.totalDeposit},
+                     #{saleInvoice.recurrence},
+                     #{saleInvoice.isApply},
+                     #{saleInvoice.isPos},
+                     #{saleInvoice.isNoneVat},
+                     #{saleInvoice.isDeposit},
+                     #{saleInvoice.isApprove},
+                     #{saleInvoice.isDepositReference},
+                     #{saleInvoice.status},
+                     #{saleInvoice.created},
+                     #{saleInvoice.createdBy}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoice">
+        UPDATE sales_orders
+        <set>
+            <if test="saleInvoice.organizationId != null">customer_id = #{saleInvoice.organizationId},</if>
+            <if test="saleInvoice.organizationContactId != null">customer_contact_id = #{saleInvoice.organizationContactId},</if>
+            <if test="saleInvoice.organizationPoNo != null">customer_po_number = #{saleInvoice.organizationPoNo},</if>
+            modified = NOW(),
+            modified_by = #{saleInvoice.modifiedBy}
+        </set>
+        WHERE id = #{saleInvoice.id}
+    </update>
+
+    <insert id="insertTermCondition" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceTermCondition">
+        INSERT INTO sales_order_term_conditions (
+            sales_order_id,
+            term_condition_type_id,
+            term_condition_id
+        ) VALUES (
+                     #{termCondition.saleInvoiceId},
+                     #{termCondition.termConditionTypeId},
+                     #{termCondition.termConditionId}
+                 )
+    </insert>
+
+    <select id="getTermCondition" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.TermCondition.TermConditionResponse">
+        SELECT *
+        FROM(
+                SELECT
+                    sales_order_term_conditions.term_condition_type_id AS typeId,
+                    term_condition_types.name AS typeName,
+                    sales_order_term_conditions.term_condition_id AS id,
+                    term_conditions.name AS name
+                FROM sales_order_term_conditions
+                         INNER JOIN term_condition_types ON term_condition_types.id = sales_order_term_conditions.term_condition_type_id
+                         INNER JOIN term_conditions ON term_conditions.id = sales_order_term_conditions.term_condition_id
+                WHERE sales_order_id = #{saleInvoiceId}
+
+                UNION ALL
+
+                SELECT
+                    term_condition_applies.term_condition_type_id AS typeId,
+                    term_condition_types.name AS typeName,
+                    IFNULL(term_condition_applies.term_condition_default_id, 0) AS id,
+                    IFNULL(term_conditions.name, '') AS name
+                FROM term_condition_applies
+                         INNER JOIN term_condition_types ON term_condition_types.id = term_condition_applies.term_condition_type_id
+                         LEFT JOIN term_conditions ON term_conditions.id = term_condition_applies.term_condition_default_id
+                WHERE term_condition_applies.is_active = 1 AND term_condition_applies.module_type_id IN (SELECT id FROM module_types WHERE status = 1 AND (name = 'Sales / Invoice' OR name = 'Sales / Invoice (Software)'))
+                AND EXISTS (
+                    SELECT 1
+                    FROM sales_order_term_conditions
+                    WHERE sales_order_term_conditions.sales_order_id = #{saleInvoiceId}
+                    AND sales_order_term_conditions.term_condition_type_id = term_condition_applies.term_condition_type_id
+                )
+            ) as results
+        GROUP BY typeId
+    </select>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceDetail">
+        INSERT INTO sales_order_details (
+            sales_order_id,
+            product_id,
+            po_no,
+            qty,
+            qty_free,
+            conversion,
+            qty_uom_id,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price,
+            note
+        ) VALUES (
+                     #{detail.saleInvoiceId},
+                     #{detail.itemId},
+                     #{detail.poNo},
+                     #{detail.qty},
+                     #{detail.qtyFree},
+                     #{detail.conversion},
+                     #{detail.uomId},
+                     #{detail.discountId},
+                     #{detail.discountAmount},
+                     #{detail.discountPercent},
+                     #{detail.unitPrice},
+                     #{detail.totalPrice},
+                     #{detail.note}
+                 )
+    </insert>
+
+    <update id="updateDetail" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceDetail">
+        UPDATE sales_order_details
+        <set>
+            <if test="detail.poNo != null">po_no = #{detail.poNo},</if>
+            <if test="detail.qty != null">qty = #{detail.qty},</if>
+            <if test="detail.qtyFree != null">qty_free = #{detail.qtyFree},</if>
+            <if test="detail.conversion != null">conversion = #{detail.conversion},</if>
+            <if test="detail.uomId != null">qty_uom_id = #{detail.uomId},</if>
+            <if test="detail.discountId != null">discount_id = #{detail.discountId},</if>
+            <if test="detail.discountAmount != null">discount_amount = #{detail.discountAmount},</if>
+            <if test="detail.discountPercent != null">discount_percent = #{detail.discountPercent},</if>
+            <if test="detail.unitPrice != null">unit_price = #{detail.unitPrice},</if>
+            <if test="detail.totalPrice != null">total_price = #{detail.totalPrice},</if>
+            <if test="detail.note != null">note = #{detail.note},</if>
+            modified = NOW(),
+            modified_by = #{detail.modifiedBy}
+        </set>
+        WHERE sales_order_id = #{detail.saleInvoiceId}
+          AND product_id = #{detail.itemId}
+    </update>
+
+    <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceServices">
+        INSERT INTO sales_order_services (
+            sales_order_id,
+            service_id,
+            po_no,
+            qty,
+            qty_free,
+            discount_id,
+            month,
+            start,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price,
+            note
+        ) VALUES (
+                     #{service.saleInvoiceId},
+                     #{service.itemId},
+                     #{service.poNo},
+                     #{service.qty},
+                     #{service.qtyFree},
+                     #{service.discountId},
+                     #{service.month},
+                     #{service.startDate},
+                     #{service.discountAmount},
+                     #{service.discountPercent},
+                     #{service.unitPrice},
+                     #{service.totalPrice},
+                     #{service.note}
+                 )
+    </insert>
+
+    <update id="updateService" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceServices">
+        UPDATE sales_order_services
+        <set>
+            <if test="service.poNo != null">po_no = #{service.poNo},</if>
+            <if test="service.qty != null">qty = #{service.qty},</if>
+            <if test="service.qtyFree != null">qty_free = #{service.qtyFree},</if>
+            <if test="service.discountId != null">discount_id = #{service.discountId},</if>
+            <if test="service.month != null">month = #{service.month},</if>
+            <if test="service.startDate != null">start = #{service.startDate},</if>
+            <if test="service.discountAmount != null">discount_amount = #{service.discountAmount},</if>
+            <if test="service.discountPercent != null">discount_percent = #{service.discountPercent},</if>
+            <if test="service.unitPrice != null">unit_price = #{service.unitPrice},</if>
+            <if test="service.totalPrice != null">total_price = #{service.totalPrice},</if>
+            <if test="service.note != null">note = #{service.note},</if>
+            modified = NOW(),
+            modified_by = #{service.modifiedBy}
+        </set>
+        WHERE sales_order_id = #{service.saleInvoiceId}
+          AND service_id = #{service.itemId}
+    </update>
+
+    <insert id="insertMisc" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceMisc">
+        INSERT INTO sales_order_miscs (
+            sales_order_id,
+            description,
+            po_no,
+            qty,
+            qty_uom_id,
+            qty_free,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price,
+            note,
+            deposit_coa_id
+        ) VALUES (
+                     #{misc.saleInvoiceId},
+                     #{misc.itemName},
+                     #{misc.poNo},
+                     #{misc.qty},
+                     #{misc.uomId},
+                     #{misc.qtyFree},
+                     #{misc.discountId},
+                     #{misc.discountAmount},
+                     #{misc.discountPercent},
+                     #{misc.unitPrice},
+                     #{misc.totalPrice},
+                     #{misc.note},
+                     #{misc.depositCoaId}
+                 )
+    </insert>
+
+    <update id="updateMisc" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceMisc">
+        UPDATE sales_order_miscs
+        <set>
+            <if test="misc.itemName != null">description = #{misc.itemName},</if>
+            <if test="misc.poNo != null">po_no = #{misc.poNo},</if>
+            <if test="misc.qty != null">qty = #{misc.qty},</if>
+            <if test="misc.uomId != null">qty_uom_id = #{misc.uomId},</if>
+            <if test="misc.qtyFree != null">qty_free = #{misc.qtyFree},</if>
+            <if test="misc.discountId != null">discount_id = #{misc.discountId},</if>
+            <if test="misc.discountAmount != null">discount_amount = #{misc.discountAmount},</if>
+            <if test="misc.discountPercent != null">discount_percent = #{misc.discountPercent},</if>
+            <if test="misc.unitPrice != null">unit_price = #{misc.unitPrice},</if>
+            <if test="misc.totalPrice != null">total_price = #{misc.totalPrice},</if>
+            <if test="misc.note != null">note = #{misc.note},</if>
+            <if test="misc.depositCoaId != null">deposit_coa_id = #{misc.depositCoaId},</if>
+            modified = NOW(),
+            modified_by = #{misc.modifiedBy}
+        </set>
+        WHERE sales_order_id = #{misc.saleInvoiceId}
+          AND description = #{misc.itemName}
+    </update>
+
+    <insert id="insertSaleOrderApplyDeposit" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SaleInvoiceApplyDeposit">
+        INSERT INTO sales_order_apply_deposits (
+            sales_order_id,
+            sales_order_apply_deposit_id
+        ) VALUES (
+                     #{deposit.saleInvoiceId},
+                     #{deposit.salesOrderApplyDepositId}
+                 )
+    </insert>
+
+    <select id="getInvoiceDeposit" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.SaleInvoice.InvoiceDepositResponse">
+        SELECT
+            sales_orders.`id` as id,
+            sales_orders.`so_code` as code
+        FROM `sales_order_apply_deposits`
+        INNER JOIN sales_orders ON sales_orders.id = sales_order_apply_deposits.sales_order_apply_deposit_id AND sales_orders.is_deposit = 1
+        WHERE `sales_order_id` = #{saleInvoiceId} AND is_active = 1
+    </select>
+
+    <insert id="insertStockOrder" parameterType="com.ut.nlSystemAPi.model.base.StockOrder">
+        INSERT INTO stock_orders (
+            sales_order_id,
+            product_id,
+            location_group_id,
+            location_id,
+            lots_number,
+            expired_date,
+            date,
+            qty
+        ) VALUES (
+                     #{stockOrder.saleInvoiceId},
+                     #{stockOrder.productId},
+                     #{stockOrder.locationGroupId},
+                     #{stockOrder.locationId},
+                     #{stockOrder.lotsNumber},
+                     #{stockOrder.expiredDate},
+                     #{stockOrder.date},
+                     #{stockOrder.qty}
+                 )
+    </insert>
+
+    <select id="getTotalQtyStock" parameterType="map" resultType="java.lang.Double">
+        SELECT SUM(total_qty)
+        FROM ${tableName}
+        WHERE product_id = #{productId}
+          AND location_group_id = #{warehouseId}
+          AND location_id IN (SELECT id FROM locations WHERE location_group_id = #{warehouseId}
+          <if test="locationStatus == 1">
+                AND is_for_sale = 1
+          </if>
+        )
+    </select>
+
+    <select id="getTotalQtyOrder" parameterType="map" resultType="java.lang.Double">
+        SELECT SUM(sor.qty) AS total_order
+        FROM stock_orders AS sor
+        INNER JOIN sales_orders AS so ON so.id = sor.sales_order_id
+        <if test="salesInvoiceId != null">
+            AND so.id != #{salesInvoiceId}
+        </if>
+        WHERE sor.product_id = #{productId}
+        AND sor.location_group_id = #{warehouseId}
+        GROUP BY sor.product_id
+    </select>
+
+    <select id="getDepositChartAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT deposit_coa_id
+        FROM sales_order_miscs
+        WHERE sales_order_id = #{saleInvoiceId}
+    </select>
+
+    <select id="getDepositAmount" parameterType="java.lang.Long" resultType="java.lang.Double">
+        SELECT IFNULL(total_price,0)
+        FROM sales_order_miscs
+        WHERE sales_order_id = #{saleInvoiceId}
+    </select>
+
+    <update id="closeDeposit" parameterType="java.lang.Long">
+        UPDATE sales_orders
+        SET is_close_deposit = 1
+        WHERE id = #{saleInvoiceId}
+    </update>
+
+    <select id="getVatSettingRateId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT id
+        FROM vat_setting_rates
+        WHERE is_active = 1 AND vat_setting_id = #{vatSettingId}
+        LIMIT 1
+    </select>
+
+    <update id="updateQuotationDeposit" parameterType="map">
+        UPDATE quotations
+        SET total_deposit = total_deposit + #{totalDeposit}
+        WHERE id = #{quotationId}
+    </update>
+
+    <update id="closeQuotation" parameterType="java.lang.Long">
+        UPDATE quotations SET is_close = 1 WHERE id = #{quotationId}
+    </update>
+
+    <update id="closeSalesOrder" parameterType="map">
+        UPDATE orders SET
+            is_close = 1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{saleOrderId}
+    </update>
+
+    <update id="updateGroupQtyOrder" parameterType="map">
+        UPDATE ${tableName}
+        SET total_order = total_order + #{qty}
+        WHERE location_id = #{locationId}
+          AND product_id = #{productId}
+          AND lots_number = #{lotsNumber}
+          AND expired_date = #{expiredDate}
+    </update>
+
+    <select id="getIncomeAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(
+                       (IFNULL(
+                               (SELECT chart_account_id FROM accounts WHERE product_id = #{productId} AND account_type_id = 8),
+                               (SELECT chart_account_id FROM pgroup_accounts WHERE pgroup_id = (SELECT pgroup_id FROM product_pgroups WHERE product_id = #{productId} ORDER BY id DESC LIMIT 1) AND account_type_id = 8)
+            )),
+                       (SELECT chart_account_id FROM account_types WHERE id = 8)
+               )
+    </select>
+
+    <select id="getInventoryAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(
+                       (IFNULL(
+                               (SELECT chart_account_id FROM accounts WHERE product_id = #{productId} AND account_type_id = 1),
+                               (SELECT chart_account_id FROM pgroup_accounts WHERE pgroup_id = (SELECT pgroup_id FROM product_pgroups WHERE product_id = #{productId} ORDER BY id DESC LIMIT 1) AND account_type_id = 1)
+            )),
+                       (SELECT chart_account_id FROM account_types WHERE id = 1)
+               )
+    </select>
+
+    <select id="getCogsAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(
+                       (IFNULL(
+                               (SELECT chart_account_id FROM accounts WHERE product_id = #{productId} AND account_type_id = 2),
+                               (SELECT chart_account_id FROM pgroup_accounts WHERE pgroup_id = (SELECT pgroup_id FROM product_pgroups WHERE product_id = #{productId} ORDER BY id DESC LIMIT 1) AND account_type_id = 2)
+            )),
+                       (SELECT chart_account_id FROM account_types WHERE id = 2)
+               )
+    </select>
+
+    <select id="getServiceAccountId" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(
+                       (SELECT chart_account_id FROM services WHERE id = #{serviceId}),
+                       (SELECT chart_account_id FROM account_types WHERE id = 9)
+               )
+    </select>
+
+    <select id="getMiscAccountId" resultType="java.lang.Long">
+        SELECT chart_account_id
+        FROM account_types
+        WHERE id = 10
+    </select>
+
+    <select id="getDiscountAccountId" resultType="java.lang.Long">
+        SELECT chart_account_id
+        FROM account_types
+        WHERE id = 11
+    </select>
+
+    <select id="getProductCodeName" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT CONCAT(code, ' - ', name)
+        FROM products
+        WHERE id = #{productId}
+    </select>
+
+    <update id="updateTrack" parameterType="java.lang.String">
+        UPDATE tracks
+        SET val = #{date},
+            is_recalculate = 1
+        WHERE id = 1
+          AND (val = '0000-00-00' OR val >= #{date})
+    </update>
+
+    <select id="getListDetail" parameterType="java.lang.Long" resultMap="SaleInvoiceDetailResponse">
+        (
+            SELECT
+                1 AS `type`,
+                sales_order_details.id AS id,
+                sales_order_details.product_id AS itemId,
+                products.name AS itemName,
+                sales_order_details.po_no AS poNo,
+                products.code AS sku,
+                products.barcode AS upc,
+                products.spec AS spec,
+                sales_order_details.qty AS qty,
+                sales_order_details.qty_free AS qtyFree,
+                (SELECT GROUP_CONCAT(pgroups.name SEPARATOR ', ')
+                 FROM pgroups
+                 WHERE pgroups.is_active = 1
+                   AND pgroups.id IN (SELECT pgroup_id FROM product_pgroups WHERE product_pgroups.product_id = products.id)
+                ) AS itemBrand,
+                IFNULL(products.small_val_uom, 1) / IFNULL(sales_order_details.conversion, 1) AS conversion,
+                sales_order_details.qty_uom_id AS uomId,
+                sales_order_details.note AS note,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                products.is_expired_date AS isExpiredDate,
+                NULL AS `month`,
+                NULL AS startDate,
+                sales_order_details.discount_id AS discountId,
+                sales_order_details.discount_amount AS discountAmount,
+                sales_order_details.discount_percent AS discountPercent,
+                sales_order_details.unit_price AS unitPrice,
+                sales_order_details.total_price AS totalPrice,
+                NULL AS depositTo,
+                NULL AS depositToName
+            FROM sales_order_details
+            INNER JOIN products ON products.id = sales_order_details.product_id
+            LEFT JOIN uoms ON uoms.id = sales_order_details.qty_uom_id
+            WHERE sales_order_details.sales_order_id = #{saleInvoiceId}
+        )
+        UNION ALL
+        (
+            SELECT
+                2 AS `type`,
+                sales_order_services.id AS id,
+                sales_order_services.service_id AS itemId,
+                services.name AS itemName,
+                sales_order_services.po_no AS poNo,
+                services.sku AS sku,
+                services.sku AS upc,
+                services.description AS spec,
+                sales_order_services.qty AS qty,
+                sales_order_services.qty_free AS qtyFree,
+                NULL AS itemBrand,
+                1 AS conversion,
+                services.uom_id AS uomId,
+                sales_order_services.note AS note,
+                uoms.name  AS uomName,
+                uoms.abbr AS uomAbbr,
+                NULL AS isExpiredDate,
+                sales_order_services.month AS `month`,
+                sales_order_services.start AS startDate,
+                sales_order_services.discount_id AS discountId,
+                sales_order_services.discount_amount AS discountAmount,
+                sales_order_services.discount_percent AS discountPercent,
+                sales_order_services.unit_price AS unitPrice,
+                sales_order_services.total_price AS totalPrice,
+                NULL AS depositTo,
+                NULL AS depositToName
+            FROM sales_order_services
+            INNER JOIN services ON services.id = sales_order_services.service_id
+            LEFT JOIN uoms ON uoms.id = services.uom_id
+            WHERE sales_order_services.sales_order_id = #{saleInvoiceId}
+        )
+        UNION ALL
+        (
+            SELECT
+                3 AS `type`,
+                sales_order_miscs.id AS id,
+                sales_order_miscs.id AS itemId,
+                sales_order_miscs.description AS itemName,
+                sales_order_miscs.po_no AS poNo,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS spec,
+                sales_order_miscs.qty AS qty,
+                sales_order_miscs.qty_free AS qtyFree,
+                NULL AS itemBrand,
+                1 AS conversion,
+                sales_order_miscs.qty_uom_id AS uomId,
+                sales_order_miscs.note AS note,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                NULL AS isExpiredDate,
+                NULL AS `month`,
+                NULL AS startDate,
+                sales_order_miscs.discount_id AS discountId,
+                sales_order_miscs.discount_amount AS discountAmount,
+                sales_order_miscs.discount_percent AS discountPercent,
+                sales_order_miscs.unit_price AS unitPrice,
+                sales_order_miscs.total_price AS totalPrice,
+                sales_order_miscs.deposit_coa_id AS depositTo,
+                CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS depositToName
+            FROM sales_order_miscs
+            LEFT JOIN uoms ON uoms.id = sales_order_miscs.qty_uom_id
+            LEFT JOIN chart_accounts ON chart_accounts.id = sales_order_miscs.deposit_coa_id
+            WHERE sales_order_miscs.sales_order_id = #{saleInvoiceId}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <update id="approve" parameterType="java.lang.Long">
+        UPDATE sales_orders SET
+        <choose>
+            <when test="status == 2">
+                is_approve = 1,
+                status = 1,
+            </when>
+            <otherwise>
+                is_approve = 0,
+                status = -2,
+            </otherwise>
+        </choose>
+        approved = NOW(),
+        approved_by = #{userId}
+        WHERE id = #{id} AND status = -2
+    </update>
+
+    <select id="getCreator" parameterType="java.lang.Long" resultMap="QuotationCreator">
+        SELECT
+            sales_orders.created AS created,
+            sales_orders.created_by AS createdBy
+        FROM sales_orders
+        WHERE id = #{id}
+    </select>
+
+    <select id="countItems" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COUNT(*) AS total
+        FROM (
+                 SELECT id FROM sales_order_details WHERE sales_order_id = #{saleInvoiceId}
+                 UNION ALL
+                 SELECT id FROM sales_order_services WHERE sales_order_id = #{saleInvoiceId}
+                 UNION ALL
+                 SELECT id FROM sales_order_miscs WHERE sales_order_id = #{saleInvoiceId}
+             ) AS combined
+    </select>
+
+    <select id="checkDelivery" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT IFNULL(COUNT(delivery_id),0)
+        FROM sales_orders
+        WHERE sales_order_id = #{saleInvoiceId}
+    </select>
+
+    <select id="getTotalDepositAmount" parameterType="map" resultType="java.lang.Double">
+        SELECT SUM(sales_orders.total_amount)
+        FROM sales_order_apply_deposits
+        INNER JOIN sales_orders ON sales_orders.id = sales_order_apply_deposits.sales_order_apply_deposit_id
+        WHERE sales_order_apply_deposits.sales_order_id = #{saleInvoiceId}
+        GROUP BY sales_order_apply_deposits.sales_order_id
+    </select>
+
+    <select id="getOrganizationLimitSetting" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.entity.SaleInvoice.OrganizationLimitSetting">
+        SELECT
+            IFNULL(limit_balance,0) AS limitBalance,
+            IFNULL(limit_total_invoice,0) AS limitInvoice,
+            IFNULL((SELECT SUM(balance) FROM sales_orders WHERE status > 0 AND customer_id = #{organizationId}),0) AS currentBalance,
+            IFNULL((SELECT COUNT(id) FROM sales_orders WHERE status > 0 AND customer_id = #{organizationId} AND balance > 0),0) AS currentInvoice
+        FROM customers
+        WHERE is_active = 1 AND id = #{organizationId}
+    </select>
+
+    <insert id="insertReceipt" parameterType="com.ut.nlSystemAPi.model.entity.SaleInvoice.SalesInvoiceReceipt" useGeneratedKeys="true" keyProperty="receipt.id">
+        INSERT INTO sales_order_receipts (
+            sales_order_id,
+            exchange_rate_id,
+            currency_center_id,
+            chart_account_id,
+            receipt_code,
+            amount_us,
+            amount_other,
+            total_amount,
+            balance,
+            balance_other,
+            `change`,
+            change_other,
+            pay_date,
+            due_date,
+            created,
+            created_by
+        ) VALUES (
+                     #{receipt.salesInvoiceId},
+                     IFNULL(#{receipt.exchangeRateId}, (SELECT id FROM `exchange_rates` WHERE is_active = 1 AND currency_center_id = 2 ORDER BY id DESC LIMIT 1)),
+                     #{receipt.currencyCenterId},
+                     #{receipt.chartAccountId},
+                     #{receipt.receiptCode},
+                     #{receipt.amountUsd},
+                     #{receipt.amountOther},
+                     #{receipt.totalAmount},
+                     #{receipt.balance},
+                     #{receipt.balanceOther},
+                     #{receipt.change},
+                     #{receipt.changeOther},
+                     #{receipt.date},
+                     #{receipt.aging},
+                     NOW(),
+                     #{receipt.createdBy}
+                 )
+    </insert>
+
+    <update id="updateBalance">
+        UPDATE sales_orders SET
+        <choose>
+            <when test="type == 1">
+                balance = balance - #{balance}
+            </when>
+            <when test="type == 3">
+                balance = #{balance}
+            </when>
+            <otherwise>
+                balance = balance + #{balance}
+            </otherwise>
+        </choose>
+        WHERE id = #{salesInvoiceId}
+    </update>
+
+    <select id="listReceipt" parameterType="com.ut.nlSystemAPi.model.filter.SalesInvoiceReceiptFilter" resultMap="SalesInvoiceReceiptResponse">
+        SELECT
+            sales_order_receipts.id AS id,
+            sales_order_receipts.exchange_rate_id AS exchangeRateId,
+            companies.currency_center_id AS baseCurrencyCenterId,
+            base.name AS baseCurrencyCenterName,
+            base.symbol AS baseCurrencyCenterSymbol,
+            sales_order_receipts.currency_center_id AS currencyCenterId,
+            currency_centers.name AS currencyCenterName,
+            currency_centers.symbol AS currencyCenterSymbol,
+            (SELECT rate_to_sell FROM company_currencies WHERE currency_center_id = currency_centers.id AND exchange_rate_id = sales_order_receipts.exchange_rate_id LIMIT 1) AS rateToSell,
+            sales_order_receipts.receipt_code AS receiptCode,
+            sales_order_receipts.chart_account_id AS chartAccountId,
+            CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS chartAccountName,
+            (SELECT reference FROM receive_payments WHERE id IN (SELECT receive_payment_id FROM general_ledgers WHERE is_active = 1 AND sales_order_receipt_id = sales_order_receipts.id) LIMIT 1) AS receivePaymentCode,
+            sales_order_receipts.amount_us AS paidUsd,
+            sales_order_receipts.amount_other AS paidOther,
+            sales_order_receipts.total_amount AS totalAmount,
+            sales_order_receipts.balance AS balance,
+            sales_order_receipts.balance_other AS balanceOther,
+            sales_order_receipts.due_date AS aging,
+            DATE(sales_order_receipts.created) AS `date`,
+            sales_order_receipts.modified AS modified,
+            CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy,
+            sales_order_receipts.is_void AS isVoid
+        FROM sales_order_receipts
+            INNER JOIN sales_orders ON sales_orders.id = sales_order_receipts.sales_order_id
+            INNER JOIN companies ON companies.id = sales_orders.company_id
+            INNER JOIN chart_accounts ON chart_accounts.id = sales_order_receipts.chart_account_id
+            LEFT JOIN users AS modifier ON modifier.id = sales_order_receipts.modified_by
+            LEFT JOIN currency_centers AS base ON base.id = companies.currency_center_id
+            LEFT JOIN currency_centers ON currency_centers.id = sales_order_receipts.currency_center_id
+        WHERE sales_order_receipts.sales_order_id = #{filter.salesInvoiceId}
+    </select>
+
+    <update id="voidReceipt" parameterType="com.ut.nlSystemAPi.model.filter.SalesInvoiceReceiptFilter">
+        UPDATE sales_order_receipts SET
+            is_void = 1,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE sales_order_id = #{request.salesInvoiceId} AND id = #{request.id}
+    </update>
+
+    <update id="closeRecurrence" parameterType="com.ut.nlSystemAPi.model.filter.SalesInvoiceReceiptFilter">
+        UPDATE sales_orders SET
+        recurrence = 0,
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE so_code = #{code}
+    </update>
+
+    <select id="getOneReceipt" parameterType="java.lang.Long" resultMap="SalesInvoiceReceiptResponse">
+        SELECT
+            sales_order_receipts.id AS id,
+            sales_order_receipts.sales_order_id AS salesInvoiceId,
+            sales_order_receipts.exchange_rate_id AS exchangeRateId,
+            sales_order_receipts.currency_center_id AS currencyCenterId,
+            sales_order_receipts.amount_us AS paidUsd,
+            sales_order_receipts.amount_other AS paidOther,
+            sales_order_receipts.is_void AS isVoid,
+            IFNULL((
+                SELECT rate_to_sell
+                FROM company_currencies
+                WHERE currency_center_id = sales_order_receipts.currency_center_id
+                  AND exchange_rate_id = sales_order_receipts.exchange_rate_id
+                LIMIT 1
+                ), 0) AS rateToSell
+        FROM sales_order_receipts
+        WHERE sales_order_receipts.id = #{id}
+            LIMIT 1
+    </select>
+
+    <select id="getReceivePaymentId" parameterType="map" resultType="java.lang.Long">
+        SELECT receive_payment_id FROM receive_payment_details WHERE sales_order_id = #{salesInvoiceId} AND paid = #{paidUsd} LIMIT 1
+    </select>
+
+</mapper>

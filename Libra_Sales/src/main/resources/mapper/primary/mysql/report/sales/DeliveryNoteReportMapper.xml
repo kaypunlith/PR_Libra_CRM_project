@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_DELIVERY_NOTE">
+        WHERE deliveries.status > 0
+        <if test="filter.searchText != null">
+            AND (
+            deliveries.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR deliveries.note LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR EXISTS (
+            SELECT 1 FROM sales_orders so
+            INNER JOIN customers c ON c.id = so.customer_id
+            WHERE so.delivery_id = deliveries.id
+            AND so.status > 0
+            AND c.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+            OR EXISTS (
+            SELECT 1 FROM sales_orders so
+            WHERE so.delivery_id = deliveries.id
+            AND so.status > 0
+            AND so.so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND deliveries.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND deliveries.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND deliveries.status = #{filter.status}
+        </if>
+        <if test="filter.createdBy != null">
+            AND deliveries.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.companyId != null">
+            AND sales_orders.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND sales_orders.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND sales_orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+    </sql>
+
+    <select id="getListDeliveryNote" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.DeliveryNoteReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.DeliveryNoteReportResponse">
+        SELECT
+        deliveries.id AS id,
+        deliveries.code AS dnCode,
+        deliveries.date AS dnDate,
+        GROUP_CONCAT(DISTINCT cgroups.name SEPARATOR ', ') AS organizationGroupName,
+        MAX(customers.name) AS organizationName,
+        GROUP_CONCAT(DISTINCT sales_orders.so_code SEPARATOR ', ') AS invoiceCode,
+        deliveries.created AS created,
+        deliveries.status AS status
+        FROM deliveries
+        LEFT JOIN sales_orders ON sales_orders.delivery_id = deliveries.id AND sales_orders.status > 0
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        LEFT JOIN customer_cgroups ON customer_cgroups.customer_id = sales_orders.customer_id
+        LEFT JOIN cgroups ON cgroups.id = customer_cgroups.cgroup_id
+        <include refid="BASE_WHERE_DELIVERY_NOTE"/>
+        GROUP BY deliveries.id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListDeliveryNote" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.DeliveryNoteReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT deliveries.id)
+        FROM deliveries
+        LEFT JOIN sales_orders ON sales_orders.delivery_id = deliveries.id AND sales_orders.status > 0
+        LEFT JOIN customers ON customers.id = sales_orders.customer_id
+        LEFT JOIN customer_cgroups ON customer_cgroups.customer_id = sales_orders.customer_id
+        LEFT JOIN cgroups ON cgroups.id = customer_cgroups.cgroup_id
+        <include refid="BASE_WHERE_DELIVERY_NOTE"/>
+    </select>
+
+</mapper>

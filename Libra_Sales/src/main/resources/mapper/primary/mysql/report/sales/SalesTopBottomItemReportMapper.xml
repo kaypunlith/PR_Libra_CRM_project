@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_SALES_TOP_BUTTON_ITEM">
+        WHERE invoice.status > 0
+        <if test="filter.searchText != null">
+            AND (
+            invoice.order_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND invoice.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND invoice.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND invoice.status = #{filter.status}
+        </if>
+        <if test="filter.companyId != null">
+            AND invoice.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND invoice.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND invoice.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.productGroupId != null">
+            AND product_pgroups.pgroup_id = #{filter.productGroupId}
+        </if>
+    </sql>
+
+    <select id="getListSalesTopBottomItem" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesTopButtonReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesTopBottomItemReportResponse">
+        SELECT
+        sub.p_id AS productId,
+        products.code AS sku,
+        products.name AS productName,
+        sub.total_qty AS totalQty,
+        uoms.abbr AS uomAbbr,
+        sub.total_amount AS totalAmount,
+        sub.total_invoice AS totalInvoice,
+        (SELECT avg_cost
+        FROM inventory_valuations
+        WHERE pid = sub.p_id
+        AND date >= #{filter.dateFrom}
+        AND date &lt;= #{filter.dateTo}
+        ORDER BY id DESC
+        LIMIT 1) AS avgCost
+        FROM (
+                SELECT
+                p_id,
+                SUM(total_qty) AS total_qty,
+                SUM(total_amount) AS total_amount,
+                SUM(total_invoice) AS total_invoice
+                FROM (
+                        SELECT
+                        'Invoice' AS mod_type,
+                        sales_order_details.product_id AS p_id,
+                        SUM((sales_order_details.qty + sales_order_details.qty_free) * sales_order_details.conversion) AS total_qty,
+                        SUM(sales_order_details.total_price - sales_order_details.discount_amount) AS total_amount,
+                        1 AS total_invoice
+                        FROM sales_orders AS invoice
+                        INNER JOIN sales_order_details ON invoice.id = sales_order_details.sales_order_id
+                        INNER JOIN product_pgroups ON sales_order_details.product_id = product_pgroups.product_id
+                        <include refid="BASE_WHERE_SALES_TOP_BUTTON_ITEM"/>
+
+                        UNION ALL
+
+                        SELECT
+                        'CM' AS mod_type,
+                        credit_memo_details.product_id AS p_id,
+                        SUM((credit_memo_details.qty + credit_memo_details.qty_free) * credit_memo_details.conversion) * -1 AS total_qty,
+                        SUM(credit_memo_details.total_price - credit_memo_details.discount_amount) * -1 AS total_amount,
+                        -1 AS total_invoice
+                        FROM credit_memos AS invoice
+                        INNER JOIN credit_memo_details ON invoice.id = credit_memo_details.credit_memo_id
+                        INNER JOIN product_pgroups ON credit_memo_details.product_id = product_pgroups.product_id
+                        <include refid="BASE_WHERE_SALES_TOP_BUTTON_ITEM"/>
+
+                        GROUP BY invoice.id, credit_memo_details.product_id
+                ) AS inner_sub
+                GROUP BY p_id
+        ) AS sub
+        INNER JOIN products ON sub.p_id = products.id
+        INNER JOIN (
+        SELECT
+        id,
+        abbr
+        FROM uoms
+        ) AS uoms ON uoms.id = COALESCE(
+        (SELECT to_uom_id FROM uom_conversions WHERE from_uom_id = products.price_uom_id LIMIT 1),
+        products.price_uom_id
+        )
+        ORDER BY
+        <choose>
+            <when test="filter.sortBy == 1">
+                sub.total_qty DESC
+            </when>
+            <otherwise>
+                sub.total_qty ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSalesTopBottomItem" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM (
+        SELECT
+        p_id,
+        SUM(total_qty) AS total_qty,
+        SUM(total_amount) AS total_amount,
+        SUM(total_invoice) AS total_invoice
+        FROM (
+        SELECT
+        'Invoice' AS mod_type,
+        sales_order_details.product_id AS p_id,
+        SUM((sales_order_details.qty + sales_order_details.qty_free) * sales_order_details.conversion) AS total_qty,
+        SUM(sales_order_details.total_price - sales_order_details.discount_amount) AS total_amount,
+        1 AS total_invoice
+        FROM sales_orders AS invoice
+        INNER JOIN sales_order_details ON invoice.id = sales_order_details.sales_order_id
+        INNER JOIN product_pgroups ON sales_order_details.product_id = product_pgroups.product_id
+        <include refid="BASE_WHERE_SALES_TOP_BUTTON_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        'CM' AS mod_type,
+        credit_memo_details.product_id AS p_id,
+        SUM((credit_memo_details.qty + credit_memo_details.qty_free) * credit_memo_details.conversion) * -1 AS total_qty,
+        SUM(credit_memo_details.total_price - credit_memo_details.discount_amount) * -1 AS total_amount,
+        -1 AS total_invoice
+        FROM credit_memos AS invoice
+        INNER JOIN credit_memo_details ON invoice.id = credit_memo_details.credit_memo_id
+        INNER JOIN product_pgroups ON credit_memo_details.product_id = product_pgroups.product_id
+        <include refid="BASE_WHERE_SALES_TOP_BUTTON_ITEM"/>
+
+        GROUP BY invoice.id, credit_memo_details.product_id
+        ) AS inner_sub
+        GROUP BY p_id
+        ) AS sub
+        INNER JOIN products ON sub.p_id = products.id
+        INNER JOIN (
+        SELECT
+        id,
+        abbr
+        FROM uoms
+        ) AS uoms ON uoms.id = COALESCE(
+        (SELECT to_uom_id FROM uom_conversions WHERE from_uom_id = products.price_uom_id LIMIT 1),
+        products.price_uom_id
+        )
+    </select>
+
+</mapper>

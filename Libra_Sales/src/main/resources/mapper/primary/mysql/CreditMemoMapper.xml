@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CreditMemoMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        credit_memos.id AS id,
+        location_groups.name AS warehouseName,
+        credit_memos.order_date AS cmDate,
+        credit_memos.cm_code AS cmNo,
+        credit_memos.invoice_code AS invoiceCode,
+        credit_memos.invoice_date AS invoiceDate,
+        currency_centers.name AS currencyCenterName,
+        currency_centers.symbol AS currencyCenterSymbol,
+        CONCAT(customers.name_kh, ' (', customers.name, ')') AS organizationName,
+        customers.customer_code AS organizationCode,
+        credit_memos.total_amount - IFNULL(credit_memos.discount, 0) + IFNULL(credit_memos.mark_up, 0) + IFNULL(credit_memos.total_vat, 0) AS totalAmount,
+        credit_memos.balance AS balance,
+        credit_memos.status AS status
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM credit_memos
+        INNER JOIN companies ON companies.id = credit_memos.company_id
+        INNER JOIN location_groups ON location_groups.id = credit_memos.location_group_id
+        INNER JOIN locations ON locations.id = credit_memos.location_id
+        INNER JOIN customers ON customers.id = credit_memos.customer_id
+        INNER JOIN reasons ON reasons.id = credit_memos.reason_id
+        INNER JOIN chart_accounts ON chart_accounts.id = credit_memos.ar_id
+        LEFT JOIN vat_settings ON vat_settings.id = credit_memos.vat_setting_id
+        LEFT JOIN currency_centers ON currency_centers.id = credit_memos.currency_center_id
+        LEFT JOIN price_types ON price_types.id = credit_memos.price_type_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE credit_memos.status >= 0 AND credit_memos.location_id IN (SELECT location_id FROM user_locations WHERE user_id = #{userId} GROUP BY location_id)
+        <if test="filter.viewByUser == 1">
+            AND credit_memos.created_by = #{userId}
+        </if>
+        <if test="filter.companyId != null">
+            AND credit_memos.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.status != null">
+            AND credit_memos.status = #{filter.status}
+        </if>
+        <if test="filter.dateFrom != null">
+            AND credit_memos.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND credit_memos.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.searchText ">
+            AND (
+                credit_memos.cm_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR credit_memos.invoice_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.type != null">
+            <choose>
+                <when test="filter.type == 1">
+                    AND credit_memos.balance > 0
+                </when>
+                <when test="filter.type == 2">
+                    AND credit_memos.balance &lt;= 0
+                </when>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoFilter" resultMap="CreditMemoResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY credit_memos.order_date DESC, credit_memos.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoFilter" resultType="java.lang.Long">
+        SELECT COUNT(credit_memos.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="CreditMemoResponse">
+        SELECT
+        credit_memos.company_id AS companyId,
+        credit_memos.sales_order_id AS invoiceId,
+        credit_memos.currency_center_id AS currencyCenterId,
+        companies.name AS companyName,
+        companies.business_number AS companyTelephone,
+        companies.address AS companyAddress,
+        companies.website AS companyWebsite,
+        credit_memos.note AS note,
+        credit_memos.location_group_id AS warehouseId,
+        credit_memos.location_id AS locationId,
+        locations.name AS locationName,
+        credit_memos.reason_id AS cmTermId,
+        reasons.name AS cmTermName,
+        credit_memos.customer_id AS organizationId,
+        credit_memos.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        credit_memos.ar_id AS chartAccountId,
+        CONCAT_WS(' - ', chart_accounts.account_codes, chart_accounts.account_description) AS chartAccountName,
+        credit_memos.total_amount AS subTotal,
+        credit_memos.vat_setting_id AS vatId,
+        vat_settings.name AS vatName,
+        IFNULL(credit_memos.total_vat, 0) AS totalVat,
+        IFNULL(credit_memos.mark_up, 0) AS markUp,
+        IFNULL(credit_memos.vat_percent, 0) AS vatPercent,
+        IFNULL(credit_memos.discount, 0) AS discountAmount,
+        IFNULL(credit_memos.discount_percent, 0) AS discountPercent,
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE credit_memos.status >= 0 AND credit_memos.location_id IN (SELECT location_id FROM user_locations WHERE user_id = #{userId} GROUP BY location_id) AND credit_memos.id = #{id}
+    </select>
+
+    <select id="getListDetail" parameterType="java.lang.Long" resultMap="CreditMemoDetailResponse">
+        (
+            SELECT
+                1 AS `type`,
+                credit_memo_details.id AS id,
+                credit_memo_details.product_id AS itemId,
+                credit_memo_details.discount_id AS discountId,
+                credit_memo_details.discount_amount AS discountAmount,
+                credit_memo_details.discount_percent AS discountPercent,
+                products.name AS itemName,
+                products.code AS sku,
+                products.barcode AS upc,
+                products.is_expired_date AS isExpiredDate,
+                IFNULL(credit_memo_details.qty,0) AS qty,
+                IFNULL(credit_memo_details.qty_free,0) AS qtyFree,
+                IFNULL(credit_memo_details.conversion, 1) AS conversion,
+                credit_memo_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                credit_memo_details.unit_price AS unitPrice,
+                credit_memo_details.total_price AS totalPrice,
+                credit_memo_details.expired_date AS expiredDate,
+                credit_memo_details.note AS note
+            FROM credit_memo_details
+                     INNER JOIN products ON products.id = credit_memo_details.product_id
+                     LEFT JOIN uoms ON uoms.id = credit_memo_details.qty_uom_id
+            WHERE credit_memo_details.credit_memo_id = #{creditMemoId}
+        )
+        UNION
+        (
+            SELECT
+                2 AS `type`,
+                credit_memo_services.id AS id,
+                credit_memo_services.service_id AS itemId,
+                credit_memo_services.discount_id AS discountId,
+                credit_memo_services.discount_amount AS discountAmount,
+                credit_memo_services.discount_percent AS discountPercent,
+                services.name AS itemName,
+                services.sku AS sku,
+                services.sku AS upc,
+                NULL AS isExpiredDate,
+                IFNULL(credit_memo_services.qty,0) AS qty,
+                IFNULL(credit_memo_services.qty_free,0) AS qtyFree,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                credit_memo_services.unit_price AS unitPrice,
+                credit_memo_services.total_price AS totalPrice,
+                NULL AS expiredDate,
+                credit_memo_services.note AS note
+            FROM credit_memo_services
+                     LEFT JOIN services ON services.id = credit_memo_services.service_id
+            WHERE credit_memo_services.credit_memo_id = #{creditMemoId}
+        )
+        UNION
+        (
+            SELECT
+                3 AS `type`,
+                credit_memo_miscs.id AS id,
+                credit_memo_miscs.id AS itemId,
+                credit_memo_miscs.discount_id AS discountId,
+                credit_memo_miscs.discount_amount AS discountAmount,
+                credit_memo_miscs.discount_percent AS discountPercent,
+                credit_memo_miscs.description AS itemName,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS isExpiredDate,
+                IFNULL(credit_memo_miscs.qty,0) AS qty,
+                IFNULL(credit_memo_miscs.qty_free,0) AS qtyFree,
+                1 AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                credit_memo_miscs.unit_price AS unitPrice,
+                credit_memo_miscs.total_price AS totalPrice,
+                NULL AS expiredDate,
+                credit_memo_miscs.note AS note
+            FROM credit_memo_miscs
+            WHERE credit_memo_miscs.credit_memo_id = #{creditMemoId}
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemo" useGeneratedKeys="true" keyProperty="creditMemo.id">
+        INSERT INTO credit_memos (
+            location_group_id,
+            location_id,
+            company_id,
+            sales_order_id,
+            customer_id,
+            currency_center_id,
+            invoice_code,
+            invoice_date,
+            cm_code,
+            reason_id,
+            ar_id,
+            total_amount,
+            balance,
+            discount,
+            discount_percent,
+            price_type_id,
+            mark_up,
+            total_vat,
+            vat_percent,
+            vat_setting_id,
+            vat_calculate,
+            vat_chart_account_id,
+            order_date,
+            due_date,
+            note,
+            created,
+            created_by,
+            status
+        ) VALUES (
+                     #{creditMemo.locationGroupId},
+                     #{creditMemo.locationId},
+                     #{creditMemo.companyId},
+                     #{creditMemo.saleOrderId},
+                     #{creditMemo.customerId},
+                     #{creditMemo.currencyCenterId},
+                     #{creditMemo.invoiceCode},
+                     #{creditMemo.invoiceDate},
+                     #{creditMemo.cmCode},
+                     #{creditMemo.reasonId},
+                     #{creditMemo.chartAccountId},
+                     #{creditMemo.totalAmount},
+                     #{creditMemo.balance},
+                     #{creditMemo.discount},
+                     #{creditMemo.discountPercent},
+                     #{creditMemo.priceTypeId},
+                     #{creditMemo.markUp},
+                     #{creditMemo.totalVat},
+                     #{creditMemo.vatPercent},
+                     #{creditMemo.vatSettingId},
+                     #{creditMemo.vatCalculate},
+                     #{creditMemo.vatChartAccountId},
+                     #{creditMemo.orderDate},
+                     #{creditMemo.dueDate},
+                     #{creditMemo.note},
+                     NOW(),
+                     #{creditMemo.createdBy},
+                     #{creditMemo.status}
+                 )
+    </insert>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemoDetail">
+        INSERT INTO credit_memo_details (
+            credit_memo_id,
+            product_id,
+            lots_number,
+            expired_date,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            qty,
+            qty_free,
+            qty_uom_id,
+            conversion,
+            unit_price,
+            total_price,
+            note,
+            is_free
+        ) VALUES (
+                     #{detail.creditMemoId},
+                     #{detail.productId},
+                     #{detail.lotsNumber},
+                     #{detail.expiredDate},
+                     #{detail.discountId},
+                     #{detail.discountAmount},
+                     #{detail.discountPercent},
+                     #{detail.qty},
+                     #{detail.qtyFree},
+                     #{detail.uomId},
+                     #{detail.conversion},
+                     #{detail.unitPrice},
+                     #{detail.totalPrice},
+                     #{detail.note},
+                     0
+                 )
+    </insert>
+
+    <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemoServices">
+        INSERT INTO credit_memo_services (
+            credit_memo_id,
+            service_id,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            qty,
+            qty_free,
+            unit_price,
+            total_price,
+            note,
+            is_free
+        ) VALUES (
+                     #{service.creditMemoId},
+                     #{service.serviceId},
+                     #{service.discountId},
+                     #{service.discountAmount},
+                     #{service.discountPercent},
+                     #{service.qty},
+                     #{service.qtyFree},
+                     #{service.unitPrice},
+                     #{service.totalPrice},
+                     #{service.note},
+                     0
+                 )
+    </insert>
+
+    <insert id="insertMisc" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemoMisc">
+        INSERT INTO credit_memo_miscs (
+            credit_memo_id,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            description,
+            qty_uom_id,
+            qty,
+            qty_free,
+            unit_price,
+            total_price,
+            note
+        ) VALUES (
+                     #{misc.creditMemoId},
+                     #{misc.discountId},
+                     #{misc.discountAmount},
+                     #{misc.discountPercent},
+                     #{misc.description},
+                     #{misc.uomId},
+                     #{misc.qty},
+                     #{misc.qtyFree},
+                     #{misc.unitPrice},
+                     #{misc.totalPrice},
+                     #{misc.note}
+                 )
+    </insert>
+
+    <insert id="insertReceipt" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemoReceipt" useGeneratedKeys="true" keyProperty="receipt.id">
+        INSERT INTO credit_memo_receipts (
+            credit_memo_id,
+            exchange_rate_id,
+            currency_center_id,
+            chart_account_id,
+            receipt_code,
+            amount_us,
+            amount_other,
+            total_amount,
+            balance,
+            balance_other,
+            pay_date,
+            due_date,
+            created,
+            created_by
+        ) VALUES (
+                     #{receipt.creditMemoId},
+                     #{receipt.exchangeRateId},
+                     #{receipt.currencyCenterId},
+                     #{receipt.chartAccountId},
+                     #{receipt.receiptCode},
+                     #{receipt.amountUsd},
+                     #{receipt.amountOther},
+                     #{receipt.totalAmount},
+                     #{receipt.balance},
+                     #{receipt.balanceOther},
+                     #{receipt.date},
+                     #{receipt.aging},
+                     NOW(),
+                     #{receipt.createdBy}
+                 )
+    </insert>
+
+    <update id="updateBalanceSaleInvoice">
+        UPDATE sales_orders SET
+        <choose>
+            <when test="type == 1">
+                balance = balance - #{balance},
+            </when>
+            <when test="type == 2">
+                balance = balance + #{balance},
+            </when>
+        </choose>
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE id = #{salesInvoiceId};
+    </update>
+
+    <update id="updateBalanceCreditMemo" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemo">
+        UPDATE credit_memos SET
+        balance = #{creditMemo.balance},
+        total_amount_invoice = #{creditMemo.totalAmount},
+        modified = NOW(),
+        modified_by = #{creditMemo.modifiedBy}
+        WHERE id = #{creditMemo.id}
+    </update>
+
+    <insert id="insertReceiptWithInvoice" parameterType="com.ut.nlSystemAPi.model.entity.CreditMemo.CreditMemoWithInvoiceReceipt" useGeneratedKeys="true" keyProperty="receipt.id">
+        INSERT INTO credit_memo_with_sales (
+            credit_memo_id,
+            sales_order_id,
+            apply_date,
+            total_price,
+            status,
+            created,
+            created_by
+        ) VALUES (
+                     #{receipt.creditMemoId},
+                     #{receipt.salesInvoiceId},
+                     #{receipt.applyDate},
+                     #{receipt.totalCost},
+                     1,
+                     NOW(),
+                     #{receipt.createdBy}
+                 )
+    </insert>
+
+    <update id="updateBalance" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoFilter">
+        UPDATE credit_memos SET
+        <choose>
+            <when test="type == 1">
+                balance = balance - #{balance}
+            </when>
+            <when test="type == 3">
+                balance = #{balance}
+            </when>
+            <otherwise>
+                balance = balance + #{balance}
+            </otherwise>
+        </choose>
+        WHERE id = #{creditMemoId}
+    </update>
+
+    <select id="listReceipt" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoReceiptFilter" resultMap="CreditMemoReceiptResponse">
+        SELECT
+            credit_memo_receipts.id AS id,
+            credit_memo_receipts.credit_memo_id AS creditMemoId,
+            credit_memo_receipts.exchange_rate_id AS exchangeRateId,
+            companies.currency_center_id AS baseCurrencyCenterId,
+            base.name AS baseCurrencyCenterName,
+            base.symbol AS baseCurrencyCenterSymbol,
+            credit_memo_receipts.currency_center_id AS currencyCenterId,
+            currency_centers.name AS currencyCenterName,
+            currency_centers.symbol AS currencyCenterSymbol,
+            (SELECT rate_to_sell FROM company_currencies WHERE currency_center_id = currency_centers.id AND exchange_rate_id = credit_memo_receipts.exchange_rate_id LIMIT 1) AS rateToSell,
+            credit_memo_receipts.receipt_code AS receiptCode,
+            credit_memo_receipts.amount_us AS paidUsd,
+            credit_memo_receipts.amount_other AS paidOther,
+            credit_memo_receipts.total_amount AS totalAmount,
+            credit_memo_receipts.balance AS balance,
+            credit_memo_receipts.balance_other AS balanceOther,
+            credit_memo_receipts.due_date AS aging,
+            DATE(credit_memo_receipts.created) AS `date`
+        FROM credit_memo_receipts
+            INNER JOIN credit_memos ON credit_memos.id = credit_memo_receipts.credit_memo_id
+            INNER JOIN companies ON companies.id = credit_memos.company_id
+            LEFT JOIN currency_centers AS base ON base.id = companies.currency_center_id
+            LEFT JOIN currency_centers ON currency_centers.id = credit_memo_receipts.currency_center_id
+        WHERE credit_memo_receipts.credit_memo_id = #{filter.creditMemoId} AND is_void = 0
+    </select>
+
+    <select id="listReceiptApplyInvoice" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoReceiptFilter" resultMap="CreditMemoReceiptResponse">
+        SELECT
+            credit_memo_with_sales.id AS id,
+            credit_memo_with_sales.credit_memo_id AS creditMemoId,
+            credit_memo_with_sales.sales_order_id AS salesInvoiceId,
+            (SELECT name FROM customers WHERE id = sales_orders.customer_id) AS organizationName,
+            sales_orders.so_code AS invoiceCode,
+            sales_orders.order_date AS orderDate,
+            sales_orders.total_amount AS totalAmount,
+            credit_memo_with_sales.total_price AS paid,
+            DATE(credit_memo_with_sales.created) AS `date`
+        FROM credit_memo_with_sales
+        LEFT JOIN sales_orders ON sales_orders.id = credit_memo_with_sales.sales_order_id
+        WHERE credit_memo_with_sales.credit_memo_id = #{filter.creditMemoId} AND credit_memo_with_sales.status = 1
+    </select>
+
+    <update id="voidReceipt" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoReceiptFilter">
+        UPDATE credit_memo_receipts SET
+        is_void = 1,
+        modified = NOW(),
+        modified_by = #{userId}
+        WHERE credit_memo_id = #{request.creditMemoId} AND id = #{request.id};
+    </update>
+
+    <update id="voidReceiptApplyInvoice" parameterType="com.ut.nlSystemAPi.model.filter.CreditMemoReceiptFilter">
+        UPDATE credit_memo_with_sales SET
+        status = 0,
+        modified = NOW(),
+        modified_By = #{userId}
+        WHERE credit_memo_id = #{request.creditMemoId} AND id = #{request.id}
+    </update>
+
+</mapper>

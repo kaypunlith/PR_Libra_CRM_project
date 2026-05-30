@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OpportunitiesMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        co.id AS id,
+        co.code AS code,
+        co.name AS name,
+        co.amount AS amount,
+        co.expected_date AS expectedDate,
+        cod.crm_pipeline_setting_id AS pipelineId,
+        cps.description AS pipelineName,
+        cod.crm_opportunity_stag_id AS stageId,
+        cos.name AS stageName,
+        cod.probability AS probability,
+        co.crm_opportunity_source_id AS sourceId,
+        crm_opportunity_sources.name AS sourceName,
+        co.customer_id AS organizationId,
+        customers.name AS organizationName,
+        co.responsibility_id AS responsibilityId,
+        CONCAT(responsibility.first_name, ' ', responsibility.last_name) AS responsibilityName,
+        co.division_id AS divisionId,
+        customer_lead_divisions.title AS divisionName,
+        co.customer_contact_id AS contactId,
+        customer_contacts.contact_name AS contactName,
+        co.quotation_id AS quotationId,
+        quotations.quotation_code AS quotationNo,
+        co.sales_order_id AS salesOrderId,
+        orders.order_code AS salesOrderNo,
+        co.description AS description,
+        co.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        co.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_opportunities AS co
+        LEFT JOIN crm_opportunity_details AS cod ON cod.crm_opportunity_id = co.id AND cod.is_active = 1 AND cod.is_convert = 0
+        LEFT JOIN crm_pipeline_settings AS cps ON cps.id = cod.crm_pipeline_setting_id
+        LEFT JOIN crm_opportunity_stags AS cos ON cos.id = cod.crm_opportunity_stag_id
+        LEFT JOIN crm_opportunity_sources ON crm_opportunity_sources.id = co.crm_opportunity_source_id
+        LEFT JOIN customers ON customers.id = co.customer_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = co.customer_contact_id
+        LEFT JOIN customer_lead_divisions ON customer_lead_divisions.id = co.division_id
+        LEFT JOIN quotations ON quotations.id = co.quotation_id
+        LEFT JOIN orders ON orders.id = co.sales_order_id
+        LEFT JOIN users AS responsibility ON responsibility.id = co.responsibility_id
+        LEFT JOIN users AS creator ON creator.id = co.created_by
+        LEFT JOIN users AS modifier ON modifier.id = co.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE co.is_active = #{filter.status}
+        AND cod.crm_pipeline_setting_id IN (
+            SELECT crm_pipeline_setting_id FROM crm_pipeline_setting_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        <if test="filter.pipelineId != null">
+            AND cod.crm_pipeline_setting_id = #{filter.pipelineId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND co.responsibility_id = #{filter.createdBy}
+        </if>
+        <if test="filter.organizationId != null">
+            AND co.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.dateFrom != null">
+            AND DATE(co.expected_date) &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(co.expected_date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                co.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR co.code LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR cos.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="OpportunityResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY co.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>cod.crm_pipeline_setting_id ASC, cod.crm_opportunity_stag_id ASC, co.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT co.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="OpportunityResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE co.is_active IN (1, 2)
+        AND co.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="opportunity.id">
+        INSERT INTO crm_opportunities (
+            name, amount, expected_date, responsibility_id, crm_opportunity_source_id,
+            division_id, customer_contact_id, quotation_id, sales_order_id, description,
+            customer_id, employee_id, vendor_id, created, created_by, is_active
+        ) VALUES (
+            #{opportunity.name}, #{opportunity.amount}, #{opportunity.expectedDate}, #{opportunity.responsibilityId}, #{opportunity.sourceId},
+            #{opportunity.divisionId}, #{opportunity.customerContactId}, #{opportunity.quotationId}, #{opportunity.salesOrderId}, #{opportunity.description},
+            #{opportunity.customerId}, #{opportunity.employeeId}, #{opportunity.vendorId}, NOW(), #{opportunity.createdBy}, #{opportunity.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE crm_opportunities SET
+            name = #{opportunity.name},
+            amount = #{opportunity.amount},
+            expected_date = #{opportunity.expectedDate},
+            responsibility_id = #{opportunity.responsibilityId},
+            crm_opportunity_source_id = #{opportunity.sourceId},
+            division_id = #{opportunity.divisionId},
+            customer_contact_id = #{opportunity.customerContactId},
+            quotation_id = #{opportunity.quotationId},
+            sales_order_id = #{opportunity.salesOrderId},
+            description = #{opportunity.description},
+            customer_id = #{opportunity.customerId},
+            employee_id = #{opportunity.employeeId},
+            vendor_id = #{opportunity.vendorId},
+            modified = NOW(),
+            modified_by = #{opportunity.modifiedBy}
+        WHERE id = #{opportunity.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_opportunities SET is_active = 2, modified = NOW(), modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <insert id="insertDetail" useGeneratedKeys="true" keyProperty="detail.id">
+        INSERT INTO crm_opportunity_details (
+            crm_opportunity_id, crm_pipeline_setting_id, crm_opportunity_stag_id,
+            probability, created, created_by, is_active, is_convert
+        ) VALUES (
+            #{detail.opportunityId}, #{detail.pipelineId}, #{detail.stageId},
+            #{detail.probability}, NOW(), #{detail.createdBy}, #{detail.isActive}, 0
+        )
+    </insert>
+
+    <update id="closeDetail">
+        UPDATE crm_opportunity_details
+        SET is_active = 2
+        WHERE crm_opportunity_id = #{opportunityId}
+        AND crm_pipeline_setting_id = #{pipelineId}
+        <if test="stageId != null">
+            AND crm_opportunity_stag_id = #{stageId}
+        </if>
+        AND is_active = 1
+    </update>
+
+    <select id="getSourceType" resultType="java.lang.Long">
+        SELECT type FROM crm_opportunity_sources WHERE is_active = 1 AND id = #{sourceId}
+    </select>
+
+    <update id="updateCode">
+        UPDATE crm_opportunities SET code = #{code} WHERE id = #{id}
+    </update>
+
+</mapper>

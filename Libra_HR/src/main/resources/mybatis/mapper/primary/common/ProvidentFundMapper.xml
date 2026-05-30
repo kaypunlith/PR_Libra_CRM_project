@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProvidentFundMapper">
+
+  <resultMap id="ProvidentFundResponse" type="com.ut.nlSystemAPi.model.response.ProvidentFundResponse">
+
+  </resultMap>
+
+  <resultMap id="ProvidentFundHistory" type="com.ut.nlSystemAPi.model.response.ProvidentFundHistory">
+
+  </resultMap>
+
+  <resultMap id="ProvidentFund" type="com.ut.nlSystemAPi.model.ProvidentFund">
+
+  </resultMap>
+
+  <resultMap id="ProvidentFundDetailResponse" type="com.ut.nlSystemAPi.model.response.ProvidentFundDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="TitleResponse" type="com.ut.nlSystemAPi.model.response.TitleResponse">
+
+  </resultMap>
+
+  <resultMap id="EmployeesResponse" type="com.ut.nlSystemAPi.model.response.EmployeesResponse">
+
+  </resultMap>
+
+</mapper>

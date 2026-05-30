@@ -1,0 +1,2283 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InventoryReportMapper">
+
+<!--    Adjustment  -->
+    <select id="getListInventoryAdjustment" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportFilter" resultMap="InventoryAdjustmentReportResponse">
+        SELECT
+        cycle_products.id AS id,
+        cycle_products.date AS date,
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = cycle_products.created_by) AS createBy,
+        cycle_products.reference AS reference,
+        (SELECT name FROM companies WHERE id = cycle_products.company_id) AS companyName,
+        (SELECT name FROM location_groups WHERE id = cycle_products.location_group_id) AS warehouseName,
+        (SELECT CONCAT(account_codes, " · ", account_description) FROM chart_accounts WHERE id = cycle_products.deposit_to) AS account
+        FROM cycle_products
+        LEFT JOIN cycle_product_details ON cycle_products.id = cycle_product_details.product_id
+        WHERE cycle_products.status > 0 AND cycle_products.cp_type = 1
+        AND cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date  &lt;=  #{filter.dateTo}
+        </if>
+        <if test="filter.companyId != null">
+            AND cycle_products.company_id= #{filter.companyId}
+        </if>
+        <if test="filter.locationGroupId != null">
+            AND cycle_products.location_group_id = #{filter.locationGroupId}
+        </if>
+        <if test="filter.productId != null">
+            AND cycle_product_details.product_id = #{filter.productId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND cycle_products.created_by = #{filter.createdBy}
+        </if>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                cycle_products.reference ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListInventoryAdjustment" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(cycle_products.id)
+        FROM cycle_products
+        WHERE cycle_products.status > 0 AND cycle_products.cp_type = 1
+        AND cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+    </select>
+
+
+
+
+
+    <!--    Adjustment By Item  -->
+    <select id="getListInventoryAdjustmentByItemParentSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultMap="InventoryAdjustmentReportByItemResponse">
+        SELECT
+        IFNULL(products.parent_id, null) AS parentId,
+        CASE
+        WHEN products.parent_id IS NULL THEN 'No Parent'
+        ELSE CONCAT_WS(' ', parents.code, parents.name)
+        END AS parentName,
+        SUM(cycle_product_details.qty_difference) AS qty,
+        SUM((IFNULL(cost,0) / products.small_val_uom) * qty_difference) AS totalCost
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+        INNER JOIN inventory_valuations ON inventory_valuations.cycle_product_id = cycle_products.id AND inventory_valuations.pid = cycle_product_details.product_id
+        INNER JOIN users ON users.id = cycle_products.created_by
+        INNER JOIN locations ON cycle_product_details.location_id = locations.id
+        INNER JOIN products ON products.id = cycle_product_details.product_id
+        LEFT JOIN products AS parents ON parents.id = products.parent_id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        AND cycle_products.status > 0
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND cycle_products.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productId != null">
+            AND products.parent_id = #{filter.productId}
+        </if>
+        <if test="filter.approvedBy != null">
+            AND cycle_products.modified_by = #{filter.approvedBy}
+        </if>
+        GROUP BY products.parent_id
+        ORDER BY cycle_products.date
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+
+    <select id="countListInventoryAdjustmentByItemParentSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(parents.id)
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+        LEFT JOIN products ON products.id = cycle_product_details.product_id
+        LEFT JOIN products AS parents ON parents.id = products.parent_id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        AND cycle_products.status >= 0
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND cycle_products.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productId != null">
+            AND cycle_product_details.product_id = #{filter.productId}
+        </if>
+        <if test="filter.approvedBy != null">
+            AND cycle_products.modified_by = #{filter.approvedBy}
+        </if>
+    </select>
+
+    <sql id="BASE_COLUMN_ADJUSTMENT_BY_ITEM_DETAIL">
+        SELECT
+        cycle_product_details.product_id AS productId,
+        COALESCE(CONCAT_WS(' ', products.code, '-', products.name), 'Unknown Product') AS productName
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+        LEFT JOIN products ON products.id = cycle_product_details.product_id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        AND cycle_products.status >= 0
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND cycle_products.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productId != null">
+            AND cycle_product_details.product_id = #{filter.productId}
+        </if>
+        <if test="filter.approvedBy != null">
+            AND cycle_products.modified_by = #{filter.approvedBy}
+        </if>
+        GROUP BY cycle_product_details.product_id
+        ORDER BY cycle_products.date
+    </sql>
+
+    <select id="getListInventoryAdjustmentByItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultMap="InventoryAdjustmentReportByItemResponse">
+        <include refid="BASE_COLUMN_ADJUSTMENT_BY_ITEM_DETAIL"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="findAllAdjustmentByItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultMap="InventoryAdjustmentReportByItemResponse">
+        <include refid="BASE_COLUMN_ADJUSTMENT_BY_ITEM_DETAIL"/>
+    </select>
+
+    <select id="countListInventoryAdjustmentByItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(products.id)
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+        LEFT JOIN products ON products.id = cycle_product_details.product_id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        AND cycle_products.status >= 0
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND cycle_products.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productId != null">
+            AND cycle_product_details.product_id = #{filter.productId}
+        </if>
+        <if test="filter.approvedBy != null">
+            AND cycle_products.modified_by = #{filter.approvedBy}
+        </if>
+    </select>
+
+
+
+    <select id="getListInventoryAdjustmentByItemDetailDetail" parameterType="java.lang.Long" resultMap="InventoryAdjustmentReportByItemDetailResponse">
+        SELECT
+            cycle_products.id AS id,
+            'Inv Adj' AS type,
+            cycle_products.date AS `date`,
+            cycle_products.reference AS reference,
+            CONCAT_WS(' ',users.first_name,users.last_name) AS approvedBy,
+            locations.name AS locationName,
+            cycle_product_details.qty_difference AS qty,
+            products.price_uom_id AS priceUomId,
+            CASE
+                WHEN products.small_val_uom = 1 THEN
+                        (SELECT abbr FROM uoms WHERE id = priceUomId)
+                ELSE
+                    (SELECT abbr
+                     FROM uoms
+                              INNER JOIN uom_conversions ON uom_conversions.to_uom_id = uoms.id
+                     WHERE from_uom_id = priceUomId
+                       AND is_small_uom = 1
+                       AND uom_conversions.is_active = 1
+                     ORDER BY uom_conversions.id DESC
+                    LIMIT 1)
+            END AS uomName,
+            IFNULL(cost,0) / products.small_val_uom AS unitCost
+        FROM cycle_products
+            INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+            INNER JOIN inventory_valuations ON inventory_valuations.cycle_product_id = cycle_products.id AND inventory_valuations.pid = cycle_product_details.product_id
+            INNER JOIN products ON products.id = cycle_product_details.product_id
+            INNER JOIN users ON users.id = cycle_products.created_by
+            INNER JOIN locations ON cycle_product_details.location_id = locations.id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+          AND cycle_products.status > 0
+          AND products.id = #{productId}
+        GROUP BY cycle_products.id, cycle_products.reference
+        ORDER BY cycle_products.date
+    </select>
+
+    <!--    Adjustment Item Summary -->
+    <sql id="BASE_COLUMN_LIST_ADJUSTMENT_BY_ITEM">
+        SELECT
+        IFNULL(products.parent_id, null) AS parentId,
+        CASE
+        WHEN products.parent_id IS NULL THEN 'No Parent'
+        ELSE CONCAT_WS(' ', parents.code, parents.name)
+        END AS parentName
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+        INNER JOIN products ON products.id = cycle_product_details.product_id
+        LEFT JOIN products AS parents ON parents.id = products.parent_id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        AND cycle_products.status >= 0
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND cycle_products.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productId != null">
+            AND cycle_product_details.product_id = #{filter.productId}
+        </if>
+        <if test="filter.approvedBy != null">
+            AND cycle_products.modified_by = #{filter.approvedBy}
+        </if>
+        GROUP BY products.parent_id
+        ORDER BY cycle_products.date
+    </sql>
+
+    <select id="getListInventoryAdjustmentByItemItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultMap="InventoryAdjustmentReportByItemResponse">
+        <include refid="BASE_COLUMN_LIST_ADJUSTMENT_BY_ITEM"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="findAllAdjustmentByItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultMap="InventoryAdjustmentReportByItemResponse">
+        <include refid="BASE_COLUMN_LIST_ADJUSTMENT_BY_ITEM"/>
+    </select>
+
+    <select id="getListInventoryAdjustmentByItemItemSummaryDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultMap="InventoryAdjustmentReportByItemDetailResponse">
+        SELECT
+        cycle_products.id AS id,
+        (SELECT name FROM products WHERE id = cycle_product_details.product_id) AS productName,
+        SUM(cycle_product_details.qty_difference) AS qty,
+        products.price_uom_id AS priceUomId,
+        CASE
+        WHEN products.small_val_uom = 1 THEN
+        (SELECT abbr FROM uoms WHERE id = priceUomId)
+        ELSE
+        (SELECT abbr
+        FROM uoms
+        INNER JOIN uom_conversions ON uom_conversions.to_uom_id = uoms.id
+        WHERE from_uom_id = priceUomId
+        AND is_small_uom = 1
+        AND uom_conversions.is_active = 1
+        ORDER BY uom_conversions.id DESC
+        LIMIT 1)
+        END AS uomName,
+        IFNULL(cost,0) / products.small_val_uom AS unitCost,
+        SUM((IFNULL(cost,0) / products.small_val_uom) * qty_difference) AS totalCost
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+        INNER JOIN inventory_valuations ON inventory_valuations.cycle_product_id = cycle_products.id AND inventory_valuations.pid = cycle_product_details.product_id
+        INNER JOIN products ON products.id = cycle_product_details.product_id
+        INNER JOIN users ON users.id = cycle_products.created_by
+        LEFT JOIN locations ON cycle_product_details.location_id = locations.id
+        WHERE cycle_products.status >= 0 AND cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <choose>
+            <when test="parentId != null">
+                AND products.id IN (SELECT id FROM products WHERE parent_id = #{parentId})
+            </when>
+            <otherwise>
+                AND products.id IN (SELECT id FROM products WHERE parent_id IS NULL)
+            </otherwise>
+        </choose>
+        GROUP BY cycle_product_details.product_id
+    </select>
+
+    <select id="countListInventoryAdjustmentByItemItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(products.parent_id)
+        FROM cycle_products
+        INNER JOIN cycle_product_details ON cycle_products.id=cycle_product_details.cycle_product_id
+        LEFT JOIN products ON products.id = cycle_product_details.product_id
+        WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.dateFrom != null">
+            AND cycle_products.date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND cycle_products.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND cycle_products.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productId != null">
+            AND cycle_product_details.product_id = #{filter.productId}
+        </if>
+        <if test="filter.approvedBy != null">
+            AND cycle_products.modified_by = #{filter.approvedBy}
+        </if>
+    </select>
+
+    <select id="sumGrandTotalAdjustmentByItem" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentReportByItemFilter" resultType="java.lang.Double">
+        SELECT COALESCE(SUM(totalCost), 0) as grandTotal FROM (
+            SELECT
+            (cycle_product_details.qty_difference / products.small_val_uom) AS qty,
+            IFNULL(cost,0) / products.small_val_uom AS unitCost,
+            SUM((IFNULL(cost,0) / products.small_val_uom) * qty_difference) AS totalCost
+            FROM cycle_products
+            INNER JOIN cycle_product_details ON cycle_products.id = cycle_product_details.cycle_product_id
+            INNER JOIN inventory_valuations ON inventory_valuations.cycle_product_id = cycle_products.id AND inventory_valuations.pid = cycle_product_details.product_id
+            INNER JOIN users ON users.id = cycle_products.created_by
+            INNER JOIN locations ON cycle_product_details.location_id = locations.id
+            INNER JOIN products ON products.id = cycle_product_details.product_id
+            WHERE cycle_products.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            AND cycle_products.status > 0
+            <if test="filter.dateFrom != null">
+                AND cycle_products.date &gt;= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null">
+                AND cycle_products.date &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.warehouseId != null">
+                AND cycle_products.location_group_id = #{filter.warehouseId}
+            </if>
+            <if test="filter.productId != null">
+                AND cycle_product_details.product_id = #{filter.productId}
+            </if>
+            <if test="filter.approvedBy != null">
+                AND cycle_products.modified_by = #{filter.approvedBy}
+            </if>
+        ) as subquery
+    </select>
+
+    <select id="countListStockAvailableForSale" parameterType="com.ut.nlSystemAPi.model.filter.StockAvailableForSaleReportFilter" resultType="java.lang.Long">
+        SELECT
+           COUNT(p.parent_id)
+        FROM `inventories`
+        INNER JOIN products AS p ON p.id = `inventories`.`product_id`
+        WHERE p.is_active = 1 AND inventories.is_active = 1
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.productPriceListId != null">
+            AND p.id IN (SELECT product_prices.product_id FROM product_prices WHERE price_type_id = #{filter.productPriceListId} AND product_prices.product_id = `inventories`.`product_id`)
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (p.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.barcode LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+        GROUP BY p.parent_id
+    </select>
+
+    <select id="getListStockAvailableForSale" parameterType="com.ut.nlSystemAPi.model.filter.StockAvailableForSaleReportFilter" resultMap="StockAvailableForSaleReportResponse">
+        SELECT
+           p.parent_id AS parentId,
+           IFNULL((SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id=(SELECT parent_id FROM products WHERE id=p.id)), 'No Parent') AS parentName
+        FROM `inventories`
+        INNER JOIN products AS p ON p.id = `inventories`.`product_id`
+        WHERE p.is_active = 1 AND inventories.is_active = 1
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.productPriceListId != null">
+            AND p.id IN (SELECT product_prices.product_id FROM product_prices WHERE price_type_id = #{filter.productPriceListId} AND product_prices.product_id = `inventories`.`product_id`)
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (p.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.barcode LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+        GROUP BY parentName
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListStockAvailableForSaleDetail" parameterType="com.ut.nlSystemAPi.model.filter.StockAvailableForSaleReportFilter" resultMap="StockAvailableForSaleReportDetailResponse">
+        SELECT
+            p.id AS productId,
+            IFNULL(p.code, '') AS code,
+            IFNULL(p.barcode, '') AS upc,
+            IFNULL(p.name, '') AS productName,
+            (CASE
+            WHEN p.small_val_uom = 1 THEN (
+            SELECT abbr
+            FROM uoms
+            WHERE id = p.price_uom_id
+            )
+            ELSE (
+            SELECT abbr
+            FROM uoms
+            WHERE id IN (
+            SELECT to_uom_id
+            FROM uom_conversions
+            WHERE is_active = 1
+            AND from_uom_id = p.price_uom_id
+            AND is_small_uom = 1
+            )
+            )
+            END) AS uom,
+            (
+                SUM(inventories.qty) - IFNULL((
+                    SELECT SUM(total_order)
+                    FROM ${tableName}
+                    WHERE ${tableName}.product_id = inventories.product_id
+                    GROUP BY ${tableName}.product_id
+                ), 0)
+            ) AS totalQtyAvailable
+        FROM `inventories`
+        INNER JOIN products AS p 
+            ON p.id = `inventories`.`product_id`
+        WHERE p.is_active = 1 
+            AND inventories.is_active = 1
+        <if test="parentId != null">
+            AND p.parent_id = #{parentId}
+        </if>
+        <if test="parentId == null">
+            AND p.parent_id IS NULL
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.productPriceListId != null">
+            AND p.id IN (SELECT product_prices.product_id FROM product_prices WHERE price_type_id = #{filter.productPriceListId} AND product_prices.product_id = `inventories`.`product_id`)
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        GROUP BY `product_id`
+        HAVING totalQtyAvailable > 0
+        ORDER BY p.code ASC
+    </select>
+
+    <select id="sumGrandTotalStockAvailableForSale" parameterType="com.ut.nlSystemAPi.model.filter.StockAvailableForSaleReportFilter" resultType="java.lang.Double">
+        SELECT
+        SUM(
+        inventories.total_qty - IFNULL((
+        SELECT SUM(total_order)
+        FROM ${tableName}
+        WHERE ${tableName}.product_id = p.id
+        ), 0)
+        ) AS totalQtyAvailable
+        FROM (
+        SELECT product_id, SUM(qty) AS total_qty
+        FROM inventories
+        WHERE is_active = 1
+        GROUP BY product_id
+        ) AS inventories
+        INNER JOIN products AS p ON p.id = inventories.product_id
+        WHERE p.is_active = 1
+        <if test="filter.warehouseId != null">
+            AND inventories.product_id IN (
+            SELECT product_id
+            FROM inventories
+            WHERE location_group_id = #{filter.warehouseId} AND is_active = 1
+            )
+        </if>
+        <if test="filter.productGroupId != null">
+            AND p.id IN (
+            SELECT product_id
+            FROM product_pgroups
+            WHERE pgroup_id = #{filter.productGroupId}
+            )
+        </if>
+        <if test="filter.productPriceListId != null">
+            AND p.id IN (
+            SELECT product_id
+            FROM product_prices
+            WHERE price_type_id = #{filter.productPriceListId}
+            )
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (p.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR p.barcode LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR p.name LIKE CONCAT('%', #{filter.searchText}, '%'))
+        </if>
+    </select>
+
+    <select id="countListGlobalInventory" parameterType="com.ut.nlSystemAPi.model.filter.GlobalInventoryReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.id)
+        FROM products p
+        INNER JOIN (
+        SELECT product_id, SUM(qty) AS total_qty
+        FROM inventories
+        WHERE is_active = 1
+        <if test="filter.dateTo != null">
+            AND `date` &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND location_id = #{filter.locationId}
+        </if>
+        GROUP BY product_id
+        ) i ON i.product_id = p.id
+        WHERE p.is_active IN (1,8)
+        AND p.is_packet = 0
+        AND p.id IN (SELECT parent_id FROM products WHERE is_active = 1 GROUP BY parent_id)
+        <if test="filter.qty != null">
+            <choose>
+                <when test="filter.qty == 1">
+                    AND IFNULL(i.total_qty, 0) > 0
+                </when>
+                <when test="filter.qty == 0">
+                    AND IFNULL(i.total_qty, 0) = 0
+                </when>
+            </choose>
+        </if>
+    </select>
+
+    <select id="getListGlobalInventory" parameterType="com.ut.nlSystemAPi.model.filter.GlobalInventoryReportFilter" resultMap="GlobalInventoryReportResponse">
+        SELECT
+            p.id AS parentId,
+        IFNULL((
+        SELECT SUM(qty)
+        FROM inventories
+        INNER JOIN products ON inventories.product_id = products.id
+        WHERE inventories.is_active = 1
+        AND products.is_active = 1
+        AND products.parent_id = p.id
+        <if test="filter.dateTo != null">
+            AND `date` &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND location_id = #{filter.locationId}
+        </if>
+        ), 0) AS endingQty,
+        p.name AS parentName
+        FROM products p
+        WHERE p.is_active IN (1,8)
+        AND p.is_packet = 0
+        AND p.id IN (SELECT parent_id FROM products WHERE is_active = 1 AND parent_id IS NOT NULL GROUP BY parent_id)
+        <if test="filter.qty != null">
+            <choose>
+                <when test="filter.qty == 1">
+                    HAVING endingQty > 0
+                </when>
+                <when test="filter.qty == 0">
+                    HAVING endingQty = 0
+                </when>
+            </choose>
+        </if>
+        ORDER BY parent_id ASC, p.code ASC
+    </select>
+
+    <select id="getListGlobalInventoryDetail" parameterType="com.ut.nlSystemAPi.model.filter.GlobalInventoryReportFilter" resultMap="GlobalInventoryReportDetailResponse">
+        SELECT
+        p.id AS id,
+        p.name AS name,
+        p.code AS code,
+        p.barcode AS upc,
+        (CASE
+        WHEN p.small_val_uom = 1 THEN (
+        SELECT abbr
+        FROM uoms
+        WHERE id = p.price_uom_id
+        )
+        ELSE (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (
+        SELECT to_uom_id
+        FROM uom_conversions
+        WHERE is_active = 1
+        AND from_uom_id = p.price_uom_id
+        AND is_small_uom = 1
+        )
+        )
+        END) AS uom,
+        IFNULL(p.unit_cost, 0) AS lastCost,
+        IFNULL((
+        SELECT SUM(qty)
+        FROM inventories
+        WHERE is_active = 1
+        AND product_id = p.id
+        <if test="filter.dateFrom != null">
+            AND `date` &lt; #{filter.dateFrom}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND location_id = #{filter.locationId}
+        </if>
+        ), 0) AS beginningQty,
+        IFNULL((
+        SELECT SUM(qty)
+        FROM inventories
+        WHERE is_active = 1
+        AND product_id = p.id
+        <if test="filter.dateTo != null">
+            AND `date` &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND location_id = #{filter.locationId}
+        </if>
+        ), 0) AS endingQty,
+        IFNULL((
+        SELECT SUM(total_order)
+        FROM
+        <choose>
+            <when test="filter.warehouseId != null">
+                `${filter.warehouseId}_group_totals`
+            </when>
+            <otherwise>
+                `inventory_totals`
+            </otherwise>
+        </choose>
+        WHERE product_id = p.id
+        ), 0) AS qtyOrder,
+        p.is_not_for_sale AS isForSale
+        FROM products p
+        WHERE p.is_active IN (1, 8)
+        AND p.is_packet = 0
+        AND p.parent_id = #{parentId}
+        AND EXISTS (
+            SELECT 1 FROM inventories inv
+            WHERE inv.product_id = p.id
+              AND inv.is_active = 1
+            <if test="filter.dateTo != null">
+              AND inv.`date` &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.warehouseId != null">
+              AND inv.location_group_id = #{filter.warehouseId}
+            </if>
+            <if test="filter.locationId != null">
+              AND inv.location_id = #{filter.locationId}
+            </if>
+        )
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.unitCost == 1">
+            AND p.unit_cost > 0
+        </if>
+        <if test="filter.unitCost == 1">
+            AND p.unit_cost > 0
+        </if>
+        <if test="filter.qty != null">
+            <choose>
+                <when test="filter.qty == 1">
+                    HAVING endingQty > 0
+                </when>
+                <when test="filter.qty == 0">
+                    HAVING endingQty = 0
+                </when>
+            </choose>
+        </if>
+        ORDER BY parent_id ASC, p.code ASC
+    </select>
+
+    <select id="getListGlobalInventoryDetailNoParent" parameterType="com.ut.nlSystemAPi.model.filter.GlobalInventoryReportFilter" resultMap="GlobalInventoryReportDetailResponse">
+        SELECT
+        p.id AS id,
+        p.name AS name,
+        p.code AS code,
+        p.barcode AS upc,
+        (CASE
+        WHEN p.small_val_uom = 1 THEN (
+        SELECT abbr
+        FROM uoms
+        WHERE id = p.price_uom_id
+        )
+        ELSE (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (
+        SELECT to_uom_id
+        FROM uom_conversions
+        WHERE is_active = 1
+        AND from_uom_id = p.price_uom_id
+        AND is_small_uom = 1
+        )
+        )
+        END) AS uom,
+        IFNULL(p.unit_cost, 0) AS lastCost,
+        IFNULL((
+        SELECT SUM(total_qty) - SUM(total_order)
+        FROM
+        <choose>
+            <when test="filter.locationId != null">
+                `${filter.locationId}_inventory_totals`
+            </when>
+            <when test="filter.warehouseId != null">
+                `${filter.warehouseId}_group_totals`
+            </when>
+            <otherwise>
+                inventory_totals
+            </otherwise>
+        </choose>
+        WHERE product_id = p.id
+        ), 0) AS beginningQty,
+        IFNULL((
+        SELECT SUM(total_qty) - SUM(total_order)
+        FROM
+        <choose>
+            <when test="filter.locationId != null">
+                `${filter.locationId}_inventory_totals`
+            </when>
+            <when test="filter.warehouseId != null">
+                `${filter.warehouseId}_group_totals`
+            </when>
+            <otherwise>
+                inventory_totals
+            </otherwise>
+        </choose>
+        WHERE product_id = p.id
+        ), 0) AS endingQty,
+        IFNULL((
+        SELECT SUM(total_order)
+        FROM
+        <choose>
+            <when test="filter.warehouseId != null">
+                `${filter.warehouseId}_group_totals`
+            </when>
+            <otherwise>
+                `inventory_totals`
+            </otherwise>
+        </choose>
+        WHERE product_id = p.id
+        ), 0) AS qtyOrder,
+        p.is_not_for_sale AS isForSale
+        FROM products p
+        WHERE p.is_active IN (1, 8)
+        AND p.is_packet = 0
+        AND p.parent_id IS NULL
+        AND EXISTS (
+            SELECT 1 FROM inventories inv
+            WHERE inv.product_id = p.id
+              AND inv.is_active = 1
+            <if test="filter.dateTo != null">
+              AND inv.`date` &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.warehouseId != null">
+              AND inv.location_group_id = #{filter.warehouseId}
+            </if>
+            <if test="filter.locationId != null">
+              AND inv.location_id = #{filter.locationId}
+            </if>
+        )
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.unitCost == 1">
+            AND p.unit_cost > 0
+        </if>
+        <if test="filter.unitCost == 1">
+            AND p.unit_cost > 0
+        </if>
+        <if test="filter.qty != null">
+            <choose>
+                <when test="filter.qty == 1">
+                    HAVING endingQty > 0
+                </when>
+                <when test="filter.qty == 0">
+                    HAVING endingQty = 0
+                </when>
+            </choose>
+        </if>
+        ORDER BY parent_id ASC, p.code ASC
+    </select>
+
+    <select id="sumGrandTotalGlobalInventory" resultType="java.lang.Double">
+        SELECT SUM(
+        COALESCE((
+        SELECT SUM(qty)
+        FROM inventories i
+        WHERE i.is_active = 1
+        AND i.product_id = p.id
+        <if test="filter.dateTo != null">
+            AND i.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND i.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND i.location_id = #{filter.locationId}
+        </if>
+        ), 0) -
+        COALESCE((
+        SELECT SUM(total_order)
+        FROM
+        <choose>
+            <when test="filter.warehouseId != null">
+                ${filter.warehouseId}_group_totals
+            </when>
+            <otherwise>
+                inventory_totals
+            </otherwise>
+        </choose> t
+        WHERE t.product_id = p.id
+        ), 0)
+        ) AS grandTotal
+        FROM products p
+        WHERE p.is_active IN (1, 8)
+        AND p.is_packet = 0
+        AND EXISTS (
+            SELECT 1 FROM inventories inv
+            WHERE inv.product_id = p.id
+              AND inv.is_active = 1
+            <if test="filter.dateTo != null">
+              AND inv.date &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.warehouseId != null">
+              AND inv.location_group_id = #{filter.warehouseId}
+            </if>
+            <if test="filter.locationId != null">
+              AND inv.location_id = #{filter.locationId}
+            </if>
+        )
+        <if test="filter.productGroupId != null">
+            AND p.id IN (
+            SELECT product_id
+            FROM product_pgroups
+            WHERE pgroup_id = #{filter.productGroupId}
+            )
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.unitCost == 1">
+            AND p.unit_cost > 0
+        </if>
+        <if test="filter.qty != null">
+            <choose>
+                <when test="filter.qty == 1">
+                    HAVING grandTotal > 0
+                </when>
+                <when test="filter.qty == 0">
+                    HAVING grandTotal = 0
+                </when>
+            </choose>
+        </if>
+    </select>
+
+    <select id="countListProductAverageCost" parameterType="com.ut.nlSystemAPi.model.filter.ProductAverageCostReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.id)
+        FROM products p
+        INNER JOIN uoms ON uoms.id=p.price_uom_id
+        INNER JOIN product_pgroups ppg ON ppg.product_id = p.id
+        WHERE p.is_active = 1
+        <if test="filter.companyId != null">
+            AND p.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND ppg.pgroup_id = #{filter.productGroupId}
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND p.created_by = #{filter.createdBy}
+        </if>
+    </select>
+
+    <select id="getListProductAverageCost" parameterType="com.ut.nlSystemAPi.model.filter.ProductAverageCostReportFilter" resultMap="ProductAverageCostReportResponse">
+        SELECT
+            p.id AS productId,
+            p.code AS code,
+            p.barcode AS upc,
+            p.name AS productName,
+            uoms.name AS uom,
+            p.unit_cost AS lastCost,
+            IFNULL((SELECT avg_cost FROM inventory_valuations WHERE is_active=1 AND pid=p.id ORDER BY date DESC,created DESC,id DESC LIMIT 1),0) AS avgCost
+        FROM products p
+            INNER JOIN uoms ON uoms.id=p.price_uom_id
+            INNER JOIN product_pgroups ppg ON ppg.product_id = p.id
+        WHERE p.is_active = 1
+        <if test="filter.companyId != null">
+            AND p.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND ppg.pgroup_id = #{filter.productGroupId}
+        </if>
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND p.created_by = #{filter.createdBy}
+        </if>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                p.code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <sql id="BASE_WHERE">
+        WHERE p.is_active = 1
+        <if test="filter.productId != null">
+            AND p.id = #{filter.productId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <choose>
+            <when test="filter.companyId != null">
+                AND p.company_id = #{filter.companyId}
+            </when>
+            <otherwise>
+                AND p.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            </otherwise>
+        </choose>
+    </sql>
+
+
+    <select id="countListProductPriceList" parameterType="com.ut.nlSystemAPi.model.filter.ProductAverageCostReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.id)
+        FROM products p 
+            INNER JOIN uoms ON uoms.id = p.price_uom_id
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getListProductPriceList" parameterType="com.ut.nlSystemAPi.model.filter.ProductPriceListReportFilter" resultMap="ProductPriceListReportResponse">
+        SELECT
+            p.id AS productId,
+            p.code AS sku,
+            p.barcode AS upc,
+            p.name AS productName,
+            p.price_uom_id AS uomId,
+            uoms.abbr AS uom,
+            p.unit_cost AS unitCost
+        FROM products p 
+            INNER JOIN uoms ON uoms.id = p.price_uom_id
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                p.code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListProductPriceListDetail" resultMap="ProductPriceListDetailReportResponse">
+        SELECT
+            price_types.id AS priceTypeId,
+            price_types.name AS priceTypeName,
+            product_prices.id AS productPriceId,
+            product_prices.product_id AS productId,
+            product_prices.set_type AS setType,
+            CASE
+                WHEN (product_prices.set_type = 1) THEN product_prices.amount
+                WHEN (product_prices.set_type = 2) THEN #{unitCost} + ((#{unitCost} * percent) / 100)
+                ELSE #{unitCost} + product_prices.add_on
+                END AS amount
+        FROM price_types
+                 LEFT JOIN product_prices ON product_prices.price_type_id = price_types.id
+        WHERE product_prices.product_id = #{productId} AND uom_id = #{priceUomId}
+    </select>
+
+
+
+
+
+    <!-- Count Valuation Summary -->
+    <select id="countListValuationSummary" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(inventory_valuations.id)
+        FROM inventory_valuations
+        INNER JOIN products ON products.id = inventory_valuations.pid
+        INNER JOIN uoms ON uoms.id = products.price_uom_id
+        WHERE inventory_valuations.is_active = 1
+        <if test="filter.date != null">
+            AND inventory_valuations.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.productId != null">
+            AND inventory_valuations.pid = #{filter.productId}
+        </if>
+    </select>
+
+    <!-- Get Valuation Summary -->
+    <select id="getListValuationSummary" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultMap="ValuationReportResponse">
+        SELECT
+        inventory_valuations.pid AS productId,
+        IFNULL(inventory_valuations.on_hand_small,0) AS onHand,
+        IFNULL(SUM(inventory_valuations.small_qty),0) AS qty,
+        IFNULL(AVG(inventory_valuations.avg_cost),0) AS avgCost,
+        IFNULL(inventory_valuations.asset_value,0) AS assetValue,
+        CONCAT_WS(' ', products.code, products.name) AS productName,
+        COALESCE(
+        (SELECT uoms.name
+        FROM uoms
+        WHERE uoms.id IN (
+        SELECT uom_conversions.to_uom_id
+        FROM uom_conversions
+        WHERE uom_conversions.from_uom_id = products.price_uom_id
+        AND uom_conversions.is_small_uom = 1
+        AND uom_conversions.is_active = 1
+        )),
+        (SELECT uoms.name
+        FROM uoms
+        WHERE uoms.id = products.price_uom_id)
+        ) AS uom
+        FROM inventory_valuations
+        INNER JOIN products ON products.id = inventory_valuations.pid
+        WHERE inventory_valuations.is_active = 1
+        <if test="filter.date != null">
+            AND inventory_valuations.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.productId != null">
+            AND inventory_valuations.pid = #{filter.productId}
+        </if>
+        GROUP BY inventory_valuations.pid
+        ORDER BY inventory_valuations.date, inventory_valuations.purchase_order_id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListValuationDetail" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(inventory_valuations.pid)
+        FROM inventory_valuations
+        WHERE inventory_valuations.is_active = 1
+        <if test="filter.date != null">
+            AND inventory_valuations.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.productId != null">
+            AND inventory_valuations.pid = #{filter.productId}
+        </if>
+    </select>
+
+    <select id="getListValuationDetail" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultMap="ValuationReportResponse">
+        SELECT
+        inventory_valuations.pid AS productId,
+        CONCAT_WS(' ', products.code, products.name) AS productName
+        FROM inventory_valuations
+        INNER JOIN products ON products.id = inventory_valuations.pid
+        WHERE inventory_valuations.is_active = 1
+        <if test="filter.date != null">
+            AND inventory_valuations.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.productId != null">
+            AND inventory_valuations.pid = #{filter.productId}
+        </if>
+        GROUP BY products.id, products.code, products.name
+        ORDER BY inventory_valuations.date, inventory_valuations.purchase_order_id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListValuationDetailDetail" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultMap="ValuationReportDetailResponse">
+        SELECT
+            inventory_valuations.type AS type,
+            inventory_valuations.date AS `date`,
+            CASE
+                WHEN cycle_product_id IS NOT NULL THEN (
+                    SELECT reference FROM cycle_products WHERE id = cycle_product_id LIMIT 1
+            )
+            WHEN sales_order_id IS NOT NULL THEN (
+                SELECT so_code FROM sales_orders WHERE id = sales_order_id LIMIT 1
+            )
+            WHEN point_of_sales_id IS NOT NULL THEN (
+                SELECT so_code FROM sales_orders WHERE id = point_of_sales_id LIMIT 1
+            )
+            WHEN credit_memo_id IS NOT NULL THEN (
+                SELECT cm_code FROM credit_memos WHERE id = credit_memo_id LIMIT 1
+            )
+            WHEN purchase_order_id IS NOT NULL THEN (
+                SELECT po_code FROM purchase_orders WHERE id = purchase_order_id LIMIT 1
+            )
+            WHEN purchase_return_id IS NOT NULL THEN (
+                SELECT pr_code FROM purchase_returns WHERE id = purchase_return_id LIMIT 1
+            )
+            ELSE IFNULL(inventory_valuations.reference, '')
+        END AS reference,
+        IFNULL(inventory_valuations.small_qty, 0) AS qty,
+        IFNULL(inventory_valuations.cost, 0) AS cost,
+        IFNULL(inventory_valuations.price, 0) AS price,
+        IFNULL(inventory_valuations.on_hand_small, 0) AS onHand,
+        IFNULL(inventory_valuations.avg_cost, 0) AS avgCost,
+        IFNULL(inventory_valuations.qty, 0) * IFNULL(inventory_valuations.avg_cost, 0) AS assetValue,
+        IFNULL(inventory_valuations.is_var_cost, 0) AS isVarCost,
+        IFNULL(inventory_valuations.is_adjust_value, 0) AS isAdjustValue,
+        COALESCE(
+          (SELECT uoms.name
+           FROM uoms
+           WHERE uoms.id IN (
+             SELECT uom_conversions.to_uom_id
+             FROM uom_conversions
+             WHERE uom_conversions.from_uom_id = products.price_uom_id
+               AND uom_conversions.is_small_uom = 1
+               AND uom_conversions.is_active = 1
+           )),
+          (SELECT uoms.name
+           FROM uoms
+           WHERE uoms.id = products.price_uom_id)
+        ) AS uom
+    FROM inventory_valuations
+        INNER JOIN products ON products.id = inventory_valuations.pid
+    WHERE inventory_valuations.is_active = 1
+      AND inventory_valuations.pid = #{productId}
+        ORDER BY inventory_valuations.date, inventory_valuations.created, inventory_valuations.id ASC
+    </select>
+
+    <select id="sumTotalQtyValuation" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultType="java.lang.Double">
+        SELECT SUM(IFNULL(inventory_valuations.qty, 0))
+        FROM inventory_valuations
+        INNER JOIN products ON products.id = inventory_valuations.pid
+        WHERE inventory_valuations.is_active = 1
+        <if test="filter.date != null">
+            AND inventory_valuations.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.productId != null">
+            AND inventory_valuations.pid = #{filter.productId}
+        </if>
+    </select>
+
+    <select id="sumTotalAssetValueValuation" parameterType="com.ut.nlSystemAPi.model.filter.ValuationReportFilter" resultType="java.lang.Double">
+        SELECT SUM(IFNULL(inventory_valuations.qty, 0) * IFNULL(inventory_valuations.avg_cost, 0))
+        FROM inventory_valuations
+        INNER JOIN products ON products.id = inventory_valuations.pid
+        WHERE inventory_valuations.is_active = 1
+        <if test="filter.date != null">
+            AND inventory_valuations.date &lt;= #{filter.date}
+        </if>
+        <if test="filter.productId != null">
+            AND inventory_valuations.pid = #{filter.productId}
+        </if>
+    </select>
+
+
+
+
+
+
+    <!--    Price Request Tracking-->
+    <select id="countListPriceRequestTracking" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestTrackingReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(pr.id)
+        FROM price_requests AS pr
+        INNER JOIN users AS u ON u.id = pr.created_by
+        INNER JOIN employees AS e ON e.user_id = u.id
+        WHERE pr.status = 2
+        <if test="filter.dateFrom != null">
+            AND DATE(pr.closed) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(pr.closed) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.createdBy != null">
+            AND pr.created_by = #{filter.createdBy}
+        </if>
+    </select>
+
+    <select id="getListPriceRequestTracking" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestTrackingReportFilter" resultMap="PriceRequestTrackingReportResponse">
+        SELECT
+        pr.created_by AS createdBy,
+        e.id AS employeeId,
+        e.name AS employeeName
+        FROM price_requests AS pr
+        INNER JOIN users AS u ON u.id = pr.created_by
+        INNER JOIN employees AS e ON e.user_id = u.id
+        WHERE pr.status = 2
+        <if test="filter.dateFrom != null">
+            AND DATE(pr.closed) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(pr.closed) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.createdBy != null">
+            AND pr.created_by = #{filter.createdBy}
+        </if>
+        GROUP BY pr.created_by
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListPriceRequestTrackingPriceRequest" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestTrackingReportFilter" resultMap="PriceRequestTrackingReportPriceRequestResponse">
+        SELECT
+        pr.product_id AS productId,
+        p.name AS productName,
+        p.code AS productCode,
+        IFNULL((SELECT name
+        FROM pgroups
+        WHERE id = (SELECT pgroup_id
+        FROM product_pgroups
+        WHERE product_id = p.id LIMIT 1) LIMIT 1), 'N/A') AS productBrand,
+        IFNULL(pr.request_code, 0) AS priceRequestCode,
+        IFNULL(pr.request_date, 0) AS priceRequestDate
+        FROM price_requests AS pr
+        INNER JOIN users AS u ON u.id = pr.created_by
+        INNER JOIN products AS p ON pr.product_id = p.id
+        WHERE pr.status = 2 AND pr.created_by = #{createdBy}
+        <if test="filter.dateFrom != null">
+            AND DATE(pr.closed) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(pr.closed) &lt;= #{filter.dateTo}
+        </if>
+        ORDER BY pr.created_by
+    </select>
+
+    <select id="getListPriceRequestTrackingQuotation" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestTrackingReportFilter" resultMap="PriceRequestTrackingReportQuotationResponse">
+        SELECT
+        qd.product_id AS productId,
+        p.name AS productName,
+        p.code AS productCode,
+        IFNULL((SELECT name
+        FROM pgroups
+        WHERE id = (SELECT pgroup_id
+        FROM product_pgroups
+        WHERE product_id = p.id LIMIT 1) LIMIT 1), 'N/A') AS productBrand,
+        IFNULL(q.quotation_code, 0) AS quotationCode,
+        IFNULL(q.quotation_date, 0) AS quotationDate
+        FROM quotations AS q
+        LEFT JOIN quotation_details AS qd ON qd.quotation_id = q.id
+        INNER JOIN users AS u ON u.id = q.created_by
+        INNER JOIN products AS p ON qd.product_id = p.id
+        WHERE q.status = 2 AND q.created_by = #{createdBy}
+        <if test="filter.dateFrom != null">
+            AND DATE(q.quotation_date) >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(q.quotation_date) &lt;= #{filter.dateTo}
+        </if>
+        ORDER BY q.created_by
+    </select>
+
+    <select id="getListPriceRequestTrackingSaleOrder" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestTrackingReportFilter" resultMap="PriceRequestTrackingReportSaleOrderResponse">
+        SELECT
+        od.product_id AS productId,
+        p.name AS productName,
+        p.code AS productCode,
+        IFNULL((SELECT name
+        FROM pgroups
+        WHERE id = (SELECT pgroup_id
+        FROM product_pgroups
+        WHERE product_id = p.id LIMIT 1) LIMIT 1), 'N/A') AS productBrand,
+        IFNULL(o.status, 0) AS saleOrderStatus,
+        IFNULL(o.order_code, 0) AS saleOrderCode,
+        IFNULL(o.order_date, 0) AS saleOrderDate
+        FROM orders AS o
+        LEFT JOIN order_details AS od ON od.order_id = o.id
+        INNER JOIN users AS u ON u.id = o.created_by
+        INNER JOIN products AS p ON od.product_id = p.id
+        WHERE o.status = 2 AND o.created_by = #{createdBy}
+        <if test="filter.dateFrom != null">
+            AND o.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND o.order_date &lt;= #{filter.dateTo}
+        </if>
+        ORDER BY o.created_by
+    </select>
+
+
+
+
+
+    <!-- Inventory Activity -->
+
+    <select id="sumSubTotal" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Double">
+        SELECT SUM(inv.qty) AS qty
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        AND inv.product_id = #{productId}
+    </select>
+
+
+    <select id="sumTotal" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Double">
+        SELECT SUM(inv.qty) AS qty
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+    <select id="sumTotalActivity" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Double">
+        <choose>
+            <when test="type == 1">
+                SELECT IFNULL(SUM(inv_begin.qty),0)
+                FROM inventories inv_begin
+                INNER JOIN products p ON p.id = inv_begin.product_id
+                WHERE inv_begin.is_active = 1
+                <if test="filter.dateFrom != null">
+                    AND inv_begin.date &lt; #{filter.dateFrom}
+                </if>
+                <if test="filter.warehouseId != null">
+                    AND inv_begin.location_group_id = #{filter.warehouseId}
+                </if>
+                <if test="filter.locationId != null">
+                    AND inv_begin.location_id = #{filter.locationId}
+                </if>
+            </when>
+            <when test="type == 2">
+                SELECT IFNULL(SUM(inv_inout.qty),0)
+                FROM inventories inv_inout
+                INNER JOIN products p ON p.id = inv_inout.product_id
+                WHERE inv_inout.is_active = 1
+                <if test="filter.dateFrom != null">
+                    AND inv_inout.date >= #{filter.dateFrom}
+                </if>
+                <if test="filter.dateTo != null">
+                    AND inv_inout.date &lt;= #{filter.dateTo}
+                </if>
+                <if test="filter.warehouseId != null">
+                    AND inv_inout.location_group_id = #{filter.warehouseId}
+                </if>
+                <if test="filter.locationId != null">
+                    AND inv_inout.location_id = #{filter.locationId}
+                </if>
+                <if test="filter.productTypeId != null">
+                    AND inv_inout.type = #{filter.productTypeId}
+                </if>
+            </when>
+            <when test="type == 3">
+                SELECT IFNULL(SUM(inv_ending.qty),0)
+                FROM inventories inv_ending
+                INNER JOIN products p ON p.id = inv_ending.product_id
+                WHERE inv_ending.is_active = 1
+                <if test="filter.warehouseId != null">
+                    AND inv_ending.location_group_id = #{filter.warehouseId}
+                </if>
+                <if test="filter.locationId != null">
+                    AND inv_ending.location_id = #{filter.locationId}
+                </if>
+                <if test="filter.productTypeId != null">
+                    AND inv_ending.type = #{filter.productTypeId}
+                </if>
+            </when>
+        </choose>
+    </select>
+
+
+    <!--Parent Summary-->
+    <select id="getListInventoryActivityParentSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+        IFNULL(p.parent_id, 0) AS itemId,
+        CASE
+        WHEN p.parent_id IS NULL THEN 'No Parent'
+        ELSE (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id = p.parent_id)
+        END AS itemName,
+        SUM(inv.qty) AS qty
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        AND p.parent_id IS NOT NULL
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+
+    <select id="getListInventoryActivityParentSummaryNoParent" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+        IFNULL(p.parent_id, 0) AS itemId,
+        CASE
+        WHEN p.parent_id IS NULL THEN 'No Parent'
+        ELSE (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id = p.parent_id)
+        END AS itemName,
+        SUM(inv.qty) AS qty
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        AND p.parent_id IS NULL
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListInventoryActivityParentSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT
+        COUNT(p.parent_id)
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+
+    <!--Item Summary-->
+    <select id="getListInventoryActivityItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+        p.id AS itemId,
+        p.name AS itemName
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        GROUP BY p.id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListInventoryActivityItemSummaryDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportDetailResponse">
+        SELECT
+        p.id AS productId,
+        p.code AS code,
+        l.name AS `locationName`,
+        SUM(inv.qty) AS `qty`,
+        (CASE
+        WHEN p.small_val_uom = 1 THEN (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (SELECT price_uom_id FROM products WHERE id = #{productId})
+        )
+        ELSE (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (
+        SELECT to_uom_id
+        FROM uom_conversions
+        WHERE is_active = 1
+        AND from_uom_id IN (SELECT price_uom_id FROM products WHERE id = #{productId})
+        AND is_small_uom = 1
+        )
+        )
+        END) AS uomName
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        INNER JOIN locations l ON l.id = inv.location_id
+        <include refid="BASE_WHERE_ITEM"/>
+        AND inv.product_id = #{productId}
+        GROUP BY inv.product_id, inv.location_id, inv.lots_number, inv.date_expired
+    </select>
+
+    <select id="countListInventoryActivityItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.id)
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+
+
+    <!--Item Activity Summary-->
+    <select id="getListInventoryActivityItemActivitySummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+        IFNULL(p.parent_id, null) AS itemId,
+        CASE
+        WHEN p.parent_id IS NULL THEN 'No Parent'
+        ELSE (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id = p.parent_id)
+        END AS itemName
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        GROUP BY p.parent_id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListInventoryActivityItemActivitySummaryDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportDetailResponse">
+        SELECT
+        p.code AS code,
+        p.name AS `productName`,
+        COALESCE(
+        (
+        SELECT SUM(inv_begin.qty)
+        FROM inventories inv_begin
+        WHERE inv_begin.product_id = p.id
+        AND inv_begin.is_active = 1
+        <if test="filter.dateFrom != null">
+            AND inv_begin.date &lt; #{filter.dateFrom}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND inv_begin.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND inv_begin.location_id = #{filter.locationId}
+        </if>
+        ), 0) AS beginning,
+        COALESCE(
+        (
+        SELECT SUM(inv_inout.qty)
+        FROM inventories inv_inout
+        WHERE inv_inout.product_id = p.id
+        AND inv_inout.is_active = 1
+        <if test="filter.dateFrom != null">
+            AND inv_inout.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND inv_inout.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND inv_inout.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND inv_inout.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.productTypeId != null">
+            AND inv_inout.type = #{filter.productTypeId}
+        </if>
+        ), 0) AS `inOutAmount`,
+        COALESCE(
+        (
+        SELECT SUM(inv_ending.qty)
+        FROM inventories inv_ending
+        WHERE inv_ending.product_id = p.id
+        AND inv_ending.is_active = 1
+        <if test="filter.warehouseId != null">
+            AND inv_ending.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND inv_ending.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.productTypeId != null">
+            AND inv_ending.type = #{filter.productTypeId}
+        </if>
+        ), 0) AS ending,
+        (CASE
+        WHEN p.small_val_uom = 1 THEN (
+        SELECT abbr
+        FROM uoms
+        WHERE id = p.price_uom_id
+        )
+        ELSE (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (
+        SELECT to_uom_id
+        FROM uom_conversions
+        WHERE is_active = 1
+        AND from_uom_id = p.price_uom_id
+        AND is_small_uom = 1
+        )
+        )
+        END) AS uomName
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        WHERE inv.is_active = 1
+        <if test="filter.dateFrom != null">
+            AND inv.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND inv.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND inv.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND inv.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.searchText != null">
+            AND (p.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR p.barcode LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR p.name LIKE CONCAT('%', #{filter.searchText}, '%'))
+        </if>
+        <if test="filter.productGroupId != null">
+            AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.productTypeId != null">
+            AND inv.type = #{filter.productTypeId}
+        </if>
+        <choose>
+            <when test="parentId != null">
+                AND p.parent_id = #{parentId}
+            </when>
+            <otherwise>
+                AND p.parent_id IS NULL
+            </otherwise>
+        </choose>
+        GROUP BY p.id
+    </select>
+
+    <select id="countListInventoryActivityItemActivitySummary" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.parent_id)
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+
+
+
+    <select id="getListInventoryActivityItemActivityDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+        p.id AS itemId,
+        p.name AS itemName
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        GROUP BY p.id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListInventoryActivityItemActivityDetailDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportDetailResponse">
+        SELECT
+        p.code AS code,
+        inv.date AS `date`,
+        l.name AS `locationName`,
+        inv.date_expired AS `expiredDate`,
+        IFNULL(inv.lots_number, '0') AS `lotNo`,
+        COALESCE(
+        (
+        SELECT SUM(inv_begin.qty)
+        FROM inventories inv_begin
+        WHERE inv_begin.product_id = #{productId}
+        AND inv_begin.is_active = 1
+        <if test="filter.dateFrom != null">
+            AND inv_begin.date &lt; #{filter.dateFrom}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND inv_begin.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND inv_begin.location_id = #{filter.locationId}
+        </if>
+        ), 0) AS beginning,
+        COALESCE(
+        (
+        SELECT SUM(inv_inout.qty)
+        FROM inventories inv_inout
+        WHERE inv_inout.product_id = #{productId}
+        AND inv_inout.is_active = 1
+        <if test="filter.dateFrom != null">
+            AND inv_inout.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND inv_inout.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND inv_inout.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND inv_inout.location_id = #{filter.locationId}
+        </if>
+        ), 0) AS `inOutAmount`,
+        (CASE
+        WHEN p.small_val_uom = 1 THEN (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (SELECT price_uom_id FROM products WHERE id = #{productId})
+        )
+        ELSE (
+        SELECT abbr
+        FROM uoms
+        WHERE id IN (
+        SELECT to_uom_id
+        FROM uom_conversions
+        WHERE is_active = 1
+        AND from_uom_id IN (SELECT price_uom_id FROM products WHERE id = #{productId})
+        AND is_small_uom = 1
+        )
+        )
+        END) AS uomName,
+
+        IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.cycle_product_id IS NOT NULL
+        THEN inv.qty
+        END), 0) AS adjustment,
+
+        IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.sales_order_id IS NOT NULL
+        THEN inv.qty
+        END), 0) AS sale,
+
+        IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.credit_memo_id IS NOT NULL
+        THEN inv.qty
+        END), 0) AS cm,
+
+        IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.purchase_order_id IS NOT NULL
+        THEN inv.qty
+        END), 0) + IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.purchase_receive_result_id IS NOT NULL
+        THEN inv.qty
+        END), 0) AS po,
+
+        IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.purchase_return_id IS NOT NULL
+        THEN inv.qty
+        END), 0) AS br,
+
+        IFNULL(
+        SUM(CASE
+        WHEN inv.is_active = 1
+        AND inv.product_id = #{productId}
+        AND inv.transfer_order_id IS NOT NULL
+        THEN inv.qty
+        END), 0) AS transfer,
+
+        IFNULL((SELECT SUM(total_order) FROM inventory_totals WHERE inventory_totals.product_id = p.id), 0) AS totalOrder
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        INNER JOIN locations l ON l.id = inv.location_id
+        <include refid="BASE_WHERE_ITEM"/>
+        AND inv.product_id = #{productId}
+        GROUP BY inv.product_id, inv.location_id, inv.lots_number, inv.date_expired
+    </select>
+
+    <select id="countListInventoryActivityItemActivityDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.parent_id)
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+
+
+
+    <select id="getListInventoryActivityItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+        p.id AS itemId,
+        p.name AS itemName
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+        GROUP BY p.id
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListInventoryActivityItemDetailDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportDetailResponse">
+        SELECT
+        p.id AS productId,
+        inv.type AS type,
+        inv.date AS `date`,
+        l.name AS `locationName`,
+        IFNULL(inv.qty,0) AS `qty`,
+
+        COALESCE(
+        (SELECT name FROM vendors WHERE vendors.id = inv.vendor_id LIMIT 1),
+        (SELECT name FROM customers WHERE customers.id = inv.customer_id LIMIT 1),
+        (SELECT CONCAT(users.first_name, ' ', users.last_name) FROM users WHERE users.id = inv.created_by LIMIT 1)
+        ) AS createdBy,
+
+        CASE
+        WHEN p.small_val_uom = 1 THEN (
+        SELECT abbr FROM uoms WHERE id = p.price_uom_id LIMIT 1
+        )
+        ELSE (
+        SELECT abbr FROM uoms WHERE id = (
+        SELECT to_uom_id
+        FROM uom_conversions
+        WHERE is_active = 1
+        AND from_uom_id = p.price_uom_id
+        AND is_small_uom = 1
+        LIMIT 1
+        )
+        )
+        END AS uomName,
+
+        CASE
+        WHEN cycle_product_id IS NOT NULL THEN (
+        SELECT IFNULL(cost, 0) / p.small_val_uom
+        FROM inventory_valuations
+        WHERE inventory_valuations.cycle_product_id = inv.cycle_product_id
+        LIMIT 1
+        )
+        WHEN sales_order_id IS NOT NULL THEN (
+        SELECT unit_price
+        FROM sales_order_details
+        WHERE sales_order_details.sales_order_id = inv.sales_order_id
+        AND sales_order_details.product_id = inv.product_id
+        LIMIT 1
+        )
+        WHEN point_of_sales_id IS NOT NULL THEN (
+        SELECT unit_price
+        FROM sales_order_details
+        WHERE sales_order_details.sales_order_id = inv.point_of_sales_id
+        AND sales_order_details.product_id = inv.product_id
+        LIMIT 1
+        )
+        WHEN credit_memo_id IS NOT NULL THEN (
+        SELECT unit_price
+        FROM credit_memo_details
+        WHERE credit_memo_details.credit_memo_id = inv.credit_memo_id
+        AND credit_memo_details.product_id = inv.product_id
+        LIMIT 1
+        )
+        WHEN purchase_order_id IS NOT NULL THEN (
+        SELECT unit_cost * -1
+        FROM purchase_order_details
+        WHERE purchase_order_details.purchase_order_id = inv.purchase_order_id
+        AND purchase_order_details.product_id = inv.product_id
+        LIMIT 1
+        )
+        WHEN transfer_order_id IS NOT NULL THEN (
+        SELECT cost
+        FROM inventory_valuations
+        WHERE is_active = 1
+        AND pid = inv.product_id
+        AND date &lt;= inv.date
+        ORDER BY date DESC, created DESC, id DESC
+        LIMIT 1
+        )
+        WHEN purchase_return_id IS NOT NULL THEN (
+        SELECT unit_price
+        FROM purchase_return_details
+        WHERE purchase_return_details.purchase_return_id = inv.purchase_return_id
+        AND purchase_return_details.product_id = inv.product_id
+        LIMIT 1
+        )
+        ELSE 0
+        END AS unitCost,
+
+        CASE
+        WHEN cycle_product_id IS NOT NULL THEN (
+        SELECT reference FROM cycle_products WHERE id = cycle_product_id LIMIT 1
+        )
+        WHEN sales_order_id IS NOT NULL THEN (
+        SELECT so_code FROM sales_orders WHERE id = sales_order_id LIMIT 1
+        )
+        WHEN point_of_sales_id IS NOT NULL THEN (
+        SELECT so_code FROM sales_orders WHERE id = point_of_sales_id LIMIT 1
+        )
+        WHEN credit_memo_id IS NOT NULL THEN (
+        SELECT cm_code FROM credit_memos WHERE id = credit_memo_id LIMIT 1
+        )
+        WHEN purchase_order_id IS NOT NULL THEN (
+        SELECT po_code FROM purchase_orders WHERE id = purchase_order_id LIMIT 1
+        )
+        WHEN purchase_return_id IS NOT NULL THEN (
+        SELECT pr_code FROM purchase_returns WHERE id = purchase_return_id LIMIT 1
+        )
+        WHEN transfer_order_id IS NOT NULL THEN (
+        SELECT to_code FROM transfer_orders WHERE id = transfer_order_id LIMIT 1
+        )
+        WHEN purchase_receive_result_id IS NOT NULL THEN (
+        SELECT code FROM purchase_receive_results WHERE id = purchase_receive_result_id LIMIT 1
+        )
+        ELSE 'Unknown'
+        END AS reference
+
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        INNER JOIN locations l ON l.id = inv.location_id
+
+        <include refid="BASE_WHERE_ITEM"/>
+        AND inv.product_id = #{productId}
+    </select>
+
+
+    <select id="countListInventoryActivityItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(p.id)
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+
+
+
+
+    <select id="getLocationsId" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT id FROM locations WHERE is_active = 1
+        <if test="filter.warehouseId != null">
+            AND location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.locationId != null">
+            AND id = #{filter.locationId}
+        </if>
+    </select>
+
+    <sql id="BASE_COL_ITEM">
+            p.id AS itemId,
+            inv.id AS inventoryId,
+            p.code AS code,
+            inv.type AS type,
+            inv.date AS date,
+            usr.username AS createdBy,
+            p.name AS itemName,
+            u.abbr AS uomName,
+            c.name AS customerName,
+            lg.name AS warehouse,
+            l.name AS locationName,
+            inv.date_expired AS expiredDate,
+            SUM(inv.qty) AS qty,
+        CASE
+        WHEN inv.type = 'Purchase' THEN po.code
+        WHEN inv.type = 'Sale' THEN so.so_code
+        WHEN inv.type = 'Set Purchase' OR 'Void Purchase' THEN pos.so_code
+        WHEN inv.type = 'Credit Memo' THEN cm.cm_code
+        WHEN inv.type = 'Transfer In' OR inv.type = 'Transfer Out' THEN tr.code
+        WHEN inv.type = 'Inv Adj' THEN ia.reference
+        WHEN inv.type = 'Bill Return' THEN purchase_returns.pr_code
+        WHEN inv.type = 'Goods Receipt Note' THEN tr.code
+        ELSE 'N/A'
+        END AS reference
+    </sql>
+
+    <sql id="BASE_FROM_ITEM">
+        FROM inventories inv
+        INNER JOIN products p ON p.id = inv.product_id
+        INNER JOIN uoms u ON u.id = p.price_uom_id
+        LEFT JOIN users usr ON usr.id = p.created_by
+        INNER JOIN locations l ON l.id = inv.location_id
+        INNER JOIN location_groups lg ON lg.id = inv.location_group_id
+        LEFT JOIN customers c ON c.id = inv.customer_id
+        LEFT JOIN vendors v ON v.id = inv.vendor_id
+        LEFT JOIN purchase_receive_results po ON po.purchase_order_id = inv.purchase_order_id
+        LEFT JOIN sales_orders so ON so.id = inv.sales_order_id
+        LEFT JOIN sales_orders pos ON pos.id = inv.point_of_sales_id
+        LEFT JOIN credit_memos cm ON cm.id = inv.credit_memo_id
+        LEFT JOIN transfer_receive_results tr ON tr.transfer_order_id = inv.transfer_order_id
+        LEFT JOIN cycle_products ia ON ia.id = inv.cycle_product_id
+        LEFT JOIN purchase_returns ON purchase_returns.id = inv.purchase_return_id
+        LEFT JOIN purchase_receive_results ON purchase_receive_results.id = inv.purchase_receive_result_id
+    </sql>
+
+    <sql id="BASE_WHERE_ITEM">
+        WHERE inv.is_active = 1
+            <if test="filter.dateFrom != null">
+                AND inv.date >= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null">
+                AND inv.date &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.warehouseId != null">
+                AND inv.location_group_id = #{filter.warehouseId}
+            </if>
+            <if test="filter.locationId != null">
+                AND inv.location_id = #{filter.locationId}
+            </if>
+            <if test="filter.searchText != null">
+                AND (p.code LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR p.barcode LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR p.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+            </if>
+            <if test="filter.productGroupId != null">
+                AND p.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+            </if>
+            <if test="filter.productId != null">
+                AND p.id = #{filter.productId}
+            </if>
+            <if test="filter.productTypeId != null">
+                AND inv.type = #{filter.productTypeId}
+            </if>
+    </sql>
+
+
+    <select id="getItem" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT
+            p.id AS itemId,
+            p.name AS itemName
+        <include refid="BASE_FROM_ITEM"/>
+        <include refid="BASE_WHERE_ITEM"/>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countItem" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT
+        COUNT(p.id)
+        <include refid="BASE_FROM_ITEM"/>
+        <include refid="BASE_WHERE_ITEM"/>
+        GROUP BY p.id
+    </select>
+
+
+    <select id="getItemDetail" resultMap="InventoryActivityReportDetailResponse">
+        SELECT
+        <include refid="BASE_COL_ITEM"/>
+        <include refid="BASE_FROM_ITEM"/>
+        <include refid="BASE_WHERE_ITEM"/>
+        AND p.id = #{productId}
+    </select>
+
+
+    <sql id="BASE_COL_ACT_ITEM">
+            p.id AS itemId,
+            p.name AS itemName,
+            p.code AS code,
+            locations.id AS locationId,
+            locations.name AS locationName,
+            inv_detail.lots_number AS lotsNumber,
+            inv_detail.expired_date AS expiredDate,
+            u.name AS uomName,
+            COALESCE(SUM(inv_detail.total_pb) + SUM(inv_detail.total_cm) + SUM(inv_detail.total_to_in) + SUM(inv_detail.total_cycle) - SUM(inv_detail.total_so) - SUM(inv_detail.total_pbc) - SUM(inv_detail.total_pos) - SUM(inv_detail.total_to_out), 0) AS beginning,
+            COALESCE(SUM(inv_detail.total_cycle), 0) AS adj,
+            COALESCE(SUM(inv_detail.total_pb), 0) AS po,
+            COALESCE(SUM(inv_detail.total_pbc), 0) AS br,
+            COALESCE(SUM(inv_detail.total_so * -1), 0) AS sale,
+            COALESCE(SUM(inv_detail.total_cm), 0) AS cm,
+            (COALESCE(SUM(inv_detail.total_to_in), 0) - COALESCE(SUM(inv_detail.total_to_out), 0)) AS transfer,
+            COALESCE(SUM(inv_detail.total_pb) + SUM(inv_detail.total_cm) + SUM(inv_detail.total_to_in) + SUM(inv_detail.total_cycle) - SUM(inv_detail.total_so) - SUM(inv_detail.total_pbc) - SUM(inv_detail.total_pos) - SUM(inv_detail.total_to_out), 0) AS ending,
+            COALESCE(SUM(inv_detail.total_order), 0) AS totalOrder
+    </sql>
+
+
+    <sql id="BASE_FROM_ACT_ITEM">
+        FROM ${locationId}_inventory_total_details AS inv_detail
+        INNER JOIN products p ON p.id = inv_detail.product_id
+        INNER JOIN uoms u ON u.id = p.price_uom_id
+        INNER JOIN locations ON locations.id = inv_detail.location_id
+    </sql>
+
+
+    <sql id="BASE_WHERE_ACT_ITEM">
+        WHERE inv_detail.product_id = #{productId}
+    </sql>
+
+    <select id="getItemActiviesDetail" resultMap="InventoryActivityReportDetailResponse">
+        <foreach collection="locationIds" item="locationId" separator=" UNION ALL ">
+            SELECT
+            <include refid="BASE_COL_ACT_ITEM"/>
+            <include refid="BASE_FROM_ACT_ITEM"/>
+            <include refid="BASE_WHERE_ACT_ITEM"/>
+            GROUP BY p.id
+        </foreach>
+    </select>
+
+
+    <!-- Item Activities Summary -->
+    <sql id="BASE_COL_ACT_SUM_ITEM">
+            p.id AS itemId,
+            p.name AS itemName,
+            p.code AS code,
+            locations.id AS locationId,
+            locations.name AS locationName,
+            inv_detail.lots_number AS lotsNumber,
+            inv_detail.expired_date AS expiredDate,
+            u.name AS uomName,
+            SUM(inv_detail.total_pb) + SUM(inv_detail.total_cm) + SUM(inv_detail.total_to_in) + SUM(inv_detail.total_cycle) - SUM(inv_detail.total_so) - SUM(inv_detail.total_pbc) - SUM(inv_detail.total_pos) - SUM(inv_detail.total_to_out) AS beginning,
+            SUM(inv_detail.total_pb) + SUM(inv_detail.total_cm) + SUM(inv_detail.total_to_in) + SUM(inv_detail.total_cycle) - SUM(inv_detail.total_so) - SUM(inv_detail.total_pbc) - SUM(inv_detail.total_pos) - SUM(inv_detail.total_to_out) AS inOutAmount,
+            SUM(inv_detail.total_pb) + SUM(inv_detail.total_cm) + SUM(inv_detail.total_to_in) + SUM(inv_detail.total_cycle) - SUM(inv_detail.total_so) - SUM(inv_detail.total_pbc) - SUM(inv_detail.total_pos) - SUM(inv_detail.total_to_out) AS ending
+    </sql>
+
+    <sql id="BASE_WHERE_ACT_SUM_ITEM">
+        WHERE inv_detail.product_id = #{productId}
+    </sql>
+
+    <select id="getItemsId" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.String">
+        SELECT
+            GROUP_CONCAT(p.id)
+        <include refid="BASE_FROM_ITEM"/>
+        <include refid="BASE_WHERE_ITEM"/>
+    </select>
+
+
+    <select id="getParentItem" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT 
+            id AS itemId, 
+            CONCAT_WS(' ',code,name) AS itemName
+        FROM products 
+        WHERE is_active = 1 AND id IN (
+	        SELECT parent_id FROM `products` WHERE is_active = 1 AND id IN (
+                SELECT
+                    p.id
+                <include refid="BASE_FROM_ITEM"/>
+                <include refid="BASE_WHERE_ITEM"/>
+            )
+        )
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getItemActiviesParentDetail" resultMap="InventoryActivityReportDetailResponse">
+        <foreach collection="locationIds" item="locationId" separator=" UNION ALL ">
+            SELECT
+            <include refid="BASE_COL_ACT_SUM_ITEM"/>
+            <include refid="BASE_FROM_ACT_ITEM"/>
+            <include refid="BASE_WHERE_ACT_ITEM"/>
+            GROUP BY p.id
+        </foreach>
+    </select>
+
+
+
+    <!-- Item Summary Detail -->
+    <sql id="BASE_COL_SUMMARY_ITEM">
+        p.id AS itemId,
+        p.name AS itemName,
+        p.code AS code,
+        locations.id AS locationId,
+        locations.name AS locationName,
+        inv_detail.lots_number AS lotsNumber,
+        inv_detail.expired_date AS expiredDate,
+        SUM(inv_detail.total_pb) AS po,
+        u.name AS uomName
+    </sql>
+
+    <select id="getItemSummaryDetail" resultMap="InventoryActivityReportDetailResponse">
+        <foreach collection="locationIds" item="locationId" separator=" UNION ALL ">
+            SELECT
+            <include refid="BASE_COL_SUMMARY_ITEM"/>
+            <include refid="BASE_FROM_ACT_ITEM"/>
+            <include refid="BASE_WHERE_ACT_ITEM"/>
+        </foreach>
+    </select>
+
+    <select id="getParentItemQty" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="InventoryActivityReportResponse">
+        SELECT 
+            IFNULL(id,0) AS itemId,
+            IFNULL(CONCAT_WS(' ',code,name), 'No Parent') AS itemName,
+            IFNULL((
+                SELECT 
+                    SUM(inv.qty) 
+                    <include refid="BASE_FROM_ITEM"/> 
+                    <include refid="BASE_WHERE_ITEM"/>
+            ),0) AS qty,
+            (
+                SELECT name FROM uoms WHERE id = products.price_uom_id
+            ) AS uomName
+        FROM products 
+        WHERE is_active = 1 AND id IN (
+	        SELECT parent_id FROM `products` WHERE is_active = 1 AND id IN (
+                SELECT
+                    p.id
+                <include refid="BASE_FROM_ITEM"/>
+                <include refid="BASE_WHERE_ITEM"/>
+            )
+        )
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="sumParentItemQty" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Double">
+        SELECT IFNULL(SUM(inv.qty),0)
+        <include refid="BASE_FROM_ITEM"/>
+        <include refid="BASE_WHERE_ITEM"/>
+        AND p.id IN (
+        SELECT parent_id FROM products WHERE is_active = 1 AND id IN (
+        SELECT p.id
+        <include refid="BASE_FROM_ITEM"/>
+        <include refid="BASE_WHERE_ITEM"/>
+        )
+        )
+    </select>
+
+    <!--    Product Expiry Date-->
+    <select id="getProductExpiryDate" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultMap="ExpiryDateReportResponse">
+        SELECT
+            p.id AS id, 
+            code AS code, 
+            barcode AS upc, 
+            name AS productName, 
+            date_expired AS expiryDate, 
+            SUM(qty) AS qty, 
+            date AS created, 
+            IFNULL(CONCAT(DATEDIFF(date_expired,CURDATE())," day(s)"), 0) AS days, 
+            (SELECT name FROM uoms WHERE id = p.price_uom_id) AS uomName,
+            p.price_uom_id AS uomId
+        FROM products p 
+        INNER JOIN inventories i ON p.id=i.product_id
+        INNER JOIN product_pgroups pg ON p.id = pg.product_id
+        WHERE p.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}) AND  p.is_expired_date = 1
+        <if test="filter.searchText != null">
+            AND (p.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.barcode LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+        GROUP BY p.id, date_expired HAVING SUM(qty) > 0
+        ORDER BY p.code ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countProductExpiryDate" parameterType="com.ut.nlSystemAPi.model.filter.InventoryActivityReportFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(p.id)
+        FROM products p 
+        INNER JOIN inventories i ON p.id=i.product_id
+        INNER JOIN product_pgroups pg ON p.id = pg.product_id
+        WHERE p.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.searchText != null">
+            AND (p.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.barcode LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR p.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </select>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</mapper>

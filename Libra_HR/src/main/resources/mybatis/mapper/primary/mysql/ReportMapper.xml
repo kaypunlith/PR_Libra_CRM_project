@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportMapper">
+
+  <select id="getDeposit" resultMap="DepositRequestReport" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT employees.*,
+      DATE_FORMAT(#{filter.date}, "%M/%Y") AS date,
+      employees.code AS employeesCode,
+      DATE_FORMAT(employees.start_working_date, "%d-%b-%y") AS dateOfWork,
+      employees.num_month AS numOfMonth,
+      employees.amount_deposit AS cashAmount,
+      (SELECT name FROM positions WHERE id = employees.position_id) AS plateNumber
+    FROM employees
+      INNER JOIN payrolls ON payrolls.employee_id = employees.id AND payrolls.is_active = 1
+      INNER JOIN payroll_details ON payroll_details.payroll_id = payrolls.id AND payroll_details.is_active = 1
+    WHERE employees.is_active = 1
+    <if test="filter.date != null and filter.date != ''">
+        AND MONTH(payrolls.pay_date) = MONTH(#{filter.date}) AND YEAR(payrolls.pay_date) = YEAR(#{filter.date})
+        AND payroll_details.payroll_item_id = 5
+    </if>
+    <if test="filter.groupId != null and filter.groupId > 0">
+        AND employees.department_id IN (SELECT id FROM departments WHERE group_id = #{filter.groupId})
+    </if>
+    <if test="filter.departmentId != null and filter.departmentId > 0">
+        AND employees.department_id = #{filter.departmentId}
+    </if>
+    ORDER BY employees.position_id ASC
+  </select>
+
+  <select id="getDepositYear" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter" resultMap="DepositReportListYear">
+    SELECT DATE_FORMAT(#{filter.date}, "%M/%Y") AS year
+  </select>
+
+  <select id="historyAmountDeposit" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT
+        COALESCE(SUM(amount),0)
+    FROM payroll_details
+    WHERE is_active = 1 AND payroll_item_id = 5
+    AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND DATE(pay_date) &lt; DATE(#{date}) AND DATE(pay_date) NOT IN ('2020-11-25'))
+  </select>
+
+  <select id="depositSalary" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT amount
+    FROM payroll_details
+    WHERE is_active = 1 AND payroll_item_id = 5
+    AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1
+    AND employee_id = #{employeesId} AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date}))
+  </select>
+
+  <!-- deposit with draws -->
+  <select id="getDepositRequest" resultMap="DepositRequestReport" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT *,
+      code AS employeesCode,
+      DATE_FORMAT(start_working_date, "%d-%b-%y") AS dateOfWork,
+      (SELECT name FROM positions WHERE id = position_id) AS plateNumber
+    FROM employees
+    WHERE is_active = 1 AND is_deposit = 1
+    <if test="filter.date != null and filter.date != ''">
+      AND id IN (SELECT employee_id FROM deposit_request_details WHERE is_active = 1 AND status = 2
+      AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1
+      AND MONTH(request_date) = MONTH(#{filter.date}) AND YEAR(request_date) = YEAR(#{filter.date})))
+    </if>
+    <if test="filter.groupId != null and filter.groupId > 0">
+      AND department_id IN (SELECT id FROM departments WHERE group_id = #{filter.groupId})
+    </if>
+    <if test="filter.departmentId != null and filter.departmentId > 0">
+      AND department_id = #{filter.departmentId}
+    </if>
+  </select>
+
+  <!--New Code-->
+  <!--Old Code-->
+  <select id="oldSalaryRequest" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT
+      COALESCE(SUM(amount), 0)
+    FROM payroll_details
+    WHERE is_active = 1 AND payroll_item_id = 5
+      AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1
+      AND employee_id = #{employeesId} AND DATE(pay_date) &lt;= DATE(#{date}) AND NOT pay_date = '2020-11-25') LIMIT 1;
+  </select>
+
+  <!--Old Code-->
+<!--  <select id="oldSalaryRequest" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">-->
+<!--    SELECT-->
+<!--        COALESCE(SUM(amount), 0)-->
+<!--    FROM payroll_details-->
+<!--    WHERE is_active = 1 AND payroll_item_id = 5-->
+<!--    AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1-->
+<!--    AND employee_id = #{employeesId} AND DATE(pay_date) &lt;= DATE(#{date}) AND NOT pay_date = '2020-11-25') -->
+<!--  </select>-->
+
+  <!--New code-->
+  <select id="oldAmountDepositRequest" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT COALESCE(SUM(amount), 0)
+    FROM deposit_request_details WHERE is_active = 1 AND employee_id = #{employeesId}
+    AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1 AND request_date &lt; #{date})
+  </select>
+
+  <!--Old code-->
+<!--  <select id="oldAmountDepositRequest" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">-->
+<!--    SELECT COALESCE(SUM(amount), 0)-->
+<!--    FROM deposit_request_details WHERE is_active = 1 AND employee_id = #{employeesId}-->
+<!--    AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1 AND DATE &lt; #{date})-->
+<!--  </select>-->
+
+  <select id="depositSalaryRequest" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.DepositReportFilter">
+    SELECT SUM(amount)
+    FROM deposit_request_details
+    WHERE is_active = 1 AND status = 2 AND employee_id = #{employeesId}
+    AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1
+    AND MONTH(request_date) = MONTH(#{date}) AND YEAR(request_date) = YEAR(#{date}))
+  </select>
+
+  <select id="getDepositAdjustBeginning" resultType="java.lang.Float">
+    SELECT COALESCE(SUM(eab.amount),0)
+    FROM employee_adjust_beginnings AS eab
+    WHERE eab.is_active = 1 AND eab.date &lt;= #{date} AND eab.employee_id = #{employeesId}
+  </select>
+
+  <!--  Provident Fund report -->
+  <select id="listGroup" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter" resultMap="ProFundListGroup">
+    SELECT *
+    FROM egroups
+    WHERE is_active = 1
+      <if test="filter.groupId != null and filter.groupId > 0">
+        AND id = #{filter.groupId}
+      </if>
+    ORDER BY id ASC
+  </select>
+
+  <select id="listDepartment" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter" resultMap="ProFundListDepartment">
+    SELECT *
+    FROM departments
+    WHERE is_active = 1 AND group_id = #{groupId} AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND is_provident_fund = 1
+    AND employees.id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND YEAR(pay_date) = #{filter.date}))
+      <if test="filter.departmentId != null and filter.departmentId > 0">
+        AND departments.id = #{filter.departmentId} AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND is_provident_fund = 1)
+      </if>
+    ORDER BY id ASC
+  </select>
+
+  <select id="listEmployees" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter" resultMap="ProvidentFundReport">
+    SELECT *,
+       code AS employeesCode,
+      DATE_FORMAT(start_working_date, "%d-%b-%Y") AS dateOfWork,
+      num_month AS numOfMonth,
+      amount_deposit AS cashAmount,
+      (SELECT DATE_FORMAT(request_date, "%d-%b-%y") FROM provident_funds WHERE YEAR(request_date) = #{filter.date}
+          AND id IN (SELECT provident_fund_id FROM provident_fund_details WHERE is_active = 1 AND status = 2 AND employee_id = employees.id)
+          ORDER BY request_date DESC LIMIT 01) AS dateRequest,
+      (SELECT name FROM positions WHERE id = position_id) AS positionName,
+      (SELECT ordering FROM positions WHERE id = position_id) AS positionOrdering
+    FROM employees
+    WHERE is_active = 1 AND is_provident_fund = 1 AND department_id = #{departmentId}
+    AND id IN (SELECT employee_id FROM payrolls WHERE is_active = 1)
+    ORDER BY positionOrdering ASC
+  </select>
+
+  <!-- get total amount provident fund by year -->
+  <select id="listTotalAmountByYear" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter" resultMap="ProFundTotalYearList">
+    SELECT
+      YEAR(pay_date) AS year
+    FROM payrolls WHERE is_active = 1 AND YEAR(pay_date) &lt;= #{year}
+    GROUP BY YEAR(pay_date)
+  </select>
+
+  <select id="totalProFundByYear" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter">
+	SELECT
+      COALESCE(SUM(amount),0) AS totalAmount
+    FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10 AND payroll_id IN
+    (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND YEAR(pay_date) = #{year})
+  </select>
+
+  <!-- get data detail -->
+  <select id="listProFundYear" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter" resultMap="ProFundYearList">
+    SELECT
+      YEAR(pay_date) AS date
+    FROM payrolls WHERE is_active = 1 AND YEAR(pay_date) = #{year}
+    GROUP BY YEAR(pay_date)
+  </select>
+
+  <select id="listProFundMonth" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter">
+	SELECT
+      COALESCE(SUM(amount),0) AS amount
+    FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10 AND payroll_id IN
+    (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId}
+    AND YEAR(pay_date) = #{filter.date} AND MONTH(pay_date) = #{month})
+  </select>
+
+  <!-- get balance -->
+  <select id="getProFundBalance" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter">
+    SELECT
+      COALESCE(SUM(amount),0)
+    FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10 AND payroll_id IN (SELECT id FROM payrolls
+    WHERE is_active = 1 AND employee_id = #{employeesId} AND Year(pay_date) &lt;= #{year})
+  </select>
+
+  <select id="getProFundRequest" resultType="java.lang.Float" parameterType="com.ut.nlSystemAPi.model.response.ProFundReportFilter">
+    SELECT
+      COALESCE(SUM(amount),0)
+    FROM provident_fund_details WHERE is_active = 1 AND status = 2
+    AND employee_id = #{employeesId} AND provident_fund_id IN (SELECT id FROM provident_funds WHERE is_active = 1 AND status = 2 AND Year(request_date) &lt;= #{year})
+  </select>
+
+  <!-- Yearly Deposit Report -->
+  <select id="getEmpDeposit" resultMap="ReportDeposit" parameterType="com.ut.nlSystemAPi.model.response.DepositReportMonthlyFilter">
+    SELECT *,
+      code AS employeesCode,
+      DATE_FORMAT(start_working_date, "%d-%b-%y") AS dateOfWork,
+      num_month AS numOfMonth,
+      amount_deposit AS cashAmount,
+      (SELECT name FROM positions WHERE id = position_id) AS plateNumber,
+      (SELECT COUNT(id) FROM deposit_request_details WHERE is_active = 1 AND status = 2 AND employee_id = employees.id
+        AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1
+        AND DATE(deposit_requests.date) &lt;= DATE(#{filter.date}) )) AS checkDateRequest
+    FROM employees
+    WHERE is_active = 1 AND is_deposit = 1 AND employees.id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND
+    id IN (SELECT payroll_id FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 5 AND amount > 0 AND DATE(pay_date) &lt;= DATE(#{filter.date})))
+  </select>
+
+  <select id="getLastDateDepositRequest" resultType="java.lang.String" parameterType="com.ut.nlSystemAPi.model.response.DepositReportMonthlyFilter">
+    SELECT date
+    FROM deposit_requests
+    WHERE is_active = 1 AND status = 2
+    AND id IN (SELECT deposit_request_id FROM deposit_request_details WHERE is_active = 1 AND STATUS = 2 AND employee_id = #{employeesId})
+    AND DATE(deposit_requests.request_date) &lt;= DATE(#{dateFilter})
+    ORDER BY id DESC LIMIT 01
+  </select>
+
+  <select id="getDepositDate" resultMap="ReportDepositMonthly" parameterType="com.ut.nlSystemAPi.model.response.DepositReportMonthlyFilter">
+    SELECT
+      payrolls.pay_date AS depositDate,
+      DATE_FORMAT(payrolls.pay_date, "%d-%b-%y") AS date
+    FROM payrolls
+    INNER JOIN payroll_details pds ON pds.payroll_id = payrolls.id
+    WHERE payrolls.is_active = 1 AND payrolls.employee_id = #{employeesId}
+    AND DATE(payrolls.pay_date) &lt;= DATE(#{dateFilter}) AND pds.payroll_item_id = 5 AND pds.amount > 0
+    AND DATE(payrolls.pay_date) NOT IN ('2020-11-25')
+    ORDER BY payrolls.pay_date ASC
+  </select>
+
+  <!--New Code-->
+  <!--Old Code-->
+  <select id="getDepositDateHaveRequest" resultMap="ReportDepositMonthly" parameterType="com.ut.nlSystemAPi.model.response.DepositReportMonthlyFilter">
+    SELECT
+      payrolls.pay_date AS depositDate,
+      DATE_FORMAT(payrolls.pay_date, "%d-%b-%y") AS date
+    FROM payrolls
+      INNER JOIN payroll_details ON payroll_details.payroll_id = payrolls.id
+    WHERE payrolls.is_active = 1 AND payrolls.employee_id = #{employeesId}
+      AND payroll_details.payroll_item_id = 5 AND payroll_details.amount > 0
+      AND DATE(payrolls.pay_date) &lt;= DATE(#{dateFilter})
+      AND DATE(payrolls.pay_date) NOT IN ('2020-11-25')
+    ORDER BY payrolls.pay_date ASC
+  </select>
+
+  <!--Old Code-->
+<!--  <select id="getDepositDateHaveRequest" resultMap="ReportDepositMonthly" parameterType="com.ut.nlSystemAPi.model.response.DepositReportMonthlyFilter">-->
+<!--    SELECT-->
+<!--      payrolls.pay_date AS depositDate,-->
+<!--      DATE_FORMAT(payrolls.pay_date, "%d-%b-%y") AS date-->
+<!--    FROM payrolls-->
+<!--      INNER JOIN payroll_details ON payroll_details.payroll_id = payrolls.id-->
+<!--    WHERE payrolls.is_active = 1 AND payrolls.employee_id = #{employeesId}-->
+<!--      AND payroll_details.payroll_item_id = 5 AND payroll_details.amount > 0-->
+<!--      AND DATE(payrolls.pay_date) > DATE(#{dateRequest}) AND DATE(payrolls.pay_date) &lt;= DATE(#{dateFilter})-->
+<!--      AND DATE(payrolls.pay_date) NOT IN ('2020-11-25')-->
+<!--    ORDER BY payrolls.pay_date ASC-->
+<!--  </select>-->
+
+  <select id="getAmountMonthlyDeposit" resultType="java.lang.Float">
+    SELECT amount
+    FROM payroll_details
+    WHERE is_active = 1 AND payroll_item_id = 5
+    AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND DATE(pay_date) = DATE(#{depositDate}))
+  </select>
+<!--New Code-->
+  <select id="getDateRequest" resultMap="ReportDepositRequest">
+    SELECT
+      id AS id,
+      DATE_FORMAT(request_date, "%d-%b-%y") AS date
+    FROM deposit_requests
+    WHERE is_active = 1 AND status = 2 AND request_date &lt;= #{dateFilter}
+      AND id IN (SELECT deposit_request_id FROM deposit_request_details WHERE employee_id = #{employeesId})
+  </select>
+
+  <!--Old Code-->
+<!--  <select id="getDateRequest" resultMap="ReportDepositRequest">-->
+<!--    SELECT-->
+<!--      id AS id,-->
+<!--      DATE_FORMAT(request_date, "%d-%b-%y") AS date-->
+<!--    FROM deposit_requests-->
+<!--    WHERE is_active = 1 AND status = 2 AND MONTH(request_date) = MONTH(#{dateFilter}) AND YEAR(request_date) = YEAR(#{dateFilter})-->
+<!--    AND id IN (SELECT deposit_request_id FROM deposit_request_details WHERE employee_id = #{employeesId})-->
+<!--  </select>-->
+
+  <select id="getAmountDepositRequest" resultType="java.lang.Float">
+    SELECT IFNULL(SUM(amount),0)
+    FROM deposit_request_details
+    WHERE is_active = 1 AND status = 2 AND employee_id = #{employeesId}
+    AND deposit_request_id = #{depositRequestId}
+  </select>
+
+<!--  <select id="getHistoryMonthlyAdjustBeginningAmount" resultType="java.lang.Float">-->
+<!--    SELECT COALESCE(SUM(amount),0)-->
+<!--    FROM payroll_details-->
+<!--    WHERE is_active = 1 AND payroll_item_id = 5-->
+<!--    AND payroll_id IN (SELECT payrolls.id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND DATE(pay_date) = DATE('2020-11-25')-->
+<!--    AND DATE(payrolls.created) &lt; DATE(#{dateFilter}))-->
+<!--  </select>-->
+
+  <select id="getHistoryMonthlyAdjustBeginningAmount" resultType="java.lang.Float">
+    SELECT COALESCE(SUM(amount),0)
+    FROM employee_adjust_beginnings
+    WHERE is_active = 1 AND employee_id = #{employeesId}
+      AND DATE(date) &lt; DATE(#{dateFilter})
+  </select>
+
+<!--  <select id="getMonthlyAdjustBeginningAmount" resultType="java.lang.Float">-->
+<!--    SELECT COALESCE(SUM(amount),0)-->
+<!--    FROM payroll_details-->
+<!--    WHERE is_active = 1 AND payroll_item_id = 5-->
+<!--    AND payroll_id IN (SELECT payrolls.id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND DATE(pay_date) = DATE('2020-11-25')-->
+<!--    AND MONTH(payrolls.created) = MONTH(#{dateFilter}) AND YEAR(payrolls.created) = YEAR(#{dateFilter}))-->
+<!--  </select>-->
+
+  <select id="getMonthlyAdjustBeginningAmount" resultType="java.lang.Float">
+    SELECT COALESCE(SUM(amount),0)
+    FROM employee_adjust_beginnings
+    WHERE is_active = 1 AND employee_id = #{employeesId}
+      AND MONTH(date) = MONTH(#{dateFilter}) AND YEAR(date) = YEAR(#{dateFilter})
+  </select>
+
+<!--  <select id="getYearlyAdjustBeginningAmount" resultType="java.lang.Float">-->
+<!--    SELECT COALESCE(SUM(amount),0)-->
+<!--    FROM payroll_details-->
+<!--    WHERE is_active = 1 AND payroll_item_id = 5-->
+<!--    AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeesId} AND DATE(pay_date) = DATE('2020-11-25'))-->
+<!--  </select>-->
+
+  <select id="getYearlyAdjustBeginningAmount" resultType="java.lang.Float">
+    SELECT COALESCE(SUM(amount),0)
+    FROM employee_adjust_beginnings
+    WHERE is_active = 1 AND employee_id = #{employeesId}
+      AND MONTH(date) = MONTH(#{dateFilter}) AND YEAR(date) = YEAR(#{dateFilter})
+  </select>
+
+  <sql id="BASE_WHERE_ANNUAL_LEAVE">
+    WHERE leave_req.is_active = 1
+    <if test="filter.groupId != null and filter.groupId > 0">
+      AND d.group_id = #{filter.groupId}
+    </if>
+    <if test="filter.departmentId != null and filter.departmentId > 0">
+      AND e.department_id = #{filter.departmentId}
+    </if>
+    <if test="filter.searchText != null">
+      AND (
+      (e.is_active = 1 AND e.name LIKE CONCAT("%", #{filter.searchText}, "%")) OR
+      (e.is_active = 1 AND e.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")) OR
+      (e.is_active = 1 AND e.code LIKE CONCAT("%", #{filter.searchText}, "%")) OR
+      (e.is_active = 1 AND e.telephone LIKE CONCAT("%", #{filter.searchText}, "%"))
+      )
+    </if>
+    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+      AND DATE(leave_req.date_from) >= #{filter.dateFrom} AND DATE(leave_req.date_from) &lt;= #{filter.dateTo}
+    </if>
+  </sql>
+
+  <select id="getAnnualLeave" parameterType="com.ut.nlSystemAPi.model.filter.LeaveReportFilter" resultMap="AnnualLeaveResponse">
+    SELECT
+    leave_req.employee_id AS employeeId,
+    e.code AS employeeCode,
+    e.name_kh AS employeeNameKh,
+    e.name AS employeeNameEn,
+    IFNULL(SUM(leave_req.number_of_day), 0) AS total
+    FROM leave_requests AS leave_req
+    LEFT JOIN employees AS e ON e.id = leave_req.employee_id
+    LEFT JOIN departments AS d ON d.id = e.department_id
+    <include refid="BASE_WHERE_ANNUAL_LEAVE"/>
+    GROUP BY leave_req.employee_id, e.code, e.name_kh, e.name
+  </select>
+
+  <select id="getActiveLeaveTypes" resultType="com.ut.nlSystemAPi.model.response.AnnualLeaveDetailResponse">
+    SELECT
+    leave_types.id AS id,
+    leave_types.name AS name,
+    0 AS numberOfDay
+    FROM leave_types
+    WHERE leave_types.is_active = 1
+    ORDER BY leave_types.id ASC
+  </select>
+
+  <select id="calculateLeaveByType" resultType="com.ut.nlSystemAPi.model.response.AnnualLeaveDetailResponse">
+    SELECT
+    leave_types.id AS id,
+    leave_types.name AS name,
+    IFNULL(SUM(leave_req.number_of_day), 0) AS numberOfDay
+    FROM leave_types
+    INNER JOIN employees AS e ON e.id = #{employeeId} AND e.is_active = 1
+    LEFT JOIN departments AS d ON d.id = e.department_id
+    LEFT JOIN leave_requests AS leave_req ON leave_req.leave_type_id = leave_types.id
+      AND leave_req.employee_id = e.id
+      AND leave_req.is_active = 1
+      <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+        AND DATE(leave_req.date_from) >= #{filter.dateFrom}
+        AND DATE(leave_req.date_from) &lt;= #{filter.dateTo}
+      </if>
+    WHERE leave_types.is_active = 1
+    AND leave_types.id = #{leaveTypeId}
+    <if test="filter.groupId != null and filter.groupId > 0">
+      AND d.group_id = #{filter.groupId}
+    </if>
+    <if test="filter.departmentId != null and filter.departmentId > 0">
+      AND e.department_id = #{filter.departmentId}
+    </if>
+    <if test="filter.searchText != null">
+      AND (
+      e.name LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      e.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      e.code LIKE CONCAT("%", #{filter.searchText}, "%") OR
+      e.telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+    GROUP BY leave_types.id, leave_types.name
+  </select>
+
+
+  <!-- * attendance -->
+  <sql id="BASE_COLUMN_ATTENDANCE_LIST_DETAIL">
+		ea.id AS `id`,
+		e.code AS employeeId,
+		e.photo AS `profile`,
+		e.name AS employeeName,
+		e.gender AS gender,
+		p.`name` AS `position`,
+		d.`name` AS `department`,
+		ea.`type` AS `timeClock`,
+		ws.`name` AS shift,
+		DATE(ea.datetime_scan) AS `date`,
+		TIME(ea.datetime_scan) AS `time`,
+		ea.`status` AS `status`,
+		ea.`minute` AS `minute`,
+		ea.`shift_time_from` AS `shiftTimeFrom`,
+		ea.`shift_time_to` AS `shiftTimeTo`
+  </sql>
+
+	<sql id="BASE_FROM_ATTENDANCE">
+		FROM employee_attendances AS ea
+		LEFT JOIN employees AS e ON e.id = ea.employee_id
+		LEFT JOIN departments AS d ON d.id = e.department_id
+		LEFT JOIN positions AS p ON p.id = e.position_id
+		LEFT JOIN work_shifts AS ws ON ws.id = ea.work_shift_id
+		LEFT JOIN egroups AS sg ON sg.id = d.group_id
+	</sql>
+
+	<!-- * base where general return -->
+	<sql id="BASE_WHERE_ATTENDANCE">
+    WHERE ea.is_active = 1
+    <if test="filter.employeeId != null">
+      AND ea.employee_id = #{filter.employeeId}
+    </if>
+    <if test="filter.departmentId != null">
+      AND d.id = #{filter.departmentId}
+    </if>
+    <if test="filter.positionId != null">
+      AND p.id = #{filter.positionId}
+    </if>
+    <if test="filter.groupId != null">
+      AND sg.id = #{filter.groupId}
+    </if>
+    <if test="filter.dateFrom != null and filter.dateFrom != ''">
+      AND DATE(ea.datetime_scan) >= DATE(#{filter.dateFrom})
+    </if>
+    <if test="filter.dateTo != null and filter.dateTo != ''">
+      AND DATE(ea.datetime_scan) &lt;= DATE(#{filter.dateTo})
+    </if>
+    <if test="filter.searchText != null">
+      AND (
+        e.name_en LIKE CONCAT("%", #{filter.searchText}, "%") OR
+        e.name_kh LIKE CONCAT("%", #{filter.searchText}, "%") OR
+        e.code LIKE CONCAT("%", #{filter.searchText}, "%") OR
+        e.telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+  </sql>
+
+  <sql id="BASE_WHERE_TIME_CLOCK">
+    <if test="filter.timeClock != null">
+      AND ea.type = #{filter.timeClock}
+    </if>
+  </sql>
+
+  <sql id="BASE_ATTENDANCE_ORDER_AND_FILTER">
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        ea.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </sql>
+  
+
+  <!-- * get list of attendances Detail-->
+	<select id="getListAttendanceDetail" parameterType="com.ut.nlSystemAPi.model.filter.ReportAttendanceFilter" resultMap="AttendanceResponse">
+	SELECT
+    <include refid="BASE_COLUMN_ATTENDANCE_LIST_DETAIL"/>
+    <include refid="BASE_FROM_ATTENDANCE"/>
+    <include refid="BASE_WHERE_ATTENDANCE"/>
+    <include refid="BASE_WHERE_TIME_CLOCK"/>
+    <include refid="BASE_ATTENDANCE_ORDER_AND_FILTER"/>
+  </select>
+
+  <!-- * total count attendance Detail -->
+	<select id="getCountAttendanceDetail" parameterType="com.ut.nlSystemAPi.model.filter.ReportAttendanceFilter" resultType="java.lang.Long">
+    SELECT COUNT(ea.id)
+    <include refid="BASE_FROM_ATTENDANCE"/>
+    <include refid="BASE_WHERE_ATTENDANCE"/>
+    <include refid="BASE_WHERE_TIME_CLOCK"/>
+  </select>
+
+  <!-- * get list of attendances Summary -->
+	<select id="getListAttendanceSummary" parameterType="com.ut.nlSystemAPi.model.filter.ReportAttendanceFilter" resultMap="AttendanceResponse">
+	SELECT
+      ea.id AS `id`,
+      e.code AS employeeId,
+      e.name AS employeeName,
+      e.gender AS gender,
+      p.`name` AS `position`,
+      d.`name` AS `department`,
+      ea.`minute` AS `minute`
+    <include refid="BASE_FROM_ATTENDANCE"/>
+    <include refid="BASE_WHERE_ATTENDANCE"/>
+    <include refid="BASE_ATTENDANCE_ORDER_AND_FILTER"/>
+  </select>
+
+  <!-- * total count attendance Summary -->
+	<select id="getCountAttendanceSummary" parameterType="com.ut.nlSystemAPi.model.filter.ReportAttendanceFilter" resultType="java.lang.Long">
+    SELECT COUNT(ea.id)
+    <include refid="BASE_FROM_ATTENDANCE"/>
+    <include refid="BASE_WHERE_ATTENDANCE"/>
+  </select>
+
+  <sql id="BASE_COLUMN_LIST_STAFF_LOAN">
+    staff_loans.id AS id,
+    employees.name AS employeeNameEn,
+    employees.code AS employeeCode,
+    employees.gender AS gender,
+    departments.name AS departmentName,
+    positions.name AS positionName,
+    0 AS interestRate,
+    staff_loans.payback_period AS termMonths,
+    (IFNULL(staff_loans.amount,0) / IFNULL(staff_loans.payback_period,0)) AS monthlyPayment,
+    IFNULL(staff_loans.amount,0) AS loanAmount,
+    IFNULL(staff_loans.paid_amount,0) AS paidAmount,
+    (IFNULL(staff_loans.amount,0) - IFNULL(staff_loans.paid_amount,0)) AS balance,
+    DATE(staff_loans.created) AS loanDate,
+    staff_loans.status AS status
+  </sql>
+
+  <sql id="BASE_FROM_STAFF_LOAN">
+    FROM staff_loans
+    INNER JOIN employees ON staff_loans.employee_id = employees.id
+    LEFT JOIN departments ON departments.id = employees.department_id
+    LEFT JOIN positions ON staff_loans.position_id = positions.id
+  </sql>
+
+  <sql id="BASE_WHERE_STAFF_LOAN">
+    WHERE staff_loans.status = 2
+    <if test="filter.searchText != null">
+      AND (
+      CAST(staff_loans.employee_id AS CHAR) LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR CAST(staff_loans.position_id AS CHAR) LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR employees.code LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR employees.name LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR employees.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR departments.name LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR positions.name LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+  </sql>
+
+  <select id="getListStaffLoan" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.StaffLoan.StaffLoanReportResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST_STAFF_LOAN"/>
+    <include refid="BASE_FROM_STAFF_LOAN"/>
+    <include refid="BASE_WHERE_STAFF_LOAN"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countListStaffLoan" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(staff_loans.id)
+    <include refid="BASE_FROM_STAFF_LOAN"/>
+    <include refid="BASE_WHERE_STAFF_LOAN"/>
+  </select>
+
+</mapper>

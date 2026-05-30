@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OpportunityTaskMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cot.id AS id,
+        cot.crm_opportunity_activity_id AS activityId,
+        coa.name AS activityName,
+        cot.name AS taskName,
+        cot.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cot.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_opportunity_tasks AS cot
+        INNER JOIN crm_opportunity_activities AS coa ON coa.id = cot.crm_opportunity_activity_id
+        LEFT JOIN users AS creator ON creator.id = cot.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cot.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cot.is_active = 1
+        AND coa.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                cot.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR coa.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="OpportunityTaskResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>cot.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(cot.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="OpportunityTaskResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE cot.is_active = 1
+        AND coa.is_active = 1
+        AND cot.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="task.id">
+        INSERT INTO crm_opportunity_tasks(crm_opportunity_activity_id, name, created, created_by, is_active)
+        VALUES (#{task.activityId}, #{task.name}, NOW(), #{task.createdBy}, #{task.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE crm_opportunity_tasks
+        SET crm_opportunity_activity_id = #{task.activityId},
+            name = #{task.name},
+            modified = NOW(),
+            modified_by = #{task.modifiedBy}
+        WHERE id = #{task.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_opportunity_tasks
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM crm_opportunity_tasks
+        WHERE is_active = 1
+        AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+</mapper>

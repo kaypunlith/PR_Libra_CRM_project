@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TaxationMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        vat_settings.id AS id,
+        vat_settings.name AS name,
+        companies.id AS companyId,
+        branches.id AS branchId,
+        branches.name AS branchName,
+        companies.name AS companyName,
+        vat_settings.type AS typeId,
+        vat_settings.vat_percent AS percentage,
+        (SELECT rate_to_sell FROM vat_setting_rates WHERE is_active = 1 AND vat_setting_id = vat_settings.id LIMIT 1) AS rateForTax,
+        vat_settings.chart_account_id AS chartOfAccountId,
+        CONCAT(chart_accounts.account_codes, ' - ', chart_accounts.account_description ) AS chartOfAccount,
+        DATE_FORMAT(vat_settings.created, '%d-%b-%y %h:%i') AS createdDate,
+        DATE_FORMAT(vat_settings.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+        CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+        CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM vat_settings
+        LEFT JOIN users AS users1 ON users1.id = vat_settings.created_by
+        LEFT JOIN users AS users2 ON users2.id = vat_settings.modified_by
+        INNER JOIN companies ON companies.id = vat_settings.company_id
+        LEFT JOIN chart_accounts ON chart_accounts.id = vat_settings.chart_account_id
+        LEFT JOIN branches ON branches.id = vat_settings.branch_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE vat_settings.is_active = 1
+        <if test="filter.searchText != null">AND (vat_settings.name LIKE CONCAT("%", #{filter.searchText}, "%"))</if>
+        <if test="filter.typeId != null">AND vat_settings.type = #{filter.typeId}</if>
+        <if test="filter.branchId != null">AND vat_settings.type = #{filter.branchId}</if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TaxationFilter" resultMap="TaxationResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                vat_settings.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getModuleTypeByModuleId" parameterType="java.lang.Long" resultMap="ModuleTypesResponse">
+        SELECT module_types.id   AS id,
+               module_types.name AS name
+        FROM module_types
+                 INNER JOIN vat_modules ON vat_modules.apply_to = module_types.id
+                 INNER JOIN vat_settings ON vat_modules.vat_setting_id = vat_settings.id
+        WHERE vat_modules.is_active = 1
+          AND vat_modules.vat_setting_id = #{vatSettingId}
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TaxationFilter" resultType="java.lang.Long">
+        SELECT COUNT(vat_settings.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="TaxationResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE vat_settings.id = #{id} AND vat_settings.is_active = 1
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM vat_settings
+        WHERE is_active = 1 AND (name = #{name})
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="taxation.id" parameterType="com.ut.nlSystemAPi.model.Taxation">
+         INSERT INTO vat_settings(company_id,`branch_id`, `type`, `name`, vat_percent, chart_account_id, created, created_by, is_active)
+         VALUES (#{taxation.companyId},#{taxation.branchId}, #{taxation.typeId}, #{taxation.name}, #{taxation.percentage}, #{taxation.chartOfAccountId}, NOW(), #{taxation.createdBy}, #{taxation.isActive});
+    </insert>
+
+    <insert id="insertVatSettingRate" parameterType="map">
+        INSERT INTO vat_setting_rates (vat_setting_id, rate_to_sell, created, created_by, is_active)
+        VALUES (#{vatSettingId}, #{rate}, NOW(), #{taxation.createdBy}, 1);
+    </insert>
+
+    <insert id="insertVatModule" parameterType="map">
+        INSERT INTO vat_modules (vat_setting_id, apply_to, created, created_by, is_active)
+        VALUES (#{vatSettingId}, #{moduleTypeId}, NOW(), #{taxation.createdBy}, 1);
+    </insert>
+
+    <update id="deactivatePreviousVatSettingRate" parameterType="map">
+        UPDATE vat_setting_rates
+        SET modified = NOW(),
+            modified_by = #{modifiedBy},
+            is_active = 2
+        WHERE vat_setting_id = #{vatSettingId}
+    </update>
+
+    <update id="deactivatePreviousVatModules" parameterType="map">
+        UPDATE vat_modules
+        SET is_active = 2
+        WHERE vat_setting_id = #{vatSettingId}
+    </update>
+    <update id="UpdateNullModules" parameterType="map">
+        UPDATE vat_modules
+        SET is_active = 0
+        WHERE vat_setting_id = #{vatSettingId}
+    </update>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.Taxation">
+        UPDATE vat_settings SET
+        <if test="taxation.companyId != null">`company_id` = #{taxation.companyId},</if>
+        <if test="taxation.branchId != null">`branch_id` = #{taxation.branchId},</if>
+        <if test="taxation.typeId != null">`type` = #{taxation.typeId},</if>
+        <if test="taxation.name != null">`name` = #{taxation.name},</if>
+        <if test="taxation.percentage != null">`vat_percent` = #{taxation.percentage},</if>
+        <if test="taxation.chartOfAccountId != null">`chart_account_id` = #{taxation.chartOfAccountId},</if>
+        modified = NOW(),
+        modified_by = #{taxation.modifiedBy}
+        WHERE id = #{taxation.id} AND is_active = 1;
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE vat_settings
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <select id="getVatSettingTypeSales" resultType="java.lang.Long">
+        SELECT id FROM vat_settings WHERE is_active = 1 AND type = 1 AND vat_percent > 0
+    </select>
+
+</mapper>

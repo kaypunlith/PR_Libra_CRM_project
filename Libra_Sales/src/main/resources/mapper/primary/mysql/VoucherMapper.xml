@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.VoucherMapper">
+
+    <resultMap id="VoucherResponse" type="com.ut.nlSystemAPi.model.response.Voucher.VoucherResponse">
+        <id property="id" column="id"/>
+        <result property="branchId" column="branchId"/>
+        <result property="branchName" column="branchName"/>
+        <result property="voucherCode" column="voucherCode"/>
+        <result property="description" column="description"/>
+        <result property="date" column="date"/>
+        <result property="startDate" column="startDate"/>
+        <result property="endDate" column="endDate"/>
+        <result property="userType" column="userType"/>
+        <result property="voucherType" column="voucherType"/>
+        <result property="note" column="note"/>
+        <result property="discountAmount" column="discountAmount"/>
+        <result property="discountPercent" column="discountPercent"/>
+        <result property="status" column="status"/>
+        <result property="approved" column="approved"/>
+        <result property="approvedBy" column="approvedBy"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        vouchers.id AS id,
+        vouchers.branch_id AS branchId,
+        branches.name AS branchName,
+        vouchers.voucher_code AS voucherCode,
+        vouchers.description AS description,
+        vouchers.`date` AS `date`,
+        vouchers.`start` AS startDate,
+        vouchers.`end` AS endDate,
+        vouchers.user_type AS userType,
+        vouchers.voucher_type AS voucherType,
+        vouchers.note AS note,
+        vouchers.discount_amount AS discountAmount,
+        vouchers.discount_percent AS discountPercent,
+        vouchers.status AS status,
+        vouchers.approved AS approved,
+        CONCAT(IFNULL(approver.first_name, ''), ' ', IFNULL(approver.last_name, '')) AS approvedBy,
+        vouchers.created AS created,
+        CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+        vouchers.modified AS modified,
+        CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM vouchers
+        LEFT JOIN branches ON branches.id = vouchers.branch_id
+        LEFT JOIN users AS creator ON creator.id = vouchers.created_by
+        LEFT JOIN users AS modifier ON modifier.id = vouchers.modified_by
+        LEFT JOIN users AS approver ON approver.id = vouchers.approved_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        <choose>
+            <when test="filter.status != null">
+                WHERE vouchers.status = #{filter.status}
+            </when>
+            <otherwise>
+                WHERE vouchers.status != 0
+            </otherwise>
+        </choose>
+        <if test="filter.searchText != null">
+            AND (
+                vouchers.voucher_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR vouchers.description LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR vouchers.note LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND vouchers.`date` >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND vouchers.`date` &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.branchId != null">
+            AND vouchers.branch_id = #{filter.branchId}
+        </if>
+        <if test="filter.voucherType != null">
+            AND vouchers.voucher_type = #{filter.voucherType}
+        </if>
+        <if test="filter.userType != null">
+            AND vouchers.user_type = #{filter.userType}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.VoucherFilter" resultMap="VoucherResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                vouchers.`date` DESC, vouchers.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.VoucherFilter" resultType="java.lang.Long">
+        SELECT COUNT(vouchers.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="VoucherResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE vouchers.id = #{id} AND vouchers.status != 0
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM vouchers
+        WHERE voucher_code = #{voucherCode} AND status != 0
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Voucher.Voucher" useGeneratedKeys="true" keyProperty="voucher.id">
+        INSERT INTO vouchers (
+            branch_id,
+            voucher_code,
+            description,
+            `date`,
+            `start`,
+            `end`,
+            user_type,
+            voucher_type,
+            note,
+            discount_amount,
+            discount_percent,
+            created,
+            created_by,
+            status
+        ) VALUES (
+            #{voucher.branchId},
+            #{voucher.voucherCode},
+            #{voucher.description},
+            #{voucher.date},
+            #{voucher.startDate},
+            #{voucher.endDate},
+            #{voucher.userType},
+            #{voucher.voucherType},
+            #{voucher.note},
+            #{voucher.discountAmount},
+            #{voucher.discountPercent},
+            NOW(),
+            #{voucher.createdBy},
+            #{voucher.status}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Voucher.Voucher">
+        UPDATE vouchers SET
+            <if test="voucher.branchId != null">branch_id = #{voucher.branchId},</if>
+            <if test="voucher.voucherCode != null">voucher_code = #{voucher.voucherCode},</if>
+            <if test="voucher.description != null">description = #{voucher.description},</if>
+            <if test="voucher.date != null">`date` = #{voucher.date},</if>
+            <if test="voucher.startDate != null">`start` = #{voucher.startDate},</if>
+            <if test="voucher.endDate != null">`end` = #{voucher.endDate},</if>
+            <if test="voucher.userType != null">user_type = #{voucher.userType},</if>
+            <if test="voucher.voucherType != null">voucher_type = #{voucher.voucherType},</if>
+            <if test="voucher.note != null">note = #{voucher.note},</if>
+            discount_amount = #{voucher.discountAmount},
+            discount_percent = #{voucher.discountPercent},
+            modified = NOW(),
+            modified_by = #{voucher.modifiedBy}
+        WHERE id = #{voucher.id} AND status != 0
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE vouchers SET
+            status = 0,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND status != 0
+    </update>
+</mapper>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportManualPaidMapper">
+
+  <select id="listDepatment" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="PayrollDepartmentList">
+    SELECT *
+    FROM departments
+    WHERE is_active = 1
+    <choose>
+      <when test="filter.groupId != null and filter.departmentId != null">
+        AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 1
+        AND id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})))
+        AND departments.id = #{filter.departmentId} AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 1)
+      </when>
+      <otherwise>
+        AND id IN (SELECT department_id FROM employees WHERE is_active = 1 AND paid_by = 1
+        AND id IN (SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})))
+        AND id IN (SELECT department_id FROM user_departments WHERE user_id = #{userId})
+        AND group_id = #{filter.groupId}
+      </otherwise>
+    </choose>
+    ORDER BY id ASC
+  </select>
+
+  <select id="listEmployees" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="PayrollEmployeesList">
+    SELECT *,
+      employee_code AS empId,
+      gender AS gender,
+      name_kh AS nameKh,
+      name_en AS nameEn,
+      (SELECT name FROM positions WHERE id = position_id) AS positionName,
+      (SELECT ordering FROM positions WHERE id = position_id) AS positionOrdering,
+      DATE_FORMAT(start_working_date, "%d-%b-%Y") AS dateOfWork,
+      (SELECT old_salary FROM payrolls WHERE is_active = 1 AND employee_id = employees.id AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})) AS currentSalary,
+      (SELECT increase_salary FROM payrolls WHERE is_active = 1 AND employee_id = employees.id AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})) AS increaseSalary,
+      (SELECT total_amount FROM payrolls WHERE is_active = 1 AND employee_id = employees.id AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})) AS totalAmount,
+      (SELECT note FROM payrolls WHERE is_active = 1 AND employee_id = employees.id AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})) AS note
+    FROM employees
+    WHERE  is_active = 1 AND department_id = #{departmentId} AND paid_by = 1
+    AND id IN (
+          SELECT employee_id FROM payrolls WHERE is_active = 1 AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})
+        )
+    AND (
+        id IN (
+          SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1 AND eas.employee_status_id NOT IN(4,5,6)
+        ) OR id IN (
+          SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1
+            AND eas.employee_status_id IN (4,5,6)
+            AND MONTH(eas.date) > MONTH(#{payDate}) AND YEAR(eas.date) >= YEAR(#{payDate})
+        )
+       OR id IN (
+        SELECT employee_id FROM payrolls WHERE is_active = 1 AND employee_id = employees.id AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate})
+       )
+    )
+    ORDER BY positionOrdering ASC
+  </select>
+
+  <select id="listPayrollType" resultMap="ReportPayrollItemType">
+    SELECT *
+    FROM payroll_item_types
+    WHERE  is_active = 1
+    ORDER BY id DESC
+  </select>
+
+  <select id="listPayrollItem" resultMap="ReportPayrollItem">
+    SELECT *
+    FROM payroll_items
+    WHERE  is_active = 1 AND payroll_items.payroll_item_type_id = #{payrollTypeId}
+  </select>
+
+  <select id="getAmount" resultType="java.lang.Float">
+    SELECT amount
+    FROM payroll_details
+    WHERE  is_active = 1 AND payroll_item_id = #{payrollItemId} AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1
+    AND employee_id = #{employeesId} AND MONTH(pay_date) = MONTH(#{payDate}) AND YEAR(pay_date) = YEAR(#{payDate}))
+  </select>
+    
+</mapper>

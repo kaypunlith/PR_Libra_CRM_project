@@ -1,0 +1,533 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportBalanceSheetMapper">
+
+    <select id="createTable" parameterType="java.lang.String">
+        CREATE TABLE IF NOT EXISTS `${tableName}` (
+                                                      `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `date` DATE DEFAULT NULL,
+            `chart_account_id` INT(11) DEFAULT NULL,
+            `company_id` INT(11) DEFAULT NULL,
+            `location_id` INT(11) DEFAULT NULL,
+            `debit` DOUBLE DEFAULT NULL,
+            `credit` DOUBLE DEFAULT NULL,
+            `customer_id` BIGINT(20) DEFAULT NULL,
+            `vendor_id` BIGINT(20) DEFAULT NULL,
+            `employee_id` BIGINT(20) DEFAULT NULL,
+            `other_id` BIGINT(20) DEFAULT NULL,
+            `class_id` BIGINT(20) DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `chart_account_id` (`chart_account_id`),
+            KEY `company_id` (`company_id`),
+            KEY `location_id` (`location_id`),
+            KEY `date` (`date`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+    </select>
+
+    <select id="getListProfitLoss" parameterType="com.ut.nlSystemAPi.model.filter.ARDetailReportFilter" resultMap="ProfitLossReportResponse">
+        SELECT
+        SUM(debit) AS debit,
+        SUM(credit) AS credit,
+        `date` AS date,
+        chart_account_id AS chartAccountId,
+        company_id AS companyId,
+        location_id AS locationId,
+        customer_id AS customerId,
+        vendor_id AS vendorId,
+        employee_id AS employeeId,
+        other_id AS otherId,
+        class_id AS classId
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gl.is_approve=1 AND gl.is_active=1
+        <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(gl.date) &lt;= DATE(#{filter.dateTo})
+        </if>
+        GROUP BY `date`, chart_account_id, company_id, location_id, customer_id, vendor_id, employee_id, other_id, class_id
+    </select>
+
+    <insert id="insertGeneralLedgerDetail" parameterType="com.ut.nlSystemAPi.model.ProfitLossReport" useGeneratedKeys="true" keyProperty="profitLoss.id">
+        INSERT INTO ${tableName} (
+            `date`,
+            `chart_account_id`,
+            `company_id`,
+            `location_id`,
+            `debit`,
+            `credit`,
+            `customer_id`,
+            `vendor_id`,
+            `employee_id`,
+            `other_id`,
+            `class_id`
+        ) VALUES (
+                     #{profitLoss.date},
+                     #{profitLoss.chartAccountId},
+                     #{profitLoss.companyId},
+                     #{profitLoss.locationId},
+                     #{profitLoss.debit},
+                     #{profitLoss.credit},
+                     #{profitLoss.customerId},
+                     #{profitLoss.vendorId},
+                     #{profitLoss.employeeId},
+                     #{profitLoss.otherId},
+                     #{profitLoss.classId}
+                 )
+    </insert>
+
+    <insert id="insertGeneralLedgerDetailBatch" parameterType="map">
+        INSERT INTO ${tableName} (
+        `date`,
+        `chart_account_id`,
+        `company_id`,
+        `location_id`,
+        `debit`,
+        `credit`,
+        `customer_id`,
+        `vendor_id`,
+        `employee_id`,
+        `other_id`,
+        `class_id`
+        )
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.date},
+            #{item.chartAccountId},
+            #{item.companyId},
+            #{item.locationId},
+            #{item.debit},
+            #{item.credit},
+            #{item.customerId},
+            #{item.vendorId},
+            #{item.employeeId},
+            #{item.otherId},
+            #{item.classId}
+            )
+        </foreach>
+    </insert>
+    <select id="dropTable" parameterType="java.lang.String">
+        DROP TABLE IF EXISTS `${tableName}`;
+    </select>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP">
+        IFNULL(
+        (
+        SELECT  SUM(debit) FROM ${filter.tableName}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(credit)  FROM ${filter.tableName}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP_CREDIT">
+        IFNULL(
+        (
+        SELECT SUM(credit) FROM ${filter.tableName}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(debit)  FROM ${filter.tableName}
+        WHERE chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_group_id = g.id)
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getAccountGroupDetailIncome" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail"   >
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Income')
+        ORDER BY t.id
+    </select>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT">
+        IFNULL(
+        (
+        SELECT  SUM(debit) FROM ${filter.tableName}
+        WHERE chart_account_id = coa.id
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        ) - (
+        SELECT SUM(credit) FROM ${filter.tableName}
+        WHERE chart_account_id = coa.id
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <sql id="BASE_WHERE_COLUMN">
+        AND date &lt;= #{filter.dateTo}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+    </sql>
+
+    <sql id="BASE_WHERE_COLUMN_GROUP_BY">
+        <if test="filter.column == 1">
+            AND date &lt;= bl1.date
+        </if>
+        <if test="filter.column == 2">
+            AND WEEK(date) &lt;= WEEK(bl1.date)
+        </if>
+        <if test="filter.column == 3">
+            AND MONTH(date) &lt;= MONTH(bl1.date)
+        </if>
+        <if test="filter.column == 4">
+            AND QUARTER(date) &lt;= QUARTER(bl1.date)
+        </if>
+        <if test="filter.column == 5">
+            AND CEIL(MONTH(date) / 6.0) &lt;= CEIL(MONTH(bl1.date) / 6.0)
+        </if>
+        <if test="filter.column == 6">
+            AND YEAR(date) &lt;= YEAR(bl1.date)
+        </if>
+    </sql>
+
+    <sql id="BASE_FIND_TOTAL_AMOUNT_CREDIT">
+        IFNULL(
+        (
+        SELECT SUM(credit) FROM ${filter.tableName}
+        WHERE chart_account_id = coa.id
+        <include refid="BASE_WHERE_COLUMN"/>
+        ) - (
+        SELECT SUM(debit) FROM ${filter.tableName}
+        WHERE chart_account_id = coa.id
+        <include refid="BASE_WHERE_COLUMN"/>
+        )
+        , 0) AS totalAmount
+    </sql>
+
+    <select id="getChartAccountByGroupId" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="chartAccountDetail">
+        SELECT
+        id AS charAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT"/>
+        FROM chart_accounts coa
+        WHERE is_active = 1
+        AND chart_account_group_id= #{groupId}
+        HAVING totalAmount != 0
+        ORDER BY account_codes
+    </select>
+
+    <sql id="BASE_WHERE_TOTAL_AMOUNT_COLUMN">
+        WHERE gld.chart_account_id = #{chartAccountId}
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND (gl.date) &lt;= #{date}
+        <if test="filter.companyId != null and filter.companyId != 0">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.organizationId != null and filter.organizationId != 0">
+            AND customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.vendorId != null and filter.vendorId != 0">
+            AND vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.other != null and filter.other != 0">
+            AND other_id = #{filter.other}
+        </if>
+        <if test="filter.classId != null and filter.classId != 0">
+            AND class_id = #{filter.classId}
+        </if>
+    </sql>
+
+
+    <select id="getChartAccountBalanceSheetById" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="ChartAccountSubDetail">
+        SELECT
+        #{date} AS date,
+        IFNULL(SUM(debit) - SUM(credit), 0) AS totalAmount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_TOTAL_AMOUNT_COLUMN"/>
+    </select>
+
+    <select id="getChartAccountBalanceSheetPayableById" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="ChartAccountSubDetail">
+        SELECT
+        #{date} AS date,
+        IFNULL(SUM(credit) - SUM(debit), 0) AS totalAmount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        <include refid="BASE_WHERE_TOTAL_AMOUNT_COLUMN"/>
+    </select>
+
+    <select id="getChartAccountCreditByGroupId" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="chartAccountDetail">
+        SELECT
+        id AS charAccountId,
+        CONCAT_WS(' ',account_codes,'·',account_description) AS chartAccountName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_CREDIT"/>
+        FROM chart_accounts coa
+        WHERE is_active = 1
+        AND chart_account_group_id= #{groupId}
+        HAVING totalAmount != 0
+        ORDER BY account_codes
+    </select>
+
+    <select id="getChartAccountByGroupIdAndParent"  parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"   resultMap="chartAccountDetail">
+        SELECT
+        id AS charAccountId,
+        (SELECT id FROM chart_accounts WHERE id = coa.parent_id) AS parentId,
+        (SELECT CONCAT_WS(' ', account_codes, '·', account_description) FROM chart_accounts WHERE id = coa.parent_id) AS parentName,
+        CONCAT_WS(' ', account_codes, '·', account_description) AS chartAccountName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT"/>
+        FROM chart_accounts coa
+        WHERE is_active = 1
+        AND chart_account_group_id = #{groupId}
+        HAVING totalAmount != 0
+        ORDER BY  parentName, account_codes;
+    </select>
+
+
+    <select id="getAccountGroupDetailCostOfGoodsSold" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter"  resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Cost of Goods Sold')
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupDetailGrossProfit" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense')
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupDetailNetOrdinaryIncome" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT
+        g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Income')
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalOtherRevenue" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Expense') AND g.is_depreciation NOT IN (2,3)
+        ORDER BY t.id
+    </select>
+
+
+    <select id="getAccountGroupTotalEarningsBeforeInterestAndTax" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP_CREDIT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense','Other Expense') AND g.is_depreciation IN (2)
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalCurrentAsset"  parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Cash and Bank','Accounts receivable','Other Current Asset')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalOtherAsset"  parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Other Asset')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalFixedAsset" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Fixed Asset')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+    <select id="getAccountGroupTotalAsset" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Accounts Payable','Credit Card','Other Current Liability')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+
+    <select id="getAccountGroupTotalEarningsBeforeTax" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Expense','Other Expense') AND g.is_depreciation IN (3)
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+
+    <select id="getAccountGroupTotalCurrentLiability" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP_CREDIT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Accounts Payable','Credit Card','Other Current Liability')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalLongTermLiability" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Long Term Liability')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+    <select id="getAccountGroupTotalEquity" parameterType="com.ut.nlSystemAPi.model.filter.ProfitAndLossReportFilter" resultMap="accountGroupDetail">
+        SELECT g.id AS accountGroupId,
+        g.name AS accountGroupName,
+        <include refid="BASE_FIND_TOTAL_AMOUNT_ACC_GROUP_CREDIT"/>
+        FROM chart_account_groups g
+        INNER JOIN chart_account_types t ON g.chart_account_type_id=t.id
+        WHERE g.is_active=1 AND t.name IN ('Equity')
+        HAVING  totalAmount != 0
+        ORDER BY t.id
+    </select>
+
+</mapper>

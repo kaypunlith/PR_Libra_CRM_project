@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+
+    <sql id="BASE_WHERE_CUSTOMER_BALANCE_BY_INVOICE">
+        WHERE general_ledgers.is_approve = 1
+        AND general_ledgers.is_active = 1
+        AND general_ledger_details.chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE
+        chart_account_type_id = 2
+        )
+        <if test="filter.searchText != null">
+            AND (
+            general_ledger_details.type LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR general_ledgers.reference LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR sales_orders.so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND general_ledgers.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND general_ledgers.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.classId != null">
+            AND general_ledger_details.class_id = #{filter.classId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND general_ledger_details.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND general_ledger_details.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.adjustmentEntry != null">
+            AND general_ledgers.is_adj = #{filter.adjustmentEntry}
+        </if>
+        <if test="filter.input != null">
+            AND general_ledgers.is_sys = #{filter.input}
+        </if>
+        <if test="filter.status != null">
+            <choose>
+                <when test="filter.status == 1">
+                    AND general_ledgers.sales_order_id NOT IN (
+                    SELECT gls.sales_order_id
+                    FROM general_ledgers gls
+                    INNER JOIN general_ledger_details glds ON gls.id = glds.general_ledger_id
+                    WHERE gls.sales_order_id IS NOT NULL
+                    AND (glds.type = 'Payment' OR glds.type = 'Credit Memo')
+                    )
+                </when>
+                <when test="filter.status == 2">
+                    AND general_ledgers.sales_order_id IN (
+                    (SELECT gl.sales_order_id as so_id FROM general_ledgers gl INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id AND gld.type = 'Invoice' AND round(gld.debit,2) > (SELECT round(SUM(glds.credit),2) FROM general_ledger_details glds INNER JOIN general_ledgers gls ON gls.id = glds.general_ledger_id WHERE gls.sales_order_id = gl.sales_order_id AND gls.sales_order_id IS NOT NULL AND (glds.type = 'Payment' OR glds.type = 'Credit Memo') ) GROUP BY gl.sales_order_id)
+                    )
+                </when>
+                <when test="filter.status == 3">
+                    AND (general_ledger_details.type = 'Credit Memo' OR general_ledger_details.type = 'Payment')
+                </when>
+                <when test="filter.status == 4">
+                    AND general_ledgers.sales_order_id IN (
+                    SELECT gl.sales_order_id
+                    FROM general_ledgers gl
+                    INNER JOIN general_ledger_details gld
+                        ON gl.id = gld.general_ledger_id
+                        AND gld.type = 'Invoice'
+                    WHERE gl.sales_order_id IS NOT NULL
+                    GROUP BY gl.sales_order_id
+                    HAVING ROUND(SUM(gld.debit), 2) = IFNULL((
+                        SELECT ROUND(SUM(glds.credit), 2)
+                        FROM general_ledger_details glds
+                        INNER JOIN general_ledgers gls ON gls.id = glds.general_ledger_id
+                        WHERE gls.sales_order_id = gl.sales_order_id
+                        AND gls.sales_order_id IS NOT NULL
+                        AND (glds.type = 'Payment' OR glds.type = 'Credit Memo')
+                    ), 0)
+                    )
+                </when>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="getListCustomerBalanceByInvoice" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerBalanceByInvoiceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.CustomerBalanceByInvoiceReportResponse">
+        SELECT
+        general_ledgers.id AS id,
+        CONCAT_WS(' ', customers.customer_code, customers.name) AS organizationName,
+        (SELECT so_code FROM sales_orders WHERE id = general_ledgers.sales_order_id) AS invoiceCode,
+        general_ledger_details.type AS type,
+        general_ledgers.date AS `date`,
+        general_ledgers.reference AS reference,
+        CASE
+        WHEN general_ledgers.sales_order_id IS NOT NULL THEN sales_orders.memo
+        WHEN general_ledgers.receive_payment_id IS NOT NULL THEN (
+        SELECT note FROM receive_payments WHERE id = general_ledgers.receive_payment_id
+        )
+        WHEN general_ledgers.ar_aging_id IS NOT NULL THEN (
+        SELECT note FROM ar_agings WHERE id = general_ledgers.ar_aging_id
+        )
+        ELSE ''
+        END AS memo,
+        (SELECT CONCAT(account_codes, ' · ', account_description)
+        FROM chart_accounts
+        WHERE id = general_ledger_details.chart_account_id) AS account,
+        IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1) AS amount,
+        IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1) AS balance
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id = general_ledger_details.general_ledger_id
+        LEFT JOIN customers ON general_ledger_details.customer_id = customers.id
+        INNER JOIN sales_orders ON general_ledgers.sales_order_id = sales_orders.id
+        <include refid="BASE_WHERE_CUSTOMER_BALANCE_BY_INVOICE"/>
+        ORDER BY sales_orders.so_code ASC, general_ledgers.date ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListCustomerBalanceByInvoice" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerBalanceByInvoiceReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(general_ledgers.id)
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id = general_ledger_details.general_ledger_id
+        LEFT JOIN customers ON general_ledger_details.customer_id = customers.id
+        INNER JOIN sales_orders ON general_ledgers.sales_order_id = sales_orders.id
+        <include refid="BASE_WHERE_CUSTOMER_BALANCE_BY_INVOICE"/>
+    </select>
+
+    <select id="sumGrandTotalCustomerBalanceByInvoice" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerBalanceByInvoiceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.ReportGrandTotalResponse">
+        SELECT
+        SUM(IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1)) AS grandTotalAmount,
+        SUM(IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1)) AS grandTotalBalance
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id = general_ledger_details.general_ledger_id
+        LEFT JOIN customers ON general_ledger_details.customer_id = customers.id
+        INNER JOIN sales_orders ON general_ledgers.sales_order_id = sales_orders.id
+        <include refid="BASE_WHERE_CUSTOMER_BALANCE_BY_INVOICE"/>
+    </select>
+
+</mapper>

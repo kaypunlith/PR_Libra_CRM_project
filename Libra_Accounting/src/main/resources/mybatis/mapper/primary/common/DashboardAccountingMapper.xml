@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DashboardAccountingMapper">
+
+  <resultMap id="ProfitAndLostDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.ProfileAndLostDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="ProfitAndLostResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.ListProfitAndLostResponse">
+
+  </resultMap>
+
+  <resultMap id="RevenueDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.RevenueDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="ExpenditureDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.ExpenditureDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="CustomerSegmentDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.CustomerSegmentDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="SaleTopCustomerDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.SaleTopCustomerResponse">
+
+  </resultMap>
+  <resultMap id="InvoiceCurrenciesDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.InvoiceCurrenciesDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="saleByProductGroupDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.SaleByproductGroupDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="saleYearToDateDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.SaleYearToDateDashboardResponse">
+
+  </resultMap>
+
+
+  <resultMap id="saleYearToDateDetailDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.YearToDateDetailResponse">
+
+  </resultMap>
+  <resultMap id="PurchaseYearToVendorDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.PurchaseTopVendorResponse">
+
+  </resultMap>
+  <resultMap id="PurchaseCurrenciesDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.PurchaseCurrenciesResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseYearToDateDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.PurchaseYearToDateResponse">
+
+  </resultMap>
+
+  <resultMap id="PurchaseYearToDateDetailDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.PurchaseYearToDateDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="SaleTargetVsActualDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.SaleTargetVsActualResponse">
+
+  </resultMap>
+
+  <resultMap id="SaleTargetDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.SaleTargetResponse">
+
+  </resultMap>
+
+  <resultMap id="GrowthRateDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.GrowthRateDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="GrowthRateDetailDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.GrowthRateDetailDashboardResponse">
+
+  </resultMap>
+
+
+  <resultMap id="TotalSaleByQuarterDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.TotalSaleByQuarterDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="TotalSaleByQuarterDetailDashboardResponse" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.TotalSaleByQuarterDetailDashboardResponse">
+
+  </resultMap>
+
+  <resultMap id="GraphCostOfGoodsRawMap" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.GraphCostOfGoodsRaw">
+    <result property="month" column="month"/>
+    <result property="parentGroupId" column="parent_group_id"/>
+    <result property="parentGroupName" column="parent_group_name"/>
+    <result property="amount" column="amount"/>
+  </resultMap>
+
+
+  <resultMap id="ReportAgingResult" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.AgingReportResult">
+
+  </resultMap>
+
+  <resultMap id="ResponseNetDay" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.GraphicNetDayResponse">
+
+  </resultMap>
+
+  <resultMap id="ResponseGraphicAP" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.GraphicResponseAP">
+
+  </resultMap>
+
+  <resultMap id="ResponseGraphicAR" type="com.ut.nlSystemAPi.model.response.DashboradAccounting.GraphicResponseAR">
+
+  </resultMap>
+
+
+
+</mapper>

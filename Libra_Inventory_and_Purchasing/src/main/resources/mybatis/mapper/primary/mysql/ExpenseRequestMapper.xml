@@ -1,0 +1,506 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ExpenseRequestMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        pv_requests.id AS id,
+        pv_requests.company_id AS companyId,
+        companies.name AS companyName,
+        COALESCE(
+                (SELECT order_id FROM pv_request_orders WHERE pv_request_id = pv_requests.id LIMIT 1),
+                (SELECT id FROM purchase_orders WHERE status > 0 AND pv_request_id = pv_requests.id)
+        ) AS purchaseId,
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM pv_request_orders
+                WHERE pv_request_id = pv_requests.id
+                AND status = 2
+            ) THEN 2
+            WHEN EXISTS (
+                SELECT 1
+                FROM pv_request_orders
+                WHERE pv_request_id = pv_requests.id
+                AND status = 3
+            ) THEN 3
+        END AS purchaseType,
+        COALESCE(
+                (SELECT pr_code FROM purchase_requests WHERE status > 0 AND id IN (SELECT order_id FROM pv_request_orders WHERE status = 2 AND pv_request_id = pv_requests.id)),
+                (SELECT po_code FROM purchase_orders WHERE status > 0 AND id IN (SELECT order_id FROM pv_request_orders WHERE status = 3 AND pv_request_id = pv_requests.id))
+        ) AS purchaseCode,
+        IFNULL(pv_requests.ref_doc, "") AS refDocUrl,
+        IFNULL(pv_requests.ref_doc_name, "") AS refDocName,
+        pv_requests.order_date AS erDate,
+        pv_requests.code AS erNumber,
+        pv_requests.vendor_id AS vendorId,
+        CONCAT(v.name, " (", (SELECT name FROM payment_terms WHERE id = v.payment_term_id LIMIT 1), ")") AS vendorName,
+        pv_requests.expected_delivery_date AS expectedErDate,
+        pv_requests.vat_setting_id AS vatId,
+        vat_settings.name AS vatName,
+        vat_settings.vat_percent AS vatPercent,
+        CASE
+            WHEN (COALESCE(
+                (SELECT pr_code FROM purchase_requests WHERE status > 0 AND id IN (SELECT order_id FROM pv_request_orders WHERE status = 2 AND pv_request_id = pv_requests.id)),
+                (SELECT po_code FROM purchase_orders WHERE status > 0 AND id IN (SELECT order_id FROM pv_request_orders WHERE status = 3 AND pv_request_id = pv_requests.id))
+        ) IS NOT NULL AND #{filter.isReferSaleOrder} = 0) THEN NULL
+        ELSE IFNULL(pv_requests.total_amount, 0) + IFNULL(pv_requests.total_vat, 0)
+        END AS totalAmount,
+        pv_requests.is_close AS isClose,
+        pv_requests.is_cash_advance AS isCashAdvance,
+        pv_requests.ut_type_of_system_id AS departmentId,
+        (SELECT
+            CASE
+                WHEN COUNT(id) = 0 THEN NULL
+                ELSE COUNT(id)
+                END AS approveDepositAmount
+        FROM pv_request_apply_deposits
+        WHERE pv_request_id = pv_requests.id AND is_approved = 1) AS approveDepositAmount,
+        (SELECT
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM permission_approves
+                WHERE
+                    permission_approves.is_active = 1
+                    AND (pv_requests.total_amount + IFNULL(pv_requests.total_vat, 0)) BETWEEN permission_approves.from_amount AND permission_approves.to_amount
+                    AND ((permission_approves.is_cash_advance = 0 AND pv_requests.is_cash_advance = 0) OR (permission_approves.is_cash_advance = 1))
+                    AND EXISTS (
+                        SELECT 1
+                        FROM permission_approve_details
+                        WHERE permission_approve_details.status = 1
+                          AND permission_approve_details.permission_approve_id = permission_approves.id
+                          AND permission_approve_details.user_id = #{userId}
+                    )
+                    AND EXISTS (SELECT 1
+                                FROM permission_approve_projects
+                                WHERE permission_approve_projects.status = 1
+                                    AND permission_approve_projects.permission_approve_id = permission_approves.id
+                                    AND permission_approve_projects.ut_type_of_system_id = pv_requests.ut_type_of_system_id
+                    )
+            ) THEN 1
+                ELSE 0
+                    END
+                         ) AS isAllowApproval,
+        pv_requests.note AS note,
+        pv_requests.status AS status,
+        pv_requests.closed AS closed,
+        pv_requests.approved AS approved,
+        pv_requests.created AS created,
+        pv_requests.modified AS modified,
+        CONCAT(users4.first_name, ' ', users4.last_name) AS closedBy,
+        CONCAT(users3.first_name, ' ', users3.last_name) AS approvedBy,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM pv_requests AS pv_requests
+        LEFT JOIN companies ON companies.id = pv_requests.company_id
+        LEFT JOIN vendors AS v ON pv_requests.vendor_id = v.id
+        LEFT JOIN vat_settings ON vat_settings.id = pv_requests.vat_setting_id
+        LEFT JOIN currency_centers ON currency_centers.id = pv_requests.currency_center_id
+        LEFT JOIN users AS users1 ON users1.id = pv_requests.created_by
+        LEFT JOIN users AS users2 ON users2.id = pv_requests.modified_by
+        LEFT JOIN users AS users3 ON users3.id = pv_requests.approved_by
+        LEFT JOIN users AS users4 ON users4.id = pv_requests.closed_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE pv_requests.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId}) AND pv_requests.status >= 0
+        <if test="filter.searchText != null">
+            AND (
+            pv_requests.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR v.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR (
+            SELECT pr_code
+            FROM purchase_requests
+            WHERE status > 0
+            AND id IN (
+            SELECT order_id
+            FROM pv_request_orders
+            WHERE status = 2
+            AND pv_request_id = pv_requests.id
+            )
+            ) LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR (
+            SELECT po_code
+            FROM purchase_orders
+            WHERE status > 0
+            AND pv_request_id = pv_requests.id
+            ) LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND pv_requests.order_date &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND pv_requests.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null and filter.status >= 0">
+             AND pv_requests.status = #{filter.status}
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND pv_requests.created_by = #{userId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ExpenseRequestFilter" resultMap="ExpenseRequestResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                pv_requests.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(pv_requests.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="ExpenseRequestResponse">
+    SELECT
+      (SELECT symbol FROM currency_centers WHERE id = pv_requests.currency_center_id) AS currencySymbol,
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+    WHERE pv_requests.id = #{id}
+  </select>
+
+    <select id="getListReceiptDetail" parameterType="java.lang.Long" resultMap="ExpenseRequestDetailResponse">
+        (
+        SELECT
+            1 AS `type`,
+            pv_request_details.id AS id,
+            pv_request_details.product_id  AS itemId,
+            products.code AS itemCode,
+            products.name AS itemName,
+            IFNULL(products.small_val_uom,1) / IFNULL(pv_request_details.conversion, 1) AS conversion,
+            pv_request_details.qty AS qty,
+            pv_request_details.qty_uom_id AS uomId,
+            uoms.name AS uomName,
+            pv_request_details.unit_cost AS unitCost,
+            pv_request_details.total_cost AS totalCost,
+            IFNULL(pv_request_details.note, '') AS note
+        FROM pv_request_details
+                 LEFT JOIN products ON products.id = pv_request_details.product_id
+                 LEFT JOIN uoms ON uoms.id = pv_request_details.qty_uom_id
+        WHERE pv_request_details.pv_request_id = #{id}
+
+        )
+
+        UNION
+
+        (
+
+        SELECT
+            2 AS `type`,
+            pv_request_services.id AS id,
+            pv_request_services.service_id AS itemId,
+            services.sku AS itemCode,
+            services.name AS itemName,
+            1 AS conversion,
+            pv_request_services.qty AS qty,
+            NULL AS uomId,
+            NULL AS uomName,
+            pv_request_services.unit_cost AS unitCost,
+            pv_request_services.total_cost AS totalCost,
+            IFNULL(pv_request_services.note, '') AS note
+        FROM pv_request_services
+            LEFT JOIN services ON services.id = pv_request_services.service_id
+        WHERE pv_request_services.pv_request_id = #{id}
+
+        )
+
+        UNION
+
+        (
+
+            SELECT
+                3 AS `type`,
+                pv_request_miscs.id AS id,
+                pv_request_miscs.id AS itemId,
+                NULL AS itemCode,
+                pv_request_miscs.description AS itemName,
+                1 AS conversion,
+                pv_request_miscs.qty AS qty,
+                pv_request_miscs.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                pv_request_miscs.unit_cost AS unitCost,
+                pv_request_miscs.total_cost AS totalCost,
+                IFNULL(pv_request_miscs.note, '') AS note
+            FROM pv_request_miscs
+            LEFT JOIN uoms ON uoms.id = pv_request_miscs.qty_uom_id
+            WHERE pv_request_miscs.pv_request_id = #{id}
+
+        )
+        ORDER BY `type` DESC, id ASC
+    </select>
+
+    <update id="updatePurchaseBill">
+        UPDATE purchase_orders SET pv_request_id = #{pvRequestId} WHERE id = #{id}
+    </update>
+
+    <update id="updatePurchaseOrder">
+        UPDATE purchase_requests SET pv_request_id = #{pvRequestId} WHERE id = #{id}
+    </update>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ExpenseRequest" useGeneratedKeys="true" keyProperty="expenseRequest.id">
+        INSERT INTO pv_requests(
+            company_id,
+            vendor_id,
+            code,
+            order_date,
+            total_vat,
+            vat_percent,
+            vat_setting_id,
+            ut_type_of_system_id,
+            total_amount,
+            expected_delivery_date,
+            created,
+            created_by,
+            is_cash_advance,
+            ref_doc,
+            ref_doc_name,
+            note,
+            status
+        ) VALUES (
+                     #{expenseRequest.companyId},
+                     #{expenseRequest.vendorId},
+                     #{expenseRequest.code},
+                     #{expenseRequest.erDate},
+                     #{expenseRequest.totalVat},
+                     (SELECT vat_percent FROM vat_settings WHERE id = #{expenseRequest.vatSettingId} LIMIT 1),
+                     #{expenseRequest.vatSettingId},
+                     #{expenseRequest.departmentId},
+                     #{expenseRequest.totalAmount},
+                     #{expenseRequest.expectedErDate},
+                     NOW(),
+                     #{expenseRequest.createdBy},
+                     #{expenseRequest.isCashAdvance},
+                     #{expenseRequest.refDocUrl},
+                     #{expenseRequest.refDocName},
+                     #{expenseRequest.note},
+                     #{expenseRequest.status}
+                 )
+    </insert>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE pv_requests SET
+        status = -1,
+        modified_by = #{userId},
+        modified = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePurchaseRequest" parameterType="java.lang.Long">
+        UPDATE purchase_requests SET pv_request_id = NULL WHERE pv_request_id = #{id}
+    </update>
+
+    <insert id="update" parameterType="com.ut.nlSystemAPi.model.ExpenseRequest" useGeneratedKeys="true" keyProperty="expenseRequest.id">
+        INSERT INTO pv_requests (
+        <if test="expenseRequest.companyId != null">company_id,</if>
+        <if test="expenseRequest.code != null">code,</if>
+        <if test="expenseRequest.vendorId != null">vendor_id,</if>
+        <if test="expenseRequest.erDate != null">order_date,</if>
+        <if test="expenseRequest.vatSettingId != null">vat_percent,</if>
+        <if test="expenseRequest.departmentId != null">ut_type_of_system_id,</if>
+        <if test="expenseRequest.totalAmount != null">total_amount,</if>
+        <if test="expenseRequest.totalVat != null">total_vat,</if>
+        <if test="expenseRequest.vatSettingId != null">vat_setting_id,</if>
+        <if test="expenseRequest.expectedErDate != null">expected_delivery_date,</if>
+        <if test="expenseRequest.note != null">note,</if>
+        <if test="expenseRequest.isCashAdvance != null">is_cash_advance,</if>
+        <if test="expenseRequest.refDocUrl != null">ref_doc,</if>
+        <if test="expenseRequest.refDocName != null">ref_doc_name,</if>
+        created,
+        created_by
+        ) VALUES (
+        <if test="expenseRequest.companyId != null">#{expenseRequest.companyId},</if>
+        <if test="expenseRequest.code != null">#{expenseRequest.code},</if>
+        <if test="expenseRequest.vendorId != null">#{expenseRequest.vendorId},</if>
+        <if test="expenseRequest.erDate != null">#{expenseRequest.erDate},</if>
+        (SELECT vat_percent FROM vat_settings WHERE id = #{expenseRequest.vatSettingId} LIMIT 1),
+        <if test="expenseRequest.departmentId != null">#{expenseRequest.departmentId},</if>
+        <if test="expenseRequest.totalAmount != null">#{expenseRequest.totalAmount},</if>
+        <if test="expenseRequest.totalVat != null">#{expenseRequest.totalVat},</if>
+        <if test="expenseRequest.vatSettingId != null">#{expenseRequest.vatSettingId},</if>
+        <if test="expenseRequest.expectedErDate != null">#{expenseRequest.expectedErDate},</if>
+        <if test="expenseRequest.note != null">#{expenseRequest.note},</if>
+        <if test="expenseRequest.isCashAdvance != null">#{expenseRequest.isCashAdvance},</if>
+        <if test="expenseRequest.refDocUrl != null">#{expenseRequest.refDocUrl},</if>
+        <if test="expenseRequest.refDocName != null">#{expenseRequest.refDocName},</if>
+        NOW(),
+        #{expenseRequest.modifiedBy}
+        )
+    </insert>
+
+    <insert id="insertPurchaseExpenseRequest" parameterType="com.ut.nlSystemAPi.model.ExpenseRequest">
+        INSERT INTO pv_request_orders(
+            pv_request_id,
+            order_id,
+            status
+        ) VALUES (
+             #{expenseRequest.id},
+             #{expenseRequest.purchaseId},
+             #{expenseRequest.purchaseType}
+            )
+    </insert>
+
+    <insert id="insertPvRequestDetail" parameterType="com.ut.nlSystemAPi.model.ExpenseRequestDetail">
+        INSERT INTO pv_request_details (
+            pv_request_id,
+            product_id,
+            qty,
+            qty_uom_id,
+            unit_cost,
+            total_cost,
+            conversion,
+            note
+        ) VALUES (
+                     #{expenseRequestDetail.pvRequestId},
+                     #{expenseRequestDetail.productId},
+                     #{expenseRequestDetail.qty},
+                     #{expenseRequestDetail.qtyUomId},
+                     #{expenseRequestDetail.unitCost},
+                     #{expenseRequestDetail.totalCost},
+                     #{expenseRequestDetail.conversion},
+                     #{expenseRequestDetail.note}
+                 )
+    </insert>
+
+    <insert id="insertPvRequestService" parameterType="com.ut.nlSystemAPi.model.ExpenseRequest" useGeneratedKeys="true">
+        INSERT INTO pv_request_services (
+            pv_request_id,
+            service_id ,
+            qty,
+            unit_cost,
+            total_cost,
+            note
+        ) VALUES (
+            #{expenseRequestServiceModel.pvRequestId},
+            #{expenseRequestServiceModel.serviceId},
+            #{expenseRequestServiceModel.qty},
+            #{expenseRequestServiceModel.unitCost},
+            #{expenseRequestServiceModel.totalCost},
+            #{expenseRequestServiceModel.note}
+        )
+    </insert>
+
+    <update id="updateClose" parameterType="java.lang.Long">
+        UPDATE pv_requests SET
+            is_close = 1,
+            closed_by = #{closeRequest.closedBy},
+            closed = NOW()
+        WHERE id = #{closeRequest.id}
+    </update>
+
+    <update id="updateApprove" parameterType="com.ut.nlSystemAPi.model.request.Login.ExpenseRequest.ApproveRequest">
+        UPDATE pv_requests SET
+        <if test="approve.totalAmountApprove != null">total_amount_approved = #{approve.totalAmountApprove},</if>
+        approved = NOW(),
+        approved_by = #{approve.approveBy}
+        WHERE id = #{approve.id}
+    </update>
+
+    <update id="updateStatus" parameterType="java.lang.Long">
+        UPDATE pv_requests SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <insert id="insertDeposit" parameterType="com.ut.nlSystemAPi.model.request.Login.ExpenseRequest.DepositApproveRequest" useGeneratedKeys="true">
+        INSERT INTO pv_request_apply_deposits (
+            pv_request_id,
+            deposit_percentage,
+            deposit_amount,
+            pay_bill_apply,
+            approved,
+            approved_by,
+            is_approved
+        ) VALUES (
+                  #{depositApproveRequest.pvRequestId},
+                  #{depositApproveRequest.depositPercentage},
+                  #{depositApproveRequest.depositAmount},
+                  #{depositApproveRequest.payBillApply},
+                <if test="depositApproveRequest.isApprove == 1">
+                    NOW()
+                </if>
+                <if test="depositApproveRequest.isApprove != 1">
+                    NULL
+                </if>,
+                  #{depositApproveRequest.approveBy},
+                  #{depositApproveRequest.isApprove}
+                 )
+    </insert>
+
+    <update id="updateDeposit" parameterType="com.ut.nlSystemAPi.model.request.Login.ExpenseRequest.DepositApproveRequest" useGeneratedKeys="true">
+        UPDATE pv_request_apply_deposits SET
+        <if test="depositApproveRequest.pvRequestId != null">pv_request_id = #{depositApproveRequest.pvRequestId},</if>
+        <if test="depositApproveRequest.depositPercentage != null">deposit_percentage = #{depositApproveRequest.depositPercentage},</if>
+        <if test="depositApproveRequest.depositAmount != null">deposit_amount = #{depositApproveRequest.depositAmount},</if>
+        <if test="depositApproveRequest.payBillApply != null">pay_bill_apply = #{depositApproveRequest.payBillApply},</if>
+        approved = <if test="depositApproveRequest.isApprove == 1">NOW()</if><if test="depositApproveRequest.isApprove != 1">NULL</if>,
+        <if test="depositApproveRequest.approveBy != null">approved_by = #{depositApproveRequest.approveBy},</if>
+        <if test="depositApproveRequest.isApprove != null">is_approved = #{depositApproveRequest.isApprove}</if>
+        WHERE id = #{depositApproveRequest.id}
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE pv_requests SET status = 0 WHERE id = #{id}
+    </update>
+
+    <delete id="deletePurchaseExpenseRequest" parameterType="java.lang.Long">
+        DELETE FROM pv_request_orders WHERE `pv_request_id` = #{id}
+    </delete>
+
+    <delete id="deletePvRequestDetail" parameterType="java.lang.Long">
+        DELETE FROM pv_request_details WHERE `pv_request_id` = #{id}
+    </delete>
+
+    <delete id="deletePvRequestService" parameterType="java.lang.Long">
+        DELETE FROM pv_request_services WHERE `pv_request_id` = #{id}
+    </delete>
+
+    <select id="getCreatedBy" resultType="java.lang.Long">
+        SELECT created_by FROM pv_requests WHERE id = #{id}
+    </select>
+
+    <select id="getPvCode" resultType="java.lang.String">
+        SELECT code FROM pv_requests WHERE id = #{id}
+    </select>
+
+    <select id="getLastCode" resultType="java.lang.String">
+        SELECT COUNT(id)
+        FROM pv_requests
+        WHERE status >= 0 AND YEAR(created) = YEAR(NOW())
+    </select>
+
+    <select id="sumTotalAmountApprove" resultType="java.lang.Double">
+        SELECT sum(deposit_amount) FROM pv_request_apply_deposits WHERE pv_request_id = #{id}
+    </select>
+
+    <select id="getListApprove" parameterType="java.lang.Long" resultMap="ExpenseRequestApproveResponse">
+        SELECT
+            pv_request_apply_deposits.id AS id,
+            pv_request_apply_deposits.pv_request_id AS pvRequestId,
+            pv_request_apply_deposits.deposit_amount AS depositAmount,
+            pv_request_apply_deposits.deposit_percentage AS depositPercentage,
+            pv_request_apply_deposits.pay_bill_apply AS payBillApply,
+            pv_request_apply_deposits.is_approved AS isApproved,
+            pv_request_apply_deposits.approved AS approved,
+            CONCAT(users.first_name, ' ', users.last_name) AS approvedBy
+            FROM pv_request_apply_deposits
+            LEFT JOIN users ON users.id = pv_request_apply_deposits.approved_by
+            WHERE pv_request_apply_deposits.pv_request_id = #{id}
+    </select>
+
+</mapper>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.APScheduleMapper">
+
+  <resultMap id="APScheduleResponse" type="com.ut.nlSystemAPi.model.response.APSchedule.APScheduleResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleResponseDetails" type="com.ut.nlSystemAPi.model.response.APSchedule.APScheduleResponseDetails">
+
+  </resultMap>
+
+  <resultMap id="APScheduleTotalBookingInformationResponse" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalBookingInformation.APScheduleTotalBookingInformationResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleVendorTotalResponse" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalVendorBalance.APScheduleVendorTotalResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleTopVendorTotalResponse" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalVendorBalance.APScheduleTopVendorTotalResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleTopVendorTotalResponseDetails" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalVendorBalance.APScheduleTopVendorTotalResponseDetails">
+
+  </resultMap>
+
+  <resultMap id="APScheduleVendorBookedTotalResponse" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalVendorBooked.APScheduleVendorBookedTotalResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleTopVendorBookedTotalResponse" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalVendorBooked.APScheduleTopVendorBookedTotalResponse">
+
+  </resultMap>
+
+  <resultMap id="APScheduleTopVendorBookedTotalResponseDetails" type="com.ut.nlSystemAPi.model.response.APSchedule.TotalVendorBooked.APScheduleTopVendorBookedTotalResponseDetails">
+
+  </resultMap>
+
+</mapper>

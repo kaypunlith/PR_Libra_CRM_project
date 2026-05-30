@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_SALES_INVOICE">
+        WHERE sales_orders.status != -1
+        AND sales_orders.is_pos = 0
+        AND sales_orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        AND sales_orders.location_group_id IN (SELECT location_group_id FROM user_location_groups WHERE user_id =  #{userId})
+        <if test="filter.searchText != null">
+            AND (
+            sales_orders.so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND sales_orders.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND sales_orders.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND sales_orders.status = #{filter.status}
+        </if>
+        <if test="filter.type != null">
+            AND sales_orders.`type` = #{filter.type}
+        </if>
+        <if test="filter.companyId != null">
+            AND sales_orders.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND sales_orders.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND sales_orders.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND sales_orders.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.createdBy != null">
+            AND sales_orders.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.filterBy != null">
+            AND sales_orders.is_none_vat = #{filter.filterBy}
+        </if>
+        <if test="filter.departmentId != null">
+            AND sales_orders.ut_system_type_id  = #{filter.departmentId}
+        </if>
+    </sql>
+
+    <select id="getListSalesInvoiceDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesInvoiceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesInvoiceReportResponse">
+        SELECT
+        sales_orders.id AS id,
+        sales_orders.order_date AS invoiceDate,
+        sales_orders.so_code AS invoiceCode,
+        (SELECT GROUP_CONCAT(cgroups.name SEPARATOR ', ')
+        FROM cgroups
+        WHERE cgroups.is_active = 1
+        AND cgroups.id IN (SELECT cgroup_id FROM customer_cgroups WHERE customer_cgroups.customer_id = sales_orders.customer_id)
+        ) AS organizationGroupName,
+        COALESCE(
+        (SELECT GROUP_CONCAT(products.name SEPARATOR ', ')
+        FROM products
+        WHERE products.is_active = 1
+        AND products.id IN (SELECT product_id FROM sales_order_details WHERE sales_order_details.sales_order_id = sales_orders.id)),
+        (SELECT GROUP_CONCAT(services.name SEPARATOR ', ')
+        FROM services
+        WHERE services.is_active = 1
+        AND services.id IN (SELECT service_id FROM sales_order_services WHERE sales_order_services.sales_order_id = sales_orders.id)),
+        (SELECT GROUP_CONCAT(sales_order_miscs.description SEPARATOR ', ')
+        FROM sales_order_miscs
+        WHERE sales_order_miscs.sales_order_id = sales_orders.id),
+        ''
+        ) AS description,
+        CONCAT_WS(' ', customers.name) AS organizationName,
+        sales_orders.total_amount - IFNULL(sales_orders.discount, 0) - IFNULL(sales_orders.total_deposit, 0) AS subTotal,
+        IFNULL(sales_orders.total_vat, 0) AS totalVat,
+        sales_orders.total_amount - IFNULL(sales_orders.discount, 0) + IFNULL(sales_orders.total_vat, 0) - IFNULL(sales_orders.total_deposit, 0) AS totalAmount,
+        sales_orders.balance AS balance,
+        IF(balance > 0 AND DATEDIFF(now(), due_date) > 0, DATEDIFF(now(), due_date), '.') AS aging,
+        sales_orders.status AS status,
+        currency_centers.symbol AS currencySymbol
+        FROM sales_orders
+        INNER JOIN customers ON customers.id = sales_orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        <include refid="BASE_WHERE_SALES_INVOICE"/>
+        ORDER BY sales_orders.order_date DESC, sales_orders.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSalesInvoiceDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesInvoiceReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(sales_orders.id)
+        FROM sales_orders
+        INNER JOIN customers ON customers.id = sales_orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        <include refid="BASE_WHERE_SALES_INVOICE"/>
+    </select>
+
+    <select id="getListSalesInvoiceItem" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesInvoiceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesInvoiceReportResponse">
+        SELECT
+        customers.id AS id,
+        (SELECT GROUP_CONCAT(cgroups.name SEPARATOR ', ')
+        FROM cgroups
+        WHERE cgroups.is_active = 1
+        AND cgroups.id IN (SELECT cgroup_id FROM customer_cgroups WHERE customer_cgroups.customer_id = sales_orders.customer_id)
+        ) AS organizationGroupName,
+        CONCAT_WS(' ', customers.name) AS organizationName
+        FROM sales_orders
+        INNER JOIN customers ON customers.id = sales_orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        <include refid="BASE_WHERE_SALES_INVOICE"/>
+        GROUP BY customers.id
+        ORDER BY sales_orders.order_date ASC, sales_orders.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListSalesInvoiceItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesInvoiceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.SalesInvoiceReportResponse">
+        SELECT
+            sales_orders.id AS id,
+            sales_orders.order_date AS invoiceDate,
+            sales_orders.so_code AS invoiceCode,
+            COALESCE(
+                    (SELECT GROUP_CONCAT(products.name SEPARATOR ', ')
+                     FROM products
+                     WHERE products.is_active = 1
+                       AND products.id IN (SELECT product_id FROM sales_order_details WHERE sales_order_details.sales_order_id = sales_orders.id)),
+                    (SELECT GROUP_CONCAT(services.name SEPARATOR ', ')
+                     FROM services
+                     WHERE services.is_active = 1
+                       AND services.id IN (SELECT service_id FROM sales_order_services WHERE sales_order_services.sales_order_id = sales_orders.id)),
+                    (SELECT GROUP_CONCAT(sales_order_miscs.description SEPARATOR ', ')
+                     FROM sales_order_miscs
+                     WHERE sales_order_miscs.sales_order_id = sales_orders.id),
+                    ''
+            ) AS description,
+            sales_orders.total_amount - IFNULL(sales_orders.discount, 0) AS subTotal,
+            IFNULL(sales_orders.total_vat, 0) AS totalVat,
+            sales_orders.total_amount - IFNULL(sales_orders.discount, 0) + IFNULL(sales_orders.total_vat, 0) AS totalAmount,
+            sales_orders.balance AS balance,
+            IF(balance > 0 AND DATEDIFF(now(), due_date) > 0, DATEDIFF(now(), due_date), '.') AS aging,
+            sales_orders.status AS status
+        FROM sales_orders
+                 INNER JOIN customers ON customers.id = sales_orders.customer_id
+                 INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        WHERE sales_orders.status != -1
+        AND sales_orders.is_pos = 0
+        AND sales_orders.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+          AND sales_orders.location_group_id IN (SELECT location_group_id FROM user_location_groups WHERE user_id =  #{userId})
+          AND sales_orders.customer_id = #{organizationId}
+    </select>
+
+    <select id="countListSalesInvoiceItem" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.SalesInvoiceReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(customers.id)
+        FROM sales_orders
+        INNER JOIN customers ON customers.id = sales_orders.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = sales_orders.currency_center_id
+        <include refid="BASE_WHERE_SALES_INVOICE"/>
+    </select>
+
+</mapper>
+

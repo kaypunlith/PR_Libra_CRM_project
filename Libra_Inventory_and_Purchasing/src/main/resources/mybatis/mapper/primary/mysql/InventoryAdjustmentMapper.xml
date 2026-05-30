@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InventoryAdjustmentMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    cycle_products.id AS id,
+    cycle_products.reference AS adj,
+    cycle_products.date AS `date`,
+    cycle_products.company_id AS companyId,
+    companies.name AS companyName,
+    cycle_products.deposit_to AS depositTo,
+    cycle_products.location_group_id AS warehouseId,
+    location_groups.name AS warehouseName,
+    cycle_products.adj_type AS `type`,
+    cycle_products.deposit_to AS adjustmentId,
+    CONCAT(chart_accounts.account_codes, ' - ', chart_accounts.account_description) AS adjustment,
+    cycle_products.pgroup_id AS productGroupId,
+    pgroups.name AS productGroupName,
+    cycle_products.note AS note,
+    cycle_products.status AS status,
+    cycle_products.created AS created,
+    cycle_products.modified AS modified,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM cycle_products
+    LEFT JOIN companies ON cycle_products.company_id = companies.id
+    LEFT JOIN location_groups ON cycle_products.location_group_id = location_groups.id
+    LEFT JOIN chart_accounts ON cycle_products.deposit_to = chart_accounts.id
+    LEFT JOIN pgroups ON cycle_products.pgroup_id = pgroups.id
+    LEFT JOIN users AS users1 ON users1.id = cycle_products.created_by
+    LEFT JOIN users AS users2 ON users2.id = cycle_products.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE cycle_products.status >= 0
+    <if test="filter.searchText != null">
+      AND cycle_products.reference LIKE CONCAT("%", #{filter.searchText}, "%")
+    </if>
+    <if test="filter.date != null">
+      AND cycle_products.date = #{filter.date}
+    </if>
+    <if test="filter.cpType != null">
+      AND cycle_products.cp_type = #{filter.cpType}
+    </if>
+    <if test="filter.type != null">
+      AND cycle_products.adj_type = #{filter.type}
+    </if>
+    <if test="filter.warehouseId != null">
+      AND cycle_products.location_group_id = #{filter.warehouseId}
+    </if>
+    <if test="filter.status != null">
+      AND cycle_products.status = #{filter.status}
+    </if>
+    <if test="filter.viewByUser == 1">
+      AND cycle_products.created_by = #{userId}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentFilter" resultMap="InventoryAdjustmentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        cycle_products.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.InventoryAdjustmentFilter" resultType="java.lang.Long">
+    SELECT COUNT(cycle_products.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="InventoryAdjustmentResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE cycle_products.id = #{id} AND cycle_products.status >= 0
+  </select>
+
+  <select id="getInventoryAdjustmentDetail" parameterType="java.lang.Long" resultMap="InventoryAdjustmentDetailsResponse">
+    SELECT
+    cycle_product_details.id AS id,
+    cycle_product_details.cycle_product_id AS inventoryAdjustmentId,
+    cycle_product_details.product_id AS productId,
+    IFNULL(cycle_product_details.lots_number,'0') AS lotsNumber,
+    products.code AS sku,
+    products.barcode AS upc,
+    products.price_uom_id AS uomId,
+    products.unit_cost AS unitCost,
+    uoms.name AS uomName,
+    uoms.abbr AS uomAbbr,
+    products.name AS productName,
+    products.is_expired_date AS isExpiredDate,
+    cycle_product_details.location_id AS locationId,
+    locations.name AS locationName,
+    cycle_product_details.expired_date AS expiredDate,
+    cycle_product_details.current_qty AS qtyOnhand,
+    cycle_product_details.new_qty AS newQty,
+    cycle_product_details.qty_difference AS adjustQty
+    FROM cycle_product_details
+           LEFT JOIN products ON cycle_product_details.product_id = products.id
+           LEFT JOIN uoms ON products.price_uom_id = uoms.id
+           LEFT JOIN locations ON cycle_product_details.location_id = locations.id
+    WHERE cycle_product_details.cycle_product_id = #{inventoryAdjustmentId}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM cycle_products
+    WHERE status &lt;= 1 AND reference = #{code}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.InventoryAdjustment" useGeneratedKeys="true" keyProperty="inventoryAdjustment.id">
+    INSERT INTO cycle_products (
+      `date`,
+      company_id,
+      location_group_id,
+      pgroup_id,
+      deposit_to,
+      reference,
+      note,
+      created_by,
+      created,
+      adj_type,
+      cp_type,
+      status
+    ) VALUES (
+      #{inventoryAdjustment.date},
+      #{inventoryAdjustment.companyId},
+      #{inventoryAdjustment.warehouseId},
+      #{inventoryAdjustment.productGroupId},
+      #{inventoryAdjustment.depositTo},
+      #{inventoryAdjustment.reference},
+      #{inventoryAdjustment.note},
+      #{inventoryAdjustment.createdBy},
+      NOW(),
+      #{inventoryAdjustment.type},
+      #{inventoryAdjustment.cpType},
+      #{inventoryAdjustment.status}
+    )
+  </insert>
+
+  <insert id="insertInventoryAdjustmentDetail" parameterType="com.ut.nlSystemAPi.model.InventoryAdjustmentDetail">
+        INSERT INTO cycle_product_details (
+            cycle_product_id,
+            product_id,
+            location_id,
+            expired_date,
+            lots_number,
+            current_qty,
+            new_qty,
+            qty_difference
+        ) VALUES (
+                     #{inventoryAdjustmentDetail.cycleProductId},
+                     #{inventoryAdjustmentDetail.productId},
+                     #{inventoryAdjustmentDetail.locationId},
+                     #{inventoryAdjustmentDetail.expiredDate},
+                     #{inventoryAdjustmentDetail.lotNumber},
+                     #{inventoryAdjustmentDetail.currentQty},
+                     #{inventoryAdjustmentDetail.newQty},
+                     #{inventoryAdjustmentDetail.qtyDifference}
+                 )
+  </insert>
+
+  <delete id="deleteInventoryAdjustmentDetail" parameterType="java.lang.Long">
+    DELETE FROM cycle_product_details WHERE cycle_product_id = #{inventoryAdjustmentDetailId}
+  </delete>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.InventoryAdjustment" useGeneratedKeys="true" keyProperty="inventoryAdjustment.id">
+    INSERT INTO cycle_products (
+      `date`,
+      company_id,
+      location_group_id,
+      pgroup_id,
+      deposit_to,
+      reference,
+      note,
+      cp_type,
+      adj_type,
+      created_by,
+      created
+    ) VALUES (
+               #{inventoryAdjustment.date},
+               #{inventoryAdjustment.companyId},
+               #{inventoryAdjustment.warehouseId},
+               #{inventoryAdjustment.productGroupId},
+               #{inventoryAdjustment.depositTo},
+               #{inventoryAdjustment.reference},
+               #{inventoryAdjustment.note},
+               #{inventoryAdjustment.cpType},
+               #{inventoryAdjustment.type},
+               #{inventoryAdjustment.modifiedBy},
+               NOW()
+             )
+  </update>
+
+  <update id="archive" parameterType="java.lang.Long">
+    UPDATE cycle_products SET
+      status = -1,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE cycle_products SET
+      status = 0,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.filter.BaseFilter">
+    UPDATE cycle_products SET
+      status = #{filter.status},
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{filter.id};
+  </update>
+
+  <select id="getCode" resultType="java.lang.String">
+    SELECT reference
+    FROM cycle_products
+    WHERE id = #{id}
+  </select>
+
+  <select id="getLastCode" resultType="java.lang.String">
+    SELECT reference
+    FROM cycle_products
+    WHERE YEAR(date) = YEAR(NOW()) AND reference LIKE '%ADJ%' ORDER BY id DESC LIMIT 1
+  </select>
+
+  <select id="getCpType" resultType="java.lang.Long">
+    SELECT cp_type
+    FROM cycle_products
+    WHERE id = #{id}
+  </select>
+
+  <select id="getAdjType" resultType="java.lang.Long">
+    SELECT adj_type
+    FROM cycle_products
+    WHERE id = #{id}
+  </select>
+
+  <update id="resetGroupTotals">
+    UPDATE ${tableName}
+    SET total_qty = 0,
+        total_order = 0
+  </update>
+
+  <update id="resetGroupTotalDetails">
+    UPDATE ${tableName}
+    SET total_cycle = 0,
+        total_so = 0,
+        total_so_free = 0,
+        total_pos = 0,
+        total_pos_free = 0,
+        total_pb = 0,
+        total_pbc = 0,
+        total_cm = 0,
+        total_cm_free = 0,
+        total_to_in = 0,
+        total_to_out = 0,
+        total_order = 0
+  </update>
+
+  <update id="resetInventoryTotals">
+    UPDATE ${tableName}
+    SET total_qty = 0,
+        total_order = 0
+  </update>
+
+  <update id="resetInventoryTotalDetails">
+    UPDATE ${tableName}
+    SET total_cycle = 0,
+        total_so = 0,
+        total_pos = 0,
+        total_pb = 0,
+        total_pbc = 0,
+        total_cm = 0,
+        total_to_in = 0,
+        total_to_out = 0,
+        total_order = 0
+  </update>
+
+    <insert id="resetInventories">
+        INSERT INTO ${tblName} (
+        transfer_order_id,
+        purchase_return_id,
+        purchase_order_id,
+        type,
+        customer_id,
+        vendor_id,
+        product_id,
+        location_group_id,
+        location_id,
+        qty,
+        unit_cost,
+        date,
+        lots_number,
+        date_expired,
+        created,
+        created_by,
+        modified,
+        modified_by
+        ) VALUES (
+        #{globalStock.transferOrderId},
+        #{globalStock.purchaseReturnId},
+        #{globalStock.purchaseOrderId},
+        #{globalStock.type},
+        #{globalStock.customerId},
+        #{globalStock.vendorId},
+        #{globalStock.productId},
+        #{globalStock.warehouseId},
+        #{globalStock.locationId},
+        #{globalStock.totalQty} * -1,
+        #{globalStock.unitCost},
+        NOW(),
+        #{globalStock.lotsNumber},
+        #{globalStock.expiredDate},
+        NOW(),
+        #{globalStock.createdBy},
+        NOW(),
+        #{globalStock.createdBy}
+        )
+    </insert>
+
+    <insert id="resetInventoriesAll">
+        INSERT INTO inventories (
+        cycle_product_id,
+        cycle_product_detail_id,
+        purchase_order_id,
+        purchase_return_id,
+        purchase_receive_result_id,
+        transfer_order_id,
+        type,
+        customer_id,
+        vendor_id,
+        product_id,
+        location_group_id,
+        location_id,
+        qty,
+        unit_cost,
+        date,
+        lots_number,
+        date_expired,
+        created,
+        created_by,
+        modified,
+        modified_by
+        ) VALUES (
+        #{globalStock.cycleProductId},
+        #{globalStock.cycleProductDetailId},
+        #{globalStock.purchaseOrderId},
+        #{globalStock.purchaseReturnId},
+        #{globalStock.purchaseReceiveResultId},
+        #{globalStock.transferOrderId},
+        #{globalStock.type},
+        #{globalStock.customerId},
+        #{globalStock.vendorId},
+        #{globalStock.productId},
+        #{globalStock.warehouseId},
+        #{globalStock.locationId},
+        #{globalStock.totalQty} * -1,
+        #{globalStock.unitCost},
+        NOW(),
+        #{globalStock.lotsNumber},
+        #{globalStock.expiredDate},
+        NOW(),
+        #{globalStock.createdBy},
+        NOW(),
+        #{globalStock.createdBy}
+        )
+    </insert>
+
+  <update id="resetInventoryTotalsAll">
+    UPDATE inventory_totals
+    SET total_qty = 0,
+        total_order = 0,
+        total_pb = 0,
+        total_cycle = 0,
+        total_pbc = 0
+    WHERE product_id IN (
+      SELECT DISTINCT product_id FROM inventories WHERE location_group_id = #{warehouseId}
+    )
+  </update>
+
+  <select id="findTotalQtyFromDetails" resultType="java.lang.Long">
+    SELECT SUM((total_cycle + total_to_in + total_cm + total_pb) - (total_so + total_pos + total_pbc + total_to_out)) AS total_qty
+    FROM ${tableNameDetail}
+    WHERE product_id = #{filter.productId}
+      AND lots_number = (SELECT lots_number FROM ${tableNameDetail} WHERE product_id = #{filter.productId} ORDER BY product_id DESC LIMIT 1)
+      <if test="filter.isExpired == 1">
+        AND expired_date = (SELECT expired_date FROM ${tableNameDetail} WHERE product_id = #{filter.productId} ORDER BY product_id DESC LIMIT 1)
+      </if>
+      AND date &lt;= #{filter.date}
+    GROUP BY product_id
+    <if test="filter.isExpired == 1">
+      , expired_date
+    </if>
+  </select>
+
+  <select id="findTotalQtyFromTotals" resultType="java.lang.Long">
+    SELECT total_qty
+    FROM ${tableName}
+    WHERE product_id = #{filter.productId}
+      AND lots_number = (SELECT lots_number FROM ${tableName} WHERE product_id = #{filter.productId} ORDER BY product_id DESC LIMIT 1)
+    <if test="filter.isExpired == 1">
+      AND expired_date = (SELECT expired_date FROM ${tableName} WHERE product_id = #{filter.productId} ORDER BY product_id DESC LIMIT 1)
+    </if>
+    GROUP BY product_id
+    <if test="filter.isExpired == 1">
+      , expired_date
+    </if>
+  </select>
+
+  <select id="listProductInStock" parameterType="java.lang.String" resultMap="ProductInStockResponse">
+    SELECT
+      gt.product_id AS productId,
+      p.name AS productName,
+      p.code AS sku,
+      p.barcode AS upc,
+      p.is_expired_date AS isExpiredDate,
+      p.price_uom_id AS uomId,
+      uoms.name AS uomName,
+      uoms.abbr AS uomAbbr,
+      gt.location_id AS locationId,
+      locations.name AS locationName,
+      gt.expired_date AS expiredDate,
+      SUM(gt.total_qty) - SUM(gt.total_order) AS qtyOnHand
+    FROM ${tableName} AS gt
+           INNER JOIN products AS p ON p.id = gt.product_id
+           LEFT JOIN locations ON locations.id = gt.location_id
+           LEFT JOIN uoms ON uoms.id = p.price_uom_id
+    WHERE p.is_active = 1
+    GROUP BY gt.product_id, p.name, p.code, p.barcode, p.price_uom_id, uoms.abbr
+    HAVING qtyOnHand > 0
+    ORDER BY p.code ASC
+  </select>
+
+  <insert id="insertInventoryValuation" parameterType="com.ut.nlSystemAPi.model.InventoryValuation" useGeneratedKeys="true" keyProperty="inventoryValuation.id">
+    INSERT INTO inventory_valuations (
+      cycle_product_id,
+      `date`,
+      `type`,
+      company_id,
+      pid,
+      small_qty,
+      qty,
+      reference,
+      created,
+      is_var_cost
+    ) VALUES (
+               #{inventoryValuation.cycleProductId},
+               DATE(NOW()),
+               #{inventoryValuation.type},
+               #{inventoryValuation.companyId},
+               #{inventoryValuation.pid},
+               #{inventoryValuation.smallQty},
+               #{inventoryValuation.qty},
+               #{inventoryValuation.reference},
+               NOW(),
+               #{inventoryValuation.isVarCost}
+             )
+  </insert>
+
+</mapper>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PublicHolidayMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+        public_holidays.id AS id,
+        public_holidays.name AS name,
+        public_holidays.date_from AS dateFrom,
+        public_holidays.date_to AS dateTo,
+        public_holidays.created AS created,
+        user1.username AS createdBy,
+        public_holidays.modified AS modified,
+        user2.username AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM public_holidays
+    LEFT JOIN users AS user1 ON public_holidays.created_by = user1.id
+    LEFT JOIN users AS user2  ON public_holidays.modified_by = user2.id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE public_holidays.is_active = 1
+    <if test="filter.searchText != null">AND public_holidays.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+    <if test="filter.year != null">AND YEAR(public_holidays.date_from) = #{filter.year}</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PublicHolidayResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+          id DESC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="PublicHolidayResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE public_holidays.is_active = 1 AND public_holidays.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+      FROM public_holidays
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.PublicHoliday" keyProperty="publicHoliday.id">
+    INSERT INTO public_holidays (
+      name,
+      date_from,
+      date_to,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{publicHoliday.name},
+      #{publicHoliday.dateFrom},
+      #{publicHoliday.dateTo},
+      NOW(),
+      #{publicHoliday.createdBy},
+       1
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.PublicHoliday">
+    UPDATE public_holidays SET
+    <if test="publicHoliday.name != null">name = #{publicHoliday.name},</if>
+    <if test="publicHoliday.dateFrom != null">date_from = #{publicHoliday.dateFrom},</if>
+    <if test="publicHoliday.dateTo != null">date_to = #{publicHoliday.dateTo},</if>
+    modified = NOW(),
+    modified_by = #{publicHoliday.modifiedBy}
+    WHERE id = #{publicHoliday.id}
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE public_holidays SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+</mapper>

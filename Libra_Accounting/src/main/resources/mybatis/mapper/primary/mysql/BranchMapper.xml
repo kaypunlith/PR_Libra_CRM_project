@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BranchMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        branches.id AS id,
+        companies.id AS companyId,
+        companies.name AS companyName,
+        branches.code AS code,
+        branches.name AS name,
+        branche_types.id AS branchTypeId,
+        branche_types.name AS branchTypeName,
+        branches.telephone AS telephone,
+        branches.telephone AS telephone,
+        branches.email AS email,
+        currency_centers.id AS currencyCenterId,
+        currency_centers.name AS currencyCenterSymbol,
+        countries.id AS countryId,
+        countries.name AS countryName,
+        branche_types.name AS name,
+        branches.created AS created,
+        branches.modified AS modified,
+        CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+        CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+    </sql>
+    <sql id="BASE_FROM">
+        FROM branches
+        LEFT JOIN companies ON companies.id = branches.company_id
+        LEFT JOIN branche_types ON branche_types.id = branches.branch_type_id
+        LEFT JOIN currency_centers ON currency_centers.id = companies.currency_center_id
+        LEFT JOIN countries ON countries.id = branches.country_id
+        LEFT JOIN users AS users1 ON users1.id = branches.created_by
+        LEFT JOIN users AS users2 ON users2.id = branches.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE branches.is_active = 1
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="branchResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                branches.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getBankAccount" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="BankAccountResponse">
+        SELECT
+        branch_bank_account.id AS id,
+        branch_bank_account.account_number AS accountNumber,
+        branch_bank_account.account_holder AS accountHolder,
+        branch_bank_account.bank AS bank,
+        branch_bank_account.address AS address
+        FROM branch_bank_account
+        WHERE branch_id = #{branchId} AND is_active = 1
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT( branche_types.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_ONE">
+        b.id AS id,
+        c.id AS companyId,
+        c.name AS companyName,
+        co.name AS countryName,
+        bt.id AS branchTypeId,
+        bt.name AS branchTypeName,
+        b.code AS code,
+        b.name AS name,
+        b.photo_url AS photoUrl,
+        b.photo_name AS photoName,
+        b.name_kh AS nameKh,
+        b.abbr AS abbr,
+        b.telephone AS telephone,
+        b.fax AS fax,
+        b.email AS email,
+        TIME_FORMAT(b.start_working_hour, '%H:%i:%s') AS startWorkHour,
+        TIME_FORMAT(b.end_working_hour, '%H:%i:%s') AS endWorkHour,
+        b.country_id AS countryId,
+        b.lats AS lats,
+        b.longs AS longs,
+        b.address AS address,
+        b.adress_kh AS addressKh,
+        b.adj_code AS adjCode,
+        b.product_price_list_code AS productPriceListCode,
+        b.request_stock_code AS requestStockCode,
+        b.transfer_code AS transferCode,
+        b.transfer_review_code AS transferReceiveCode,
+        b.purchase_order_code AS purchaseOrderCode,
+        b.price_request_no_code AS priceRequestNoCode,
+        b.purchase_order_receipt_code AS purchaseOrderReceiptCode,
+        b.sales_order_code AS saleOrderCode,
+        b.expense_request_code AS expenseRequestCode,
+        b.quotation_code AS quotationCode,
+        b.invoice_code AS invoiceCode,
+        b.invoice_receipt_code AS invoiceReceiptCode,
+        b.dn_code AS dnCode,
+        b.credit_memo_code AS creditMemoCode,
+        b.credit_receipt_code AS creditReceiptCode,
+        b.purchase_bill_code AS purchaseBillCode,
+        b.purchase_bill_receipt_code AS purchaseBillReceiptCode,
+        b.bill_return_code AS billReturnCode,
+        b.bill_receipt_code AS billReceiptCode,
+        b.bom_code AS bomCode,
+        b.good_receipt_note_code AS goodReceiptNoteCode,
+        b.landed_cost_code AS landedCostCode,
+        b.journal_entry_code AS journalEntryCode,
+        b.receive_payment_code AS receivePaymentCode,
+        b.receive_payment_org_code AS receivePaymentOrgCode,
+        b.receive_payment_emp_code AS receivePaymentEmpCode,
+        b.pay_bill_code AS paybillsCode,
+        b.pay_journal_code AS paybillsJournalCode,
+        b.created AS created,
+        b.created_by AS createdBy,
+        b.modified AS modified,
+        b.modified_by AS modifiedBy
+        </sql>
+    <select id="getOne" resultMap="branchResponse">
+        SELECT
+         <include refid="BASE_COLUMN_LIST_ONE"/>
+        FROM
+          branches b
+        LEFT JOIN companies c ON b.company_id = c.id
+        LEFT JOIN countries co ON b.country_id = co.id
+        LEFT JOIN branche_types bt ON b.branch_type_id = bt.id
+        WHERE b.is_active = 1 AND b.id = #{id};
+    </select>
+
+    <select id="getAvailableUsers" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AvailableUserResponse">
+        SELECT
+            users.id AS id,
+            CONCAT(users.first_name, ' ', users.last_name ) AS userName
+        FROM user_branches
+        LEFT JOIN users ON users.id = user_branches.user_id
+        WHERE user_branches.is_active = 1 AND user_branches.branch_id = #{branchId}
+    </select>
+
+    <select id="getAvailableWareHouse" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="AvailableWareHoseResponse">
+        SELECT
+            location_groups.id AS id,
+            location_groups.name AS name
+        FROM branch_location_groups
+                 LEFT JOIN location_groups ON location_groups.id = branch_location_groups.location_group_id
+        WHERE branch_location_groups.is_active = 1 AND branch_location_groups.branch_id = #{branchId}
+    </select>
+
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM branches
+        WHERE is_active = 1 AND (name = #{name})
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Branch"  useGeneratedKeys="true" keyProperty="branch.id">
+        INSERT INTO branches (
+            company_id,
+            branch_type_id,
+            code,
+            abbr,
+            name,
+            name_kh,
+            photo_url,
+            photo_name,
+            telephone,
+            fax,
+            email,
+            start_working_hour,
+            end_working_hour,
+            country_id,
+            lats,
+            longs,
+            address,
+            adress_kh,
+            adj_code,
+            product_price_list_code,
+            price_request_no_code,
+            request_stock_code,
+            transfer_code,
+            transfer_review_code,
+            sales_order_code,
+            expense_request_code,
+            quotation_code,
+            invoice_code,
+            invoice_receipt_code,
+            dn_code,
+            credit_memo_code,
+            credit_receipt_code,
+            purchase_order_code,
+            purchase_order_receipt_code,
+            purchase_bill_code,
+            purchase_bill_receipt_code,
+            bill_return_code,
+            bill_receipt_code,
+            bom_code,
+            good_receipt_note_code,
+            landed_cost_code,
+            journal_entry_code,
+            receive_payment_code,
+            receive_payment_org_code,
+            receive_payment_emp_code,
+            pay_bill_code,
+            pay_journal_code,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{branch.companyId},
+                     #{branch.branchTypeId},
+                     #{branch.code},
+                     #{branch.abbr},
+                     #{branch.name},
+                     #{branch.nameKh},
+                     #{branch.photoUrl},
+                     #{branch.photoName},
+                     #{branch.telephone},
+                     #{branch.fax},
+                     #{branch.email},
+                     #{branch.startWorkHour},
+                     #{branch.endWorkHour},
+                     #{branch.countryId},
+                     #{branch.lats},
+                     #{branch.longs},
+                     #{branch.address},
+                     #{branch.addressKh},
+                     #{branch.adjCode},
+                     #{branch.productPriceListCode},
+                     #{branch.priceRequestNoCode},
+                     #{branch.requestStockCode},
+                     #{branch.transferCode},
+                     #{branch.transferReceiveCode},
+                     #{branch.saleOrderCode},
+                     #{branch.expenseRequestCode},
+                     #{branch.quotationCode},
+                     #{branch.invoiceCode},
+                     #{branch.invoiceReceiptCode},
+                     #{branch.dnCode},
+                     #{branch.creditMemoCode},
+                     #{branch.creditReceiptCode},
+                     #{branch.purchaseOrderCode},
+                     #{branch.purchaseOrderReceiptCode},
+                     #{branch.purchaseBillCode},
+                     #{branch.purchaseBillReceiptCode},
+                     #{branch.billReturnCode},
+                     #{branch.billReceiptCode},
+                     #{branch.bomCode},
+                     #{branch.goodReceiptNoteCode},
+                     #{branch.landedCostCode},
+                     #{branch.journalEntryCode},
+                     #{branch.receivePaymentCode},
+                     #{branch.receivePaymentOrgCode},
+                     #{branch.receivePaymentEmpCode},
+                     #{branch.payBillCode},
+                     #{branch.payJournalCode},
+                     NOW(),
+                     #{branch.createdBy},
+                     1
+                 );
+    </insert>
+
+    <insert id="insertUserAvailable"  parameterType="java.lang.Long" >
+        INSERT INTO user_branches (
+            user_id,
+            branch_id,
+            created,
+            created_by,
+            is_active
+        )  VALUES (
+                  #{userAvailableId},
+                   #{branchId},
+                   NOW(),
+                  #{userId},
+                   1
+            )
+
+    </insert>
+    <insert id="insertLocationAvailable"  parameterType="java.lang.Long"  >
+        INSERT INTO branch_location_groups (
+            branch_id,
+            location_group_id,
+            created,
+            created_by,
+            is_active
+        )  VALUES (
+                      #{branchId},
+                      #{locationId},
+                      NOW(),
+                      #{userId},
+                      1
+        )
+
+    </insert>
+
+    <insert id="insertBranchAccount" parameterType="com.ut.nlSystemAPi.model.BanksAccount" useGeneratedKeys="true" keyProperty="branch.id">
+        INSERT INTO branch_bank_account (
+            branch_id,
+            account_number,
+            account_holder,
+            bank,
+            address,
+            created,
+            created_by,
+            is_active
+        )  VALUES (
+                      #{branch.id},
+                      #{branch.accountNumber},
+                       #{branch.accountHolder},
+                      #{branch.bank},
+                      #{branch.address},
+                     NOW(),
+                      #{branch.createdBy},
+                      1
+                  )
+    </insert>
+
+    <update id="updateBankAccount" parameterType="java.lang.Long">
+        UPDATE branch_bank_account
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE branch_id = #{branchId};
+    </update>
+        <update id="update" parameterType="com.ut.nlSystemAPi.model.BranchType">
+            UPDATE branches
+            <set>
+                <if test="branch.companyId != null">company_id = #{branch.companyId},</if>
+                <if test="branch.branchTypeId != null">branch_type_id = #{branch.branchTypeId},</if>
+                <if test="branch.code != null">code = #{branch.code},</if>
+                <if test="branch.abbr != null">abbr = #{branch.abbr},</if>
+                <if test="branch.name != null">name = #{branch.name},</if>
+                <if test="branch.nameKh != null">name_kh = #{branch.nameKh},</if>
+                <if test="branch.telephone != null">telephone = #{branch.telephone},</if>
+                <if test="branch.fax != null">fax = #{branch.fax},</if>
+                <if test="branch.email != null">email = #{branch.email},</if>
+                <if test="branch.startWorkHour != null">start_working_hour = #{branch.startWorkHour},</if>
+                <if test="branch.endWorkHour != null">end_working_hour = #{branch.endWorkHour},</if>
+                <if test="branch.countryId != null">country_id = #{branch.countryId},</if>
+                <if test="branch.lats != null">lats = #{branch.lats},</if>
+                <if test="branch.longs != null">longs = #{branch.longs},</if>
+                <if test="branch.address != null">address = #{branch.address},</if>
+                <if test="branch.addressKh != null">adress_kh = #{branch.addressKh},</if>
+                <if test="branch.adjCode != null">adj_code = #{branch.adjCode},</if>
+                <if test="branch.productPriceListCode != null">product_price_list_code = #{branch.productPriceListCode},</if>
+                <if test="branch.priceRequestNoCode != null">price_request_no_code = #{branch.priceRequestNoCode},</if>
+                <if test="branch.requestStockCode != null">request_stock_code = #{branch.requestStockCode},</if>
+                <if test="branch.transferCode != null">transfer_code = #{branch.transferCode},</if>
+                <if test="branch.transferReceiveCode != null">transfer_review_code = #{branch.transferReceiveCode},</if>
+                <if test="branch.saleOrderCode != null">sales_order_code = #{branch.saleOrderCode},</if>
+                <if test="branch.expenseRequestCode != null">expense_request_code = #{branch.expenseRequestCode},</if>
+                <if test="branch.quotationCode != null">quotation_code = #{branch.quotationCode},</if>
+                <if test="branch.invoiceCode != null">invoice_code = #{branch.invoiceCode},</if>
+                <if test="branch.invoiceReceiptCode != null">invoice_receipt_code = #{branch.invoiceReceiptCode},</if>
+                <if test="branch.dnCode != null">dn_code = #{branch.dnCode},</if>
+                <if test="branch.creditMemoCode != null">credit_memo_code = #{branch.creditMemoCode},</if>
+                <if test="branch.creditReceiptCode != null">credit_receipt_code = #{branch.creditReceiptCode},</if>
+                <if test="branch.purchaseOrderCode != null">purchase_order_code = #{branch.purchaseOrderCode},</if>
+                <if test="branch.purchaseOrderReceiptCode != null">purchase_order_receipt_code = #{branch.purchaseOrderReceiptCode},</if>
+                <if test="branch.purchaseBillCode != null">purchase_bill_code = #{branch.purchaseBillCode},</if>
+                <if test="branch.purchaseBillReceiptCode != null">purchase_bill_receipt_code = #{branch.purchaseBillReceiptCode},</if>
+                <if test="branch.billReturnCode != null">bill_return_code = #{branch.billReturnCode},</if>
+                <if test="branch.billReceiptCode != null">bill_receipt_code = #{branch.billReceiptCode},</if>
+                <if test="branch.bomCode != null">bom_code = #{branch.bomCode},</if>
+                <if test="branch.goodReceiptNoteCode != null">good_receipt_note_code = #{branch.goodReceiptNoteCode},</if>
+                <if test="branch.landedCostCode != null">landed_cost_code = #{branch.landedCostCode},</if>
+                <if test="branch.journalEntryCode != null">journal_entry_code = #{branch.journalEntryCode},</if>
+                <if test="branch.receivePaymentCode != null">receive_payment_code = #{branch.receivePaymentCode},</if>
+                <if test="branch.receivePaymentOrgCode != null">receive_payment_org_code = #{branch.receivePaymentOrgCode},</if>
+                <if test="branch.receivePaymentEmpCode != null">receive_payment_emp_code = #{branch.receivePaymentEmpCode},</if>
+                <if test="branch.payBillCode != null">pay_bill_code = #{branch.payBillCode},</if>
+                <if test="branch.payJournalCode != null">pay_journal_code = #{branch.payJournalCode},</if>
+                modified = NOW(),
+                <if test="branch.modifiedBy != null">modified_by = #{branch.modifiedBy}</if>
+            </set>
+            WHERE id = #{branch.id}
+        </update>
+    <select id="getBranchAccount" resultMap="branchResponse">
+        SELECT id AS id FROM branch_bank_account
+    </select>
+
+
+    <update id="updateBranchAccount" parameterType="java.lang.Long">
+        UPDATE branch_bank_account
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE branch_id = #{branchId};
+    </update>
+
+    <update id="updateUserAvailable" parameterType="java.lang.Long">
+        UPDATE user_branches
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+           WHERE branch_id = #{branchId};
+    </update>
+
+    <update id="updateWorkLocationAvailable" parameterType="java.lang.Long">
+        UPDATE branch_location_groups
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE branch_id = #{branchId};
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE branches
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+</mapper>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.RequestStockMapper">
+
+  <resultMap id="RequestStockResponse" type="com.ut.nlSystemAPi.model.response.RequestStock.RequestStockResponse">
+
+  </resultMap>
+
+  <resultMap id="RequestResponseDetail" type="com.ut.nlSystemAPi.model.response.RequestStock.RequestStockDetailResponse">
+
+  </resultMap>
+
+</mapper>

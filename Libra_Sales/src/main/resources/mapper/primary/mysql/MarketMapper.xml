@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.MarketMapper">
+
+    <resultMap id="MarketResponse" type="com.ut.nlSystemAPi.model.response.Market.MarketResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="zoneId" column="zoneId"/>
+        <result property="zoneName" column="zoneName"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        customer_markets.id AS id,
+        customer_markets.`name` AS name,
+        customer_markets.zone_id AS zoneId,
+        customer_zones.`name` AS zoneName,
+        customer_markets.created AS created,
+        CONCAT(users.first_name, ' ', users.last_name) AS createdBy,
+        customer_markets.modified AS modified,
+        CONCAT(editor.first_name, ' ', editor.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM customer_markets
+        LEFT JOIN customer_zones ON customer_zones.id = customer_markets.zone_id
+        LEFT JOIN users ON users.id = customer_markets.created_by
+        LEFT JOIN users AS editor ON editor.id = customer_markets.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE customer_markets.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                customer_markets.`name` LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_zones.`name` LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="MarketResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customer_markets.`name` ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(customer_markets.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="MarketResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE customer_markets.is_active = 1 AND customer_markets.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Market.Market" useGeneratedKeys="true" keyProperty="market.id">
+        INSERT INTO customer_markets (
+            `name`,
+            zone_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{market.name},
+            #{market.zoneId},
+            NOW(),
+            #{market.createdBy},
+            #{market.isActive}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Market.Market">
+        UPDATE customer_markets SET
+            <if test="market.name != null">`name` = #{market.name},</if>
+            <if test="market.zoneId != null">zone_id = #{market.zoneId},</if>
+            modified = NOW(),
+            modified_by = #{market.modifiedBy}
+        WHERE id = #{market.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE customer_markets SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PartnerManagementMapper">
+
+    <resultMap id="PartnerManagementResponse" type="com.ut.nlSystemAPi.model.response.PartnerManagement.PartnerManagementResponse">
+        <id property="id" column="id"/>
+        <result property="partnerAreaExpertise" column="partnerAreaExpertise"/>
+        <result property="partnerName" column="partnerName"/>
+        <result property="keyContactName" column="keyContactName"/>
+        <result property="keyContactTel" column="keyContactTel"/>
+        <result property="keyContactEmail" column="keyContactEmail"/>
+        <result property="why" column="why"/>
+        <result property="typeNetworkId" column="typeNetworkId"/>
+        <result property="typeNetworkName" column="typeNetworkName"/>
+        <result property="classId" column="classId"/>
+        <result property="className" column="className"/>
+        <result property="industryId" column="industryId"/>
+        <result property="industryName" column="industryName"/>
+        <result property="positionId" column="positionId"/>
+        <result property="positionName" column="positionName"/>
+        <result property="origin" column="origin"/>
+        <result property="refBy" column="refBy"/>
+        <result property="annualReview" column="annualReview"/>
+        <result property="annualReviewName" column="annualReviewName"/>
+        <result property="relationship" column="relationship"/>
+        <result property="employeeId" column="employeeId"/>
+        <result property="personInChargeName" column="personInChargeName"/>
+        <result property="expense" column="expense"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="created" column="created"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+        <result property="modified" column="modified"/>
+    </resultMap>
+
+    <sql id="BASE_COLUMN_LIST">
+        partner_managements.id AS id,
+        partner_managements.partner_area_expertise AS partnerAreaExpertise,
+        partner_managements.partner_name AS partnerName,
+        partner_managements.key_contact_name AS keyContactName,
+        partner_managements.key_contact_tel AS keyContactTel,
+        partner_managements.key_contact_email AS keyContactEmail,
+        partner_managements.why AS why,
+        partner_managements.type_network_id AS typeNetworkId,
+        type_network_partner_managements.name AS typeNetworkName,
+        partner_managements.class_id AS classId,
+        class_partner_managements.name AS className,
+        partner_managements.industry_id AS industryId,
+        partner_management_industries.name AS industryName,
+        partner_managements.position_id AS positionId,
+        partner_management_positions.name AS positionName,
+        partner_managements.origin AS origin,
+        partner_managements.ref_by AS refBy,
+        partner_managements.annual_review AS annualReview,
+        CASE partner_managements.annual_review WHEN 1 THEN "Yes" WHEN 0 THEN "No" ELSE "" END AS annualReviewName,
+        partner_managements.relationship AS relationship,
+        partner_managements.person_in_charge_id AS employeeId,
+        employees.name AS personInChargeName,
+        FORMAT(IFNULL((SELECT SUM(budget) FROM partner_management_logs WHERE partner_management_logs.partner_management_id = partner_managements.id), 0), 2) AS expense,
+        IF(partner_managements.created_by IS NULL, "", (SELECT CONCAT(first_name, " ", last_name) FROM users WHERE id = partner_managements.created_by AND is_active = 1 LIMIT 1)) AS createdBy,
+        DATE_FORMAT(partner_managements.created, "%d-%b-%Y %H:%i") AS created,
+        IF(partner_managements.modified_by IS NULL, "", (SELECT CONCAT(first_name, " ", last_name) FROM users WHERE id = partner_managements.modified_by AND is_active = 1 LIMIT 1)) AS modifiedBy,
+        DATE_FORMAT(partner_managements.modified, "%d-%b-%Y %H:%i") AS modified
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM partner_managements
+        LEFT JOIN type_network_partner_managements ON type_network_partner_managements.id = partner_managements.type_network_id AND type_network_partner_managements.is_active = 1
+        LEFT JOIN class_partner_managements ON class_partner_managements.id = partner_managements.class_id AND class_partner_managements.is_active = 1
+        LEFT JOIN partner_management_industries ON partner_management_industries.id = partner_managements.industry_id
+        LEFT JOIN partner_management_positions ON partner_management_positions.id = partner_managements.position_id
+        LEFT JOIN employees ON employees.id = partner_managements.person_in_charge_id AND employees.is_active = 1
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE partner_managements.is_active = 1
+        <if test="classId != null">AND partner_managements.class_id = #{classId}</if>
+        <if test="typeNetworkId != null">AND partner_managements.type_network_id = #{typeNetworkId}</if>
+        AND EXISTS (
+            SELECT 1
+            FROM class_user_type_network_partner_managements cutnpm
+            WHERE cutnpm.class_id = partner_managements.class_id
+              AND cutnpm.type_network_id = partner_managements.type_network_id
+              AND cutnpm.user_id = #{userId}
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM class_egroup_partner_managements cepm
+
+            INNER JOIN employee_egroups ee ON ee.egroup_id = cepm.egroup_id
+            INNER JOIN employees current_employee  ON current_employee.id = ee.employee_id AND current_employee.is_active = 1
+            WHERE cepm.class_id = partner_managements.class_id
+              AND current_employee.user_id = #{userId}
+        )
+        <if test="filter.searchText != null">
+            AND (
+                partner_managements.partner_area_expertise LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.partner_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.key_contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.key_contact_tel LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.key_contact_email LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.why LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR type_network_partner_managements.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR class_partner_managements.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_management_industries.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_management_positions.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.origin LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.ref_by LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR partner_managements.relationship LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR employees.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="PartnerManagementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>partner_managements.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(partner_managements.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="PartnerManagementResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE partner_managements.is_active = 1 AND partner_managements.id = #{id}
+    </select>
+
+    <select id="checkDuplicateTel" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM partner_managements
+        WHERE is_active = 1 AND key_contact_tel = #{keyContactTel}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="partnerManagement.id">
+        INSERT INTO partner_managements (
+            partner_area_expertise,
+            partner_name,
+            key_contact_name,
+            key_contact_tel,
+            key_contact_email,
+            why,
+            type_network_id,
+            class_id,
+            industry_id,
+            position_id,
+            origin,
+            ref_by,
+            annual_review,
+            relationship,
+            person_in_charge_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{partnerManagement.partnerAreaExpertise},
+            #{partnerManagement.partnerName},
+            #{partnerManagement.keyContactName},
+            #{partnerManagement.keyContactTel},
+            #{partnerManagement.keyContactEmail},
+            #{partnerManagement.why},
+            #{partnerManagement.typeNetworkId},
+            #{partnerManagement.classId},
+            #{partnerManagement.industryId},
+            #{partnerManagement.positionId},
+            #{partnerManagement.origin},
+            #{partnerManagement.refBy},
+            #{partnerManagement.annualReview},
+            #{partnerManagement.relationship},
+            #{partnerManagement.personInChargeId},
+            NOW(),
+            #{partnerManagement.createdBy},
+            #{partnerManagement.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE partner_managements SET
+        <trim suffixOverrides=",">
+            <if test="partnerManagement.partnerAreaExpertise != null">partner_area_expertise = #{partnerManagement.partnerAreaExpertise},</if>
+            <if test="partnerManagement.partnerName != null">partner_name = #{partnerManagement.partnerName},</if>
+            <if test="partnerManagement.keyContactName != null">key_contact_name = #{partnerManagement.keyContactName},</if>
+            <if test="partnerManagement.keyContactTel != null">key_contact_tel = #{partnerManagement.keyContactTel},</if>
+            <if test="partnerManagement.keyContactEmail != null">key_contact_email = #{partnerManagement.keyContactEmail},</if>
+            <if test="partnerManagement.why != null">why = #{partnerManagement.why},</if>
+            <if test="partnerManagement.typeNetworkId != null">type_network_id = #{partnerManagement.typeNetworkId},</if>
+            <if test="partnerManagement.classId != null">class_id = #{partnerManagement.classId},</if>
+            <if test="partnerManagement.industryId != null">industry_id = #{partnerManagement.industryId},</if>
+            <if test="partnerManagement.positionId != null">position_id = #{partnerManagement.positionId},</if>
+            <if test="partnerManagement.origin != null">origin = #{partnerManagement.origin},</if>
+            <if test="partnerManagement.refBy != null">ref_by = #{partnerManagement.refBy},</if>
+            <if test="partnerManagement.annualReview != null">annual_review = #{partnerManagement.annualReview},</if>
+            <if test="partnerManagement.relationship != null">relationship = #{partnerManagement.relationship},</if>
+            <if test="partnerManagement.personInChargeId != null">person_in_charge_id = #{partnerManagement.personInChargeId},</if>
+            modified = NOW(),
+            modified_by = #{partnerManagement.modifiedBy},
+        </trim>
+        WHERE id = #{partnerManagement.id} AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE partner_managements SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+</mapper>

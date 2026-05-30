@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.AuthMapper">
+
+  <insert id="insertClientId">
+    INSERT INTO oauth_client_details (client_id, device_info, client_secret, scope, authorized_grant_types, web_server_redirect_uri, authorities, access_token_validity, refresh_token_validity, additional_information, autoapprove, created)
+    VALUES (#{clientId}, #{clientName}, #{clientSecure}, 'read,write,trust', 'password,refresh_token', null, null, #{tokenValidate}, #{refreshTokenValidate}, null, 1, now())
+    ON DUPLICATE KEY UPDATE device_info = #{clientName}, access_token_validity = #{tokenValidate}, refresh_token_validity = #{refreshTokenValidate}, created = now();
+  </insert>
+
+  <select id="checkUserValid" parameterType="java.lang.String" resultType="java.lang.Long">
+    SELECT COUNT(id) FROM users WHERE username = #{username} AND is_active = 1;
+  </select>
+
+  <select id="checkUserLogout" parameterType="java.lang.String" resultType="java.lang.String">
+    SELECT refresh_token FROM oauth_access_token WHERE user_name = #{username} AND client_id = #{clientId} LIMIT 1;
+  </select>
+
+  <delete id="clearUserToken">
+    DELETE FROM oauth_access_token WHERE user_name = #{username} AND client_id = #{clientId};
+    DELETE FROM oauth_client_details WHERE client_id = #{clientId};
+    DELETE FROM oauth_refresh_token WHERE token_id = #{tokenId};
+  </delete>
+
+  <!--<insert id="langRegister" parameterType="com.ut.structureApipi.model.lang.LanguageSetting" useGeneratedKeys="true" keyProperty="languageSetting.id">-->
+    <!--INSERT INTO `language_devices` (`device_id`, `language_id`) VALUES (#{languageSetting.deviceId}, #{languageSetting.languageId});-->
+  <!--</insert>-->
+
+  <!--<select id="getLang" parameterType="java.lang.String" resultMap="LangList">-->
+    <!--SELECT variable, `value`-->
+    <!--FROM `language_translates`-->
+    <!--INNER JOIN `language_devices` ON `language_devices`.`language_id` = `language_translates`.`language_id` AND `language_devices`.device_id = #{deviceId}-->
+    <!--WHERE `language_translates`.is_active = 1;-->
+  <!--</select>-->
+
+</mapper>

@@ -1,0 +1,1112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PurchasingReportMapper">
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PurchasingReportFilter" resultMap="PurchasingReportResponse">
+        SELECT
+        po.id AS id,
+        po.po_code AS poCode,
+        v.name AS vendorName,
+        po.status AS status
+        FROM purchase_orders as po
+        INNER JOIN vendors as v ON po.vendor_id = v.id
+        WHERE po.status > 0
+        AND po.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND po.location_id IN (SELECT location_id FROM user_locations WHERE user_id = #{filter.userId})
+        <if test="filter.searchText != null">
+            AND  po.po_code LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                po.id ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(po.id)
+        FROM purchase_orders as po
+        INNER JOIN vendors as v ON po.vendor_id = v.id
+        WHERE po.status > 0
+        AND po.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        AND po.location_id IN (SELECT location_id FROM user_locations WHERE user_id = #{filter.userId})
+        <if test="filter.searchText != null">
+            AND  po.po_code LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </select>
+
+    <select id="purchaseBillBarcodeDetail" parameterType="com.ut.nlSystemAPi.model.filter.PurchasingReportFilter" resultMap="PurchasingReportDetailResponse">
+        SELECT
+            p.code as productCode,
+            p.name as productName,
+            pd.note as note,
+            pd.qty as qty,
+            u.name as uom
+        FROM `purchase_order_details` as pd
+                 INNER JOIN `products` as p ON pd.product_id = p.id
+                 INNER JOIN `uoms` as u ON pd.qty_uom_id = u.id
+        WHERE pd.purchase_order_id = #{id}
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_INVOICE_BILL">
+        pr.id AS id,
+        pr.order_date AS orderDate,
+        pr.po_code AS poCode,
+        loc.name AS locationName,
+        v.name AS vendorName,
+        IFNULL(pr.total_amount,0) - IFNULL(pr.discount_amount,0) AS subTotal,
+        IFNULL(pr.total_vat,0) AS totalVat,
+        IFNULL(pr.total_amount,0) - IFNULL(pr.discount_amount,0) + IFNULL(pr.total_vat,0) AS totalAmount,
+        IFNULL(pr.balance,0) AS balance,
+        IF(balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),due_date),'.') AS aging,
+        pr.status AS status
+    </sql>
+
+    <sql id="BASE_FROM_INVOICE_BILL">
+        FROM purchase_orders as pr
+        INNER JOIN `locations` as loc ON pr.location_id = loc.id
+        INNER JOIN `vendors` as v ON pr.vendor_id = v.id
+    </sql>
+
+    <sql id="BASE_WHERE_INVOICE_BILL">
+        WHERE pr.status > 0 AND pr.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        <if test="filter.dateFrom != null">
+            AND pr.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND pr.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND pr.status = #{filter.status}
+        </if>
+        <if test="filter.companyId != null">
+            AND pr.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.locationId != null">
+            AND pr.location_id = #{filter.locationId}
+        </if>
+        <if test="filter.vendorId != null">
+            AND pr.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.productId != null">
+            AND (SELECT product_id FROM purchase_order_details WHERE purchase_order_id = pr.id LIMIT 1) = #{filter.productId}
+        </if>
+        <if test="filter.createBy != null">
+            AND pr.created_by = #{filter.createBy}
+        </if>
+        <if test="filter.includeVat != null">
+            <choose>
+                <when test="filter.includeVat == 1">
+                    AND pr.total_vat > 0
+                </when>
+                <when test="filter.includeVat == 0">
+                    AND pr.total_vat = 0
+                </when>
+            </choose>
+        </if>
+        <if test="filter.paymentTermId != null">
+            AND pr.payment_term_id = #{filter.paymentTermId}
+        </if>
+    </sql>
+
+    <select id="getListInvoicePurchaseBill" parameterType="com.ut.nlSystemAPi.model.filter.InvoicePurchaseBillReportFilter" resultMap="invoicePurchaseBillReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_INVOICE_BILL"/>
+        <include refid="BASE_FROM_INVOICE_BILL"/>
+        <include refid="BASE_WHERE_INVOICE_BILL"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                pr.po_code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListInvoicePurchaseBill" parameterType="com.ut.nlSystemAPi.model.filter.InvoicePurchaseBillReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(pr.id)
+        <include refid="BASE_FROM_INVOICE_BILL"/>
+        <include refid="BASE_WHERE_INVOICE_BILL"/>
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_INVOICE_BILL_RETURN">
+        pr.id AS id,
+        pr.order_date AS `date`,
+        pr.pr_code AS code,
+        loc.name AS warehouseName,
+        v.name AS vendorName,
+        IFNULL(pr.total_amount,0) AS subTotal,
+        IFNULL(pr.total_vat,0) AS totalVat,
+        IFNULL(pr.total_amount,0) + IFNULL(pr.total_vat,0) AS totalAmount,
+        pr.balance AS balance,
+        IF(balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),due_date),'.') AS aging,
+        pr.status AS status
+    </sql>
+
+    <sql id="BASE_FROM_LIST_INVOICE_BILL_RETURN">
+        FROM purchase_returns as pr
+            INNER JOIN `location_groups` as loc ON pr.location_group_id = loc.id
+            INNER JOIN `vendors` as v ON pr.vendor_id = v.id
+    </sql>
+
+    <sql id="BASE_WHERE_LIST_INVOICE_BILL_RETURN">
+        WHERE status > 0 AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{filter.userId})
+        <if test="filter.dateFrom != null">
+            AND pr.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND pr.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND pr.status = #{filter.status}
+        </if>
+        <if test="filter.companyId != null">
+            AND pr.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.vendorId != null">
+            AND pr.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.createBy != null">
+            AND pr.created_by = #{filter.createBy}
+        </if>
+    </sql>
+
+    <select id="getListInvoicePurchaseBillReturn" parameterType="com.ut.nlSystemAPi.model.filter.InvoicePurchaseBillReturnReportFilter" resultMap="invoicePurchaseBillReturnReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_INVOICE_BILL_RETURN"/>
+        <include refid="BASE_FROM_LIST_INVOICE_BILL_RETURN"/>
+        <include refid="BASE_WHERE_LIST_INVOICE_BILL_RETURN"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                pr.pr_code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countListInvoicePurchaseBillReturn" parameterType="com.ut.nlSystemAPi.model.filter.InvoicePurchaseBillReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(pr.id)
+        <include refid="BASE_FROM_LIST_INVOICE_BILL_RETURN"/>
+        <include refid="BASE_WHERE_LIST_INVOICE_BILL_RETURN"/>
+    </select>
+
+    <sql id="BASE_WHERE_PURCHASE_BY_ITEM">
+        WHERE status > 0
+        <if test="filter.dateFrom != null">
+            AND order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND status = #{filter.status}
+        </if>
+        <if test="filter.productId != null">
+            <choose>
+                <when test="filter.type == 1">
+                    AND product_id = #{filter.productId}
+                </when>
+            </choose>
+        </if>
+        <if test="filter.productGroupId != null">
+            AND product_id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.productGroupId})
+        </if>
+        <if test="filter.companyId != null">
+            AND company_id = #{filter.companyId}
+        </if>
+        <if test="filter.locationId != null">
+            AND location_id = #{filter.locationId}
+        </if>
+        <if test="filter.createdBy != null">
+            AND created_by = #{filter.createdBy}
+        </if>
+    </sql>
+
+    <select id="getListParentSummaryProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        IFNULL(parent_id, 0) AS itemId,
+        IFNULL(parent_name, 'No Parent') AS itemName,
+        SUM(total_price) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        (SELECT parent_id FROM products WHERE id=product_id) AS parent_id,
+        (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id=(SELECT parent_id FROM products WHERE id=purchase_order_details.product_id)) AS parent_name,
+        product_id,
+        (SELECT CONCAT_WS(' ',code,name) FROM products WHERE id=product_id) AS product_name,
+        order_date,
+        po_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty,
+        qty_uom_id,
+        (SELECT name FROM uoms WHERE id=qty_uom_id) AS qty_uom_name,
+        unit_cost AS unit_price,
+        total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id=purchase_order_details.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        (SELECT parent_id FROM products WHERE id=product_id) AS parent_id,
+        (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id=(SELECT parent_id FROM products WHERE id=purchase_return_details.product_id)) AS parent_name,
+        product_id,
+        (SELECT CONCAT_WS(' ',code,name) FROM products WHERE id=product_id) AS product_name,
+        order_date,
+        pr_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty*-1 AS qty,
+        qty_uom_id,
+        (SELECT name FROM uoms WHERE id=qty_uom_id) AS qty_uom_name,
+        unit_price AS unit_price,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id=purchase_return_details.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY parent_name
+        ORDER BY parent_name ASC
+    </select>
+
+    <select id="sumTotalParentSummaryProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_price) AS subTotal
+        FROM (
+        SELECT
+        total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id = purchase_order_details.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id = purchase_return_details.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+    </select>
+
+    <select id="getListParentSummaryService" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        service_id AS itemId,
+        service_name AS itemName,
+        SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        service_id AS service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        order_date,
+        po_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty,
+        NULL AS qty_uom_name,
+        unit_cost AS unit_cost,
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_services ON purchase_orders.id=purchase_order_services.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        order_date,
+        pr_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty*-1 AS qty,
+        NULL AS qty_uom_name,
+        unit_price AS unit_price,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_services ON purchase_returns.id=purchase_return_services.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY service_name
+        ORDER BY service_name ASC
+    </select>
+
+    <select id="sumTotalParentSummaryService" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_services ON purchase_orders.id = purchase_order_services.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_cost
+        FROM purchase_returns
+        INNER JOIN purchase_return_services ON purchase_returns.id = purchase_return_services.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData;
+    </select>
+
+    <select id="getListParentSummaryMiscellaneous" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        misc_id AS itemId,
+        misc_name AS itemName,
+        SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        purchase_order_miscs.id AS misc_id,
+        (SELECT description FROM purchase_order_miscs WHERE purchase_order_id=purchase_orders.id) AS misc_name,
+        order_date,
+        po_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty,
+        NULL AS qty_uom_name,
+        unit_cost AS unit_cost,
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_miscs ON purchase_orders.id=purchase_order_miscs.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        purchase_return_miscs.id AS misc_id,
+        (SELECT description FROM purchase_return_miscs WHERE purchase_return_id=purchase_returns.id) AS misc_name,
+        order_date,
+        pr_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty*-1 AS qty,
+        NULL AS qty_uom_name,
+        unit_price AS unit_price,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_miscs ON purchase_returns.id=purchase_return_miscs.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY misc_name
+        ORDER BY misc_name ASC
+    </select>
+
+    <select id="sumTotalParentSummaryMiscellaneous" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_miscs ON purchase_orders.id = purchase_order_miscs.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_cost
+        FROM purchase_returns
+        INNER JOIN purchase_return_miscs ON purchase_returns.id = purchase_return_miscs.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData;
+    </select>
+
+    <select id="countListParentSummary" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(purchase_orders.id)
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id=purchase_order_details.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+    </select>
+
+    <select id="getListItemSummaryProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        product_id AS itemId,
+        product_name AS itemName,
+        SUM(qty) AS qty,
+        uom_name AS uomName,
+        SUM(total_price) AS totalCost
+        FROM (
+        SELECT
+        po.id,
+        'Bill' AS trans_type,
+        p.parent_id,
+        CONCAT_WS(' ', parent_prod.code, '-', parent_prod.name) AS parent_name,
+        pod.product_id,
+        CONCAT_WS(' ', p.code, p.name) AS product_name,
+        po.order_date,
+        po.po_code AS code,
+        v.name AS vendor_name,
+        l.name AS location_name,
+        (pod.qty * pod.conversion) AS qty,
+        COALESCE(
+        (SELECT u.name
+        FROM uoms u
+        JOIN uom_conversions uc ON u.id = uc.to_uom_id
+        WHERE uc.from_uom_id = p.price_uom_id
+        AND uc.is_small_uom = 1
+        AND uc.is_active = 1
+        LIMIT 1),
+        (SELECT u.name FROM uoms u WHERE u.id = p.price_uom_id)
+        ) AS uom_name,
+        p.small_val_uom,
+        p.price_uom_id,
+        pod.unit_cost AS unit_price,
+        pod.total_cost AS total_price
+        FROM purchase_orders po
+        INNER JOIN purchase_order_details pod ON po.id = pod.purchase_order_id
+        INNER JOIN products p ON p.id = pod.product_id
+        LEFT JOIN products parent_prod ON p.parent_id = parent_prod.id
+        LEFT JOIN vendors v ON po.vendor_id = v.id
+        LEFT JOIN locations l ON po.location_id = l.id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        pr.id,
+        'Credit' AS trans_type,
+        p.parent_id,
+        CONCAT_WS(' ', parent_prod.code, '-', parent_prod.name) AS parent_name,
+        prd.product_id,
+        CONCAT_WS(' ', p.code, p.name) AS product_name,
+        pr.order_date,
+        pr.pr_code AS code,
+        v.name AS vendor_name,
+        l.name AS location_name,
+        (prd.qty * prd.conversion) * -1 AS qty,
+        COALESCE(
+        (SELECT u.name
+        FROM uoms u
+        JOIN uom_conversions uc ON u.id = uc.to_uom_id
+        WHERE uc.from_uom_id = p.price_uom_id
+        AND uc.is_small_uom = 1
+        AND uc.is_active = 1
+        LIMIT 1),
+        (SELECT u.name FROM uoms u WHERE u.id = p.price_uom_id)
+        ) AS uom_name,
+        p.small_val_uom,
+        p.price_uom_id,
+        prd.unit_price,
+        prd.total_price * -1 AS total_price
+        FROM purchase_returns pr
+        INNER JOIN purchase_return_details prd ON pr.id = prd.purchase_return_id
+        INNER JOIN products p ON p.id = prd.product_id
+        LEFT JOIN products parent_prod ON p.parent_id = parent_prod.id
+        LEFT JOIN vendors v ON pr.vendor_id = v.id
+        LEFT JOIN locations l ON pr.location_id = l.id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY product_id, product_name, uom_name
+        ORDER BY product_name ASC;
+    </select>
+
+    <select id="sumTotalQtyItemSummaryProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(qty) AS totalQty
+        FROM (
+        SELECT
+        (qty * conversion) AS qty
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id = purchase_order_details.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        (qty * conversion) * -1 AS qty
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id = purchase_return_details.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+    </select>
+
+    <select id="sumTotalItemSummaryProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_price) AS subTotal
+        FROM (
+        SELECT
+        total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id = purchase_order_details.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id = purchase_return_details.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+    </select>
+
+    <select id="getListItemSummaryService" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        service_id AS itemId,
+        service_name AS itemName,
+        SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        service_id AS service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        order_date,
+        po_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty,
+        NULL AS qty_uom_name,
+        unit_cost AS unit_cost,
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_services ON purchase_orders.id=purchase_order_services.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        order_date,
+        pr_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty*-1 AS qty,
+        NULL AS qty_uom_name,
+        unit_price AS unit_price,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_services ON purchase_returns.id=purchase_return_services.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY service_name
+        ORDER BY service_name ASC
+    </select>
+
+    <select id="sumTotalItemSummaryService" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_services ON purchase_orders.id = purchase_order_services.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_cost
+        FROM purchase_returns
+        INNER JOIN purchase_return_services ON purchase_returns.id = purchase_return_services.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData;
+    </select>
+
+    <select id="getListItemSummaryMiscellaneous" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        misc_id AS itemId,
+        misc_name AS itemName,
+        SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        purchase_order_miscs.id AS misc_id,
+        (SELECT description FROM purchase_order_miscs WHERE purchase_order_id = purchase_orders.id ORDER BY id DESC LIMIT 1) AS misc_name,
+        order_date,
+        po_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty,
+        NULL AS qty_uom_name,
+        unit_cost AS unit_cost,
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_miscs ON purchase_orders.id=purchase_order_miscs.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        purchase_return_miscs.id AS misc_id,
+        (SELECT description FROM purchase_return_miscs WHERE purchase_return_id = purchase_returns.id ORDER BY id DESC LIMIT 1) AS misc_name,
+        order_date,
+        pr_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty*-1 AS qty,
+        NULL AS qty_uom_name,
+        unit_price AS unit_price,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_miscs ON purchase_returns.id=purchase_return_miscs.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY misc_name
+        ORDER BY misc_name ASC
+    </select>
+
+    <select id="sumTotalItemSummaryMiscellaneous" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_miscs ON purchase_orders.id = purchase_order_miscs.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_cost
+        FROM purchase_returns
+        INNER JOIN purchase_return_miscs ON purchase_returns.id = purchase_return_miscs.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+    </select>
+
+    <select id="countListItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(pr.id)
+        <include refid="BASE_FROM_LIST_INVOICE_BILL_RETURN"/>
+        <include refid="BASE_WHERE_LIST_INVOICE_BILL_RETURN"/>
+    </select>
+
+    <select id="getListItemDetailProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        product_id AS itemId,
+        product_name AS itemName,
+        SUM(qty) AS qty,
+        (SELECT name FROM uoms WHERE id IN (SELECT price_uom_id FROM products WHERE id = product_id)) AS uomName,
+        SUM(total_price) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        products.parent_id AS parent_id,
+        (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id=products.parent_id) AS parent_name,
+        purchase_order_details.product_id,
+        CONCAT_WS(' ',products.code,products.name) AS product_name,
+        purchase_orders.order_date AS order_date,
+        purchase_orders.po_code AS code,
+        (SELECT name FROM vendors WHERE id=purchase_orders.vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=purchase_orders.location_id) AS location_name,
+        ((purchase_order_details.qty + purchase_order_details.qty_free) * purchase_order_details.conversion) AS qty,
+        IFNULL((SELECT name FROM uoms WHERE id = (SELECT to_uom_id FROM uom_conversions WHERE from_uom_id = products.price_uom_id AND is_small_uom = 1 AND is_active = 1 LIMIT 1)), (SELECT name FROM uoms WHERE id = products.price_uom_id)) AS small_uom_name,
+        purchase_order_details.unit_cost AS unit_price,
+        purchase_order_details.total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id=purchase_order_details.purchase_order_id
+        INNER JOIN products ON products.id = purchase_order_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        products.parent_id AS parent_id,
+        (SELECT CONCAT_WS(' ',code,'-',name) FROM products WHERE id=products.parent_id) AS parent_name,
+        purchase_return_details.product_id,
+        CONCAT_WS(' ',products.code,products.name) AS product_name,
+        purchase_returns.order_date AS order_date,
+        purchase_returns.pr_code AS code,
+        (SELECT name FROM vendors WHERE id=purchase_returns.vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=purchase_returns.location_id) AS location_name,
+        (purchase_return_details.qty * purchase_return_details.conversion)*-1 AS qty,
+        IFNULL((SELECT name FROM uoms WHERE id = (SELECT to_uom_id FROM uom_conversions WHERE from_uom_id = products.price_uom_id AND is_small_uom = 1 AND is_active = 1 LIMIT 1)), (SELECT name FROM uoms WHERE id = products.price_uom_id)) AS small_uom_name,
+        purchase_return_details.unit_price AS unit_price,
+        purchase_return_details.total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id=purchase_return_details.purchase_return_id
+        INNER JOIN products ON products.id = purchase_return_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY product_name
+        ORDER BY product_name ASC
+    </select>
+
+    <select id="getListItemDetailProductDetail" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemDetailResponse">
+        SELECT
+        purchase_order_details.product_id AS productId,
+        CONCAT_WS(' ',products.code,products.name) AS productName,
+        'Bill' AS type,
+        purchase_orders.order_date AS `date`,
+        purchase_orders.po_code AS code,
+        (SELECT name FROM vendors WHERE id = purchase_orders.vendor_id) AS vendorName,
+        (SELECT name FROM locations WHERE id = purchase_orders.location_id) AS locationName,
+        (SELECT name FROM uoms WHERE id = purchase_order_details.qty_uom_id) AS uomName,
+        purchase_order_details.qty AS qty,
+        purchase_order_details.unit_cost AS unitCost,
+        purchase_order_details.total_cost AS totalCost
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id=purchase_order_details.purchase_order_id
+        INNER JOIN products ON products.id = purchase_order_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        AND purchase_order_details.product_id = #{parentId}
+
+        UNION ALL
+
+        SELECT
+        purchase_return_details.product_id AS productId,
+        CONCAT_WS(' ',products.code,products.name) AS productName,
+        'Credit' AS type,
+        purchase_returns.order_date AS `date`,
+        purchase_returns.pr_code AS code,
+        (SELECT name FROM vendors WHERE id = purchase_returns.vendor_id) AS vendorName,
+        (SELECT name FROM locations WHERE id = purchase_returns.location_id) AS locationName,
+        (SELECT name FROM uoms WHERE id = purchase_return_details.qty_uom_id) AS uomName,
+        purchase_return_details.qty AS qty,
+        purchase_return_details.unit_price AS unitCost,
+        purchase_return_details.total_price*-1 AS totalCost
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id=purchase_return_details.purchase_return_id
+        INNER JOIN products ON products.id = purchase_return_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        AND purchase_return_details.product_id = #{parentId}
+    </select>
+
+    <select id="sumTotalQtyItemDetailProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(qty) AS totalQty
+        FROM (
+        SELECT
+        (purchase_order_details.qty * purchase_order_details.conversion) AS qty
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id=purchase_order_details.purchase_order_id
+        INNER JOIN products ON products.id = purchase_order_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        (purchase_return_details.qty * purchase_return_details.conversion)*-1 AS qty
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id=purchase_return_details.purchase_return_id
+        INNER JOIN products ON products.id = purchase_return_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+    </select>
+
+    <select id="sumTotalItemDetailProduct" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT
+        SUM(total_price) AS subTotal
+        FROM (
+        SELECT
+        purchase_order_details.total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_details ON purchase_orders.id=purchase_order_details.purchase_order_id
+        INNER JOIN products ON products.id = purchase_order_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        purchase_return_details.total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_details ON purchase_returns.id=purchase_return_details.purchase_return_id
+        INNER JOIN products ON products.id = purchase_return_details.product_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+    </select>
+
+    <select id="getListItemDetailService" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        service_id AS itemId,
+        service_name AS itemName,
+        SUM(qty) AS qty,
+        SUM(total_price) AS totalCost
+        FROM (
+        SELECT
+        service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        qty,
+        total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_services ON purchase_orders.id=purchase_order_services.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        qty*-1 AS qty,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_services ON purchase_returns.id=purchase_return_services.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY service_id
+        ORDER BY service_name
+    </select>
+
+    <select id="sumTotalItemDetailService" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_price) AS totalCost
+        FROM (
+        SELECT
+        service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        qty,
+        total_cost AS total_price
+        FROM purchase_orders
+        INNER JOIN purchase_order_services ON purchase_orders.id=purchase_order_services.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        service_id,
+        (SELECT name FROM services WHERE id=service_id) AS service_name,
+        qty*-1 AS qty,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_services ON purchase_returns.id=purchase_return_services.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData;
+    </select>
+
+    <select id="getListItemDetailMiscellaneous" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PurchaseByItemResponse">
+        SELECT
+        misc_id AS itemId,
+        misc_name AS itemName,
+        SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        purchase_orders.id,
+        'Bill' AS trans_type,
+        purchase_order_miscs.id AS misc_id,
+        (SELECT description FROM purchase_order_miscs WHERE purchase_order_id=purchase_orders.id) AS misc_name,
+        order_date,
+        po_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty,
+        NULL AS qty_uom_name,
+        unit_cost AS unit_cost,
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_miscs ON purchase_orders.id=purchase_order_miscs.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+
+        UNION ALL
+
+        SELECT
+        purchase_returns.id,
+        'Credit' AS trans_type,
+        purchase_return_miscs.id AS misc_id,
+        (SELECT description FROM purchase_return_miscs WHERE purchase_return_id=purchase_returns.id) AS misc_name,
+        order_date,
+        pr_code AS code,
+        (SELECT name FROM vendors WHERE id=vendor_id) AS vendor_name,
+        (SELECT name FROM locations WHERE id=location_id) AS location_name,
+        qty*-1 AS qty,
+        NULL AS qty_uom_name,
+        unit_price AS unit_price,
+        total_price*-1 AS total_price
+        FROM purchase_returns
+        INNER JOIN purchase_return_miscs ON purchase_returns.id=purchase_return_miscs.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData
+        GROUP BY misc_name
+        ORDER BY misc_name ASC
+    </select>
+
+    <select id="sumTotalItemDetailMiscellaneous" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(total_cost) AS totalCost
+        FROM (
+        SELECT
+        total_cost AS total_cost
+        FROM purchase_orders
+        INNER JOIN purchase_order_miscs ON purchase_orders.id = purchase_order_miscs.purchase_order_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        UNION ALL
+
+        SELECT
+        total_price * -1 AS total_cost
+        FROM purchase_returns
+        INNER JOIN purchase_return_miscs ON purchase_returns.id = purchase_return_miscs.purchase_return_id
+        <include refid="BASE_WHERE_PURCHASE_BY_ITEM"/>
+        ) AS CombinedData;
+    </select>
+
+    <select id="countListItemDetailPurchaseByItem" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(pr.id)
+        <include refid="BASE_FROM_LIST_INVOICE_BILL_RETURN"/>
+        <include refid="BASE_WHERE_LIST_INVOICE_BILL_RETURN"/>
+    </select>
+
+    <select id="getListPayBill" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PayBillReportResponse">
+        SELECT
+        v.id AS vendorId,
+        v.name AS vendorName
+        FROM vendors v
+        WHERE v.is_active = 1
+        AND EXISTS (
+        SELECT 1 FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.vendor_id = v.id
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_type_id = 6)
+        AND gld.type = 'Pay Bill'
+        <choose>
+            <when test="filter.companyId != null">
+                AND gld.company_id = #{filter.companyId}
+            </when>
+            <otherwise>
+                AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            </otherwise>
+        </choose>
+        <if test="filter.dateFrom != null">
+            AND gl.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.vendorId != null">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.isAdj != null">
+            AND gl.is_adj = #{filter.isAdj}
+        </if>
+        )
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListPayBillDetail" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultMap="PayBillReportDetailResponse">
+        SELECT
+        type AS type,
+        date AS `date`,
+        (SELECT name FROM companies WHERE id=gld.company_id) AS companyName,
+        gl.reference AS reference,
+        (SELECT CONCAT(account_codes," · ",account_description) FROM chart_accounts WHERE id=gld.chart_account_id) AS chartAccountName,
+        IF(debit>0,debit,credit*-1) AS amount
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE gl.is_approve = 1
+        AND gld.vendor_id = #{id}
+        AND gld.type = 'Pay Bill'
+        <choose>
+            <when test="filter.companyId != null">
+                AND gld.company_id = #{filter.companyId}
+            </when>
+            <otherwise>
+                AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            </otherwise>
+        </choose>
+        <if test="filter.dateFrom != null">
+            AND gl.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.vendorId != null">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.isAdj != null">
+            AND gl.is_adj = #{filter.isAdj}
+        </if>
+        AND gl.is_active = 1
+        AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_type_id = 6)
+    </select>
+
+    <select id="countListPayBill" parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(v.id)
+        FROM vendors v
+        WHERE v.is_active = 1
+        AND EXISTS (
+        SELECT 1 FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id = gld.general_ledger_id
+        WHERE gld.vendor_id = v.id
+        AND gl.is_approve = 1
+        AND gl.is_active = 1
+        AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_type_id = 6)
+        AND gld.type = 'Pay Bill'
+        <choose>
+            <when test="filter.companyId != null">
+                AND gld.company_id = #{filter.companyId}
+            </when>
+            <otherwise>
+                AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            </otherwise>
+        </choose>
+        <if test="filter.dateFrom != null">
+            AND gl.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.vendorId != null">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.isAdj != null">
+            AND gl.is_adj = #{filter.isAdj}
+        </if>
+        )
+    </select>
+
+    <select id="sumGrandTotalPayBill"  parameterType="com.ut.nlSystemAPi.model.filter.PurchaseByItemFilter" resultType="java.lang.Double">
+        SELECT SUM(IF(debit>0,debit,credit*-1))
+        FROM general_ledgers gl
+        INNER JOIN general_ledger_details gld ON gl.id=gld.general_ledger_id
+        WHERE gl.is_approve = 1
+        AND gld.type = 'Pay Bill'
+        <choose>
+            <when test="filter.companyId != null">
+                AND gld.company_id = #{filter.companyId}
+            </when>
+            <otherwise>
+                AND gld.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+            </otherwise>
+        </choose>
+        <if test="filter.dateFrom != null">
+            AND gl.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND gl.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.vendorId != null">
+            AND gld.vendor_id = #{filter.vendorId}
+        </if>
+        <if test="filter.classId != null">
+            AND gld.class_id = #{filter.classId}
+        </if>
+        <if test="filter.isAdj != null">
+            AND gl.is_adj = #{filter.isAdj}
+        </if>
+        AND gl.is_active = 1
+        AND gld.chart_account_id IN (SELECT id FROM chart_accounts WHERE chart_account_type_id = 6)
+    </select>
+
+</mapper>

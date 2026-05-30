@@ -1,0 +1,404 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProductGroupPriceMapper">
+
+     <sql id="BASE_COLUMN_LIST">
+          pgroup_price_settings.id AS id,
+          pgroup_price_settings.`date` AS `date`,
+          pgroup_price_settings.pgroup_id  AS pgroupId,
+          companies.id AS companyId,
+          companies.name AS companyName,
+          parent_pg.id AS parentId,
+          parent_pg.name AS parentName,
+          pg.name AS pgroupId,
+          pg.name AS pgroupName,
+          price_types.id AS priceTypeId,
+          price_types.name AS priceTypeName,
+          pgroup_price_settings.set_type AS setType,
+          pgroup_price_settings.cost_method AS costMethod,
+          pgroup_price_settings.cond_update_pro AS applyToAllProduct,
+          pgroup_price_settings.is_active AS isActive,
+          pgroup_price_settings.created AS created,
+          CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy
+    </sql>
+
+    <sql id="BASE_FROM">
+            FROM pgroup_price_settings
+            LEFT JOIN pgroup_companies AS pc ON pc.pgroup_id = pgroup_price_settings.pgroup_id
+            LEFT JOIN companies ON companies.id = pc.company_id
+            LEFT JOIN price_types ON price_types.id = pgroup_price_settings.price_type_id
+            LEFT JOIN pgroups AS pg ON pg.id = pgroup_price_settings.pgroup_id
+            LEFT JOIN pgroups AS parent_pg ON parent_pg.id = pg.parent_id
+            LEFT JOIN users AS users1 ON users1.id = pgroup_price_settings.created_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE pgroup_price_settings.is_active > 0 AND pgroup_price_settings.is_active &lt;> 2
+        <if test="filter.searchText != null">
+            AND pg.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+        <if test="filter.priceTypeId != null">
+            AND price_types.id = #{filter.priceTypeId}
+        </if>
+        <if test="filter.productGroupId != null">
+            AND pg.id = #{filter.productGroupId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PgroupPriceResponse">
+        SELECT
+            <include refid="BASE_COLUMN_LIST"/>
+            <include refid="BASE_FROM"/>
+            <include refid="BASE_WHERE"/>
+        ORDER BY
+            <choose>
+                <when test="filter.orderBy != null">
+                    ${filter.orderBy}
+                </when>
+                <otherwise>
+                    pgroup_price_settings.id
+                </otherwise>
+            </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+              LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(pgroup_price_settings.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="PgroupPriceResponse">
+    SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+       WHERE pgroup_price_settings.is_active > 0 AND pgroup_price_settings.is_active &lt;> 2 AND pgroup_price_settings.id = #{id}
+  </select>
+
+    <select id="getPgroupPrice" parameterType="java.lang.Long" resultMap="PgroupPrice">
+        SELECT
+            id AS id,
+            from_cost AS fromCost,
+            to_cost AS toCost,
+            (SELECT COUNT(*) FROM products WHERE is_active = 1
+                  AND code != ''
+                  AND barcode != ''
+                  AND unit_cost BETWEEN pgroup_prices.from_cost AND pgroup_prices.to_cost AND id IN (
+                  SELECT product_id FROM product_pgroups  WHERE pgroup_id = pgroup_prices.pgroup_id)) AS TotalProduct,
+            CASE WHEN set_type = 2 THEN percent ELSE add_on END AS `value`
+          FROM pgroup_prices
+          WHERE pgroup_price_setting_id = #{id}
+          AND is_active = 1;
+    </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ProductGroupPrice" useGeneratedKeys="true" keyProperty="productGroupPrice.id">
+        INSERT INTO pgroup_price_settings (
+            `date`,
+            pgroup_id ,
+            price_type_id,
+            set_type,
+            cost_method,
+            cond_update_pro,
+            created,
+            created_by,
+            is_active
+    ) VALUES (
+            DATE(NOW()),
+            #{productGroupPrice.pgroupId},
+            #{productGroupPrice.priceTypeId},
+            #{productGroupPrice.setType},
+            #{productGroupPrice.costMethod},
+            #{productGroupPrice.ApplyToAllProduct},
+            NOW(),
+            #{productGroupPrice.createdBy},
+            #{productGroupPrice.isActive}
+    )
+  </insert>
+
+    <insert id="insertPgroupPriceInformation" parameterType="com.ut.nlSystemAPi.model.PgroupPriceInformation" useGeneratedKeys="true" keyProperty="pgroupPriceInformation.id">
+        INSERT INTO pgroup_prices (
+                    pgroup_id,
+                    price_type_id,
+                    pgroup_price_setting_id,
+                    from_cost,
+                    to_cost,
+                    percent,
+                    add_on,
+                    set_type,
+                    cost_method,
+                    created,
+                    created_by
+        ) VALUES (
+                     #{pgroupPriceInformation.pgroupId},
+                     #{pgroupPriceInformation.pgroupPriceTypeid},
+                     #{pgroupPriceInformation.pgroupPriceSettingId},
+                     #{pgroupPriceInformation.fromCost},
+                     #{pgroupPriceInformation.toCost},
+                     #{pgroupPriceInformation.percent},
+                     #{pgroupPriceInformation.addOn},
+                     #{pgroupPriceInformation.setType},
+                     #{pgroupPriceInformation.costMethod},
+                     NOW(),
+                     #{pgroupPriceInformation.createBy}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.ProductGroupPrice">
+        UPDATE pgroup_price_settings
+        <set>
+            <if test="productGroupPrice.pgroupId != null">pgroup_id = #{productGroupPrice.pgroupId},</if>
+            <if test="productGroupPrice.priceTypeId != null">price_type_id = #{productGroupPrice.priceTypeId},</if>
+            <if test="productGroupPrice.setType != null">`set_type` = #{productGroupPrice.setType},</if>
+            <if test="productGroupPrice.costMethod != null">cost_method = #{productGroupPrice.costMethod},</if>
+            <if test="productGroupPrice.ApplyToAllProduct != null">cond_update_pro = #{productGroupPrice.ApplyToAllProduct},</if>
+            modified = NOW(),
+            <if test="productGroupPrice.modifiedBy != null">modified_by = #{productGroupPrice.modifiedBy}</if>
+        </set>
+        WHERE id = #{productGroupPrice.id}
+    </update>
+
+    <update id="deletePgroupPriceInformation" parameterType="java.lang.Long">
+        UPDATE pgroup_prices SET
+             is_active = 2,
+             modified = NOW(),
+             modified_by = #{userId}
+        WHERE pgroup_price_setting_id = #{id};
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE pgroup_price_settings SET
+           is_active = 2,
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <select id="calculateTotal" parameterType="com.ut.nlSystemAPi.model.filter.CalculateTotalProductFilter" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM products
+        WHERE is_active = 1
+        AND code!=''
+        AND barcode!=''
+        <if test="filter.fromCost != null">
+            AND unit_cost >= #{filter.fromCost}
+        </if>
+        <if test="filter.toCost != null">
+            AND unit_cost &lt;= #{filter.toCost}
+        </if>
+        <if test="filter.searchText != null">
+            AND (products.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR products.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR uoms.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+        AND id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.groupId})
+    </select>
+
+    <select id="listTotal" parameterType="com.ut.nlSystemAPi.model.filter.CalculateTotalProductFilter" resultMap="TotalProductResponse">
+        SELECT
+            products.id AS id,
+            products.code AS code,
+            products.name AS name,
+            uoms.name AS uom,
+            products.unit_cost AS unitCost,
+        <choose>
+            <when test="filter.setType == 2">
+                (products.unit_cost * #{filter.value} / 100) + products.unit_cost AS price
+            </when>
+            <otherwise>
+                products.unit_cost + #{filter.value} AS price
+            </otherwise>
+        </choose>
+        FROM products
+        LEFT JOIN uoms ON uoms.id = products.price_uom_id
+        WHERE products.is_active = 1
+        AND products.code!=''
+        AND products.barcode!=''
+        <if test="filter.fromCost != null">
+            AND unit_cost >= #{filter.fromCost}
+        </if>
+        <if test="filter.toCost != null">
+            AND unit_cost &lt;= #{filter.toCost}
+        </if>
+        <if test="filter.searchText != null">
+            AND (products.code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR products.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR uoms.name LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+        AND products.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.groupId})
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListTotal" parameterType="com.ut.nlSystemAPi.model.filter.CalculateTotalProductFilter" resultType="java.lang.Long">
+        SELECT COUNT(products.id)
+        FROM products
+        LEFT JOIN uoms ON uoms.id = products.price_uom_id
+        WHERE products.is_active = 1
+        AND products.code!=''
+        AND products.barcode!=''
+        <if test="filter.fromCost != null">
+            AND unit_cost >= #{filter.fromCost}
+        </if>
+        <if test="filter.toCost != null">
+            AND unit_cost &lt;= #{filter.toCost}
+        </if>
+        AND products.id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{filter.groupId})
+    </select>
+
+    <select id="listCloneDetail" parameterType="com.ut.nlSystemAPi.model.filter.CalculateTotalProductFilter" resultMap="PgroupPrice">
+        SELECT
+            id AS id,
+            from_cost AS fromCost,
+            to_cost AS toCost,
+            (SELECT COUNT(*) FROM products WHERE is_active = 1
+                  AND code != ''
+                  AND barcode != ''
+                  AND unit_cost BETWEEN pgroup_prices.from_cost AND pgroup_prices.to_cost AND id IN (
+                  SELECT product_id FROM product_pgroups  WHERE pgroup_id = pgroup_prices.pgroup_id)) AS TotalProduct,
+            CASE WHEN set_type = 2 THEN percent ELSE add_on END AS `value`
+          FROM pgroup_prices
+          WHERE pgroup_price_setting_id = #{id}
+          AND is_active = 1;
+    </select>
+
+    <select id="listCloneType" resultMap="PgroupPriceTypeResponse">
+        SELECT 
+            id,
+            name,
+            IFNULL((SELECT percent 
+                FROM pgroup_prices 
+            WHERE is_active = 1 
+                AND price_type_id = price_types.id
+                AND pgroup_id = #{pgroupId}
+            LIMIT 1), 0) AS value
+        FROM `price_types` WHERE is_active = 1
+    </select>
+
+    <select id="listCloneTypeTotal" resultMap="PgroupPriceTypeResponse">
+        SELECT 
+            id,
+            name,
+           	IFNULL((SELECT AVG(percent)
+                FROM pgroup_prices 
+            WHERE is_active = 1 
+                AND price_type_id = price_types.id
+                AND pgroup_id = #{pgroupId}
+           ), 0) AS value
+        FROM `price_types` WHERE is_active = 1
+    </select>
+
+    <select id="checkDuplicateData" parameterType="com.ut.nlSystemAPi.model.request.Login.ProductGroupPrice.ProductGroupPriceRequest" resultType="java.lang.Long">
+        SELECT COUNT(id) FROM pgroup_price_settings WHERE is_active = 1 AND pgroup_id = #{request.pgroupId} AND price_type_id = #{request.priceTypeId};
+    </select>
+
+    <update id="log" parameterType="java.lang.Long">
+        UPDATE pgroup_price_settings SET
+         is_active = 3,
+         modified = NOW(),
+         modified_by = #{userId}
+        WHERE pgroup_id = #{id};
+    </update>
+
+    <select id="getProductIdsByPgroupId" resultType="java.lang.Long">
+        SELECT id
+        FROM products
+        WHERE is_active = 1
+        AND code != ''
+        AND barcode != ''
+        <choose>
+            <when test="fromCost == 0">
+                AND unit_cost > #{fromCost}
+            </when>
+            <otherwise>
+                AND unit_cost >= #{fromCost}
+            </otherwise>
+        </choose>
+        AND unit_cost &lt;= #{toCost}
+        AND id IN (SELECT product_id FROM product_pgroups WHERE pgroup_id = #{pgroupId})
+    </select>
+
+    <select id="getBackupProductPrice" resultType="java.lang.Long" resultMap="ProductPriceResponse">
+        SELECT
+            product_prices.price_type_id AS priceTypeId,
+            product_prices.product_id AS productId,
+            product_prices.uom_id AS uomId,
+            product_prices.amount_before AS amountBefore,
+            product_prices.amount AS amount,
+            product_prices.percent AS percentage,
+            product_prices.add_on AS addOn,
+            product_prices.set_type AS setType
+        FROM product_prices
+        WHERE product_id = #{productId} AND price_type_id = #{priceTypeId}
+    </select>
+
+    <insert id="insertProductPriceHistory" parameterType="com.ut.nlSystemAPi.model.ProductPriceHistory">
+        INSERT INTO product_price_histories (
+            product_id,
+            price_type_id,
+            uom_id,
+            unit_cost,
+            new_amount,
+            new_percent,
+            new_add_on,
+            new_set_type,
+            created,
+            created_by
+        ) VALUES (
+                     #{productPriceHistory.productId},
+                     #{productPriceHistory.priceTypeId},
+                     #{productPriceHistory.uomId},
+                     #{productPriceHistory.unitCost},
+                     #{productPriceHistory.amount},
+                     #{productPriceHistory.percentage},
+                     #{productPriceHistory.addOn},
+                     #{productPriceHistory.setType},
+                     NOW(),
+                     #{productPriceHistory.createdBy}
+                 )
+    </insert>
+
+    <delete id="deleteProductPrice" parameterType="java.lang.Long">
+        DELETE FROM product_prices WHERE product_id = #{productId} AND price_type_id = #{priceTypeId}
+    </delete>
+
+    <insert id="insertProductPrice" parameterType="com.ut.nlSystemAPi.model.ProductPrice">
+        INSERT INTO product_prices (
+            product_id,
+            price_type_id,
+            uom_id,
+            percent,
+            add_on,
+            set_type,
+            created,
+            created_by
+        ) VALUES (
+                     #{productPrice.productId},
+                     #{productPrice.priceTypeId},
+                     #{productPrice.uomId},
+                     #{productPrice.percentage},
+                     #{productPrice.addOn},
+                     #{productPrice.setType},
+                     NOW(),
+                     #{productPrice.createdBy}
+                 )
+    </insert>
+
+    <select id="getMainUom" resultType="java.lang.Long">
+        SELECT price_uom_id FROM products WHERE is_active = 1 AND id = #{productId}
+    </select>
+
+    <select id="getOtherUoms" resultType="java.lang.Long">
+        SELECT to_uom_id FROM uom_conversions WHERE is_active =  1 AND from_uom_id = #{mainUomId}
+    </select>
+
+    <select id="getUnitCost" resultType="java.lang.Double">
+        SELECT IFNULL(unit_cost, 0) FROM products WHERE id = #{productId}
+    </select>
+
+    <select id="getUomConversionValue" resultType="java.lang.Double">
+        SELECT IFNULL(value, 1) FROM uom_conversions WHERE from_uom_id = #{fromUomId} AND to_uom_id = #{toUomId}
+    </select>
+
+</mapper>

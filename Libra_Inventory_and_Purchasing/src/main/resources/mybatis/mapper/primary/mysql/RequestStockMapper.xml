@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.RequestStockMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        request_stocks.id AS id,
+        request_stocks.company_id AS companyId,
+        CASE
+        WHEN EXISTS (
+        SELECT 1
+        FROM transfer_orders
+        WHERE transfer_orders.status IN (2, 3) AND transfer_orders.request_stock_id = request_stocks.id AND request_stocks.status > 0
+        ) THEN 1
+        ELSE 0
+        END AS isNotAllowDisapproved,
+        CASE
+        WHEN EXISTS (
+        SELECT 1
+        FROM transfer_orders
+        WHERE transfer_orders.status > 0 AND transfer_orders.request_stock_id = request_stocks.id AND request_stocks.status > 0
+        ) THEN 1
+        ELSE 0
+        END AS isHavingTransfer,
+        companies.name AS companyName,
+        request_stocks.date AS requestDate,
+        request_stocks.code AS requestNumber,
+        from_location.id AS fromWarehouseId,
+        from_location.name AS fromWarehouseName,
+        to_location.name AS toWarehouseName,
+        to_location.id AS toWarehouseId,
+        request_stocks.note AS note,
+        request_stocks.status AS status,
+        request_stocks.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        request_stocks.created AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy,
+        request_stocks.is_approve AS isApproved,
+        CONCAT(approver.first_name, ' ', approver.last_name) AS approvedBy,
+        request_stocks.approved AS approved
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM request_stocks
+            LEFT JOIN companies ON companies.id = request_stocks.company_id
+            LEFT JOIN location_groups AS from_location ON from_location.id = request_stocks.from_location_group_id
+            LEFT JOIN location_groups AS to_location ON to_location.id = request_stocks.to_location_group_id
+            LEFT JOIN users AS creator ON creator.id = request_stocks.created_by
+            LEFT JOIN users AS modifier ON modifier.id = request_stocks.modified_by
+            LEFT JOIN users AS approver ON approver.id = request_stocks.approved_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE status >= 0 AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.date != null">
+            AND request_stocks.date = #{filter.date}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND (from_location.id = #{filter.warehouseId} OR to_location.id = #{filter.warehouseId})
+        </if>
+        <if test="filter.status != null">
+            AND request_stocks.status = #{filter.status}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+            request_stocks.code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR from_location.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR to_location.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND request_stocks.created_by = #{userId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.RequestStockFilter" resultMap="RequestStockResponse">
+    SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+     ORDER BY
+     <choose>
+          <when test="filter.orderBy != null">
+            ${filter.orderBy}
+          </when>
+          <otherwise>
+              request_stocks.id DESC
+          </otherwise>
+     </choose>
+     <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+      SELECT COUNT(request_stocks.id)
+      FROM request_stocks
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="RequestStockResponse">
+    SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+     WHERE request_stocks.id = #{id} AND request_stocks.status >= 0  AND company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+  </select>
+
+    <select id="getRequestStockDetail" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="RequestResponseDetail">
+        SELECT
+            request_stock_details.request_stock_id AS requestStockId,
+            request_stock_details.product_id AS productId,
+            request_stock_details.qty AS qty,
+            pro.is_expired_date AS isExpiredDate,
+            pro.code AS upc,
+            pro.barcode AS sku,
+            pro.name AS productName,
+            request_stock_details.qty_uom_id AS qtyUomId,
+            uoms.name AS uom
+        FROM request_stock_details
+                 LEFT JOIN products AS pro ON pro.id = request_stock_details.product_id
+                 LEFT JOIN uoms ON uoms.id = request_stock_details.qty_uom_id
+        WHERE request_stock_details.request_stock_id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.RequestStock" useGeneratedKeys="true" keyProperty="requestStock.id">
+        INSERT INTO request_stocks (
+            code,
+            date,
+            company_id,
+            from_location_group_id,
+            to_location_group_id,
+            note,
+            is_approve,
+            created,
+            created_by
+        ) VALUES (
+                     #{requestStock.code},
+                     #{requestStock.date},
+                     #{requestStock.companyId},
+                     #{requestStock.formLocationGroupId},
+                     #{requestStock.toLocationGroupId},
+                     #{requestStock.memo},
+                     #{requestStock.isApprove},
+                     NOW(),
+                     #{requestStock.createdBy}
+                 )
+    </insert>
+
+    <insert id="insertRequestStockDetail" parameterType="com.ut.nlSystemAPi.model.RequestStockDetail" useGeneratedKeys="true" keyProperty="requestStockDetail.id">
+        INSERT INTO request_stock_details (
+            request_stock_id,
+            product_id,
+            qty,
+            qty_uom_id,
+            conversion
+        ) VALUES (
+                 #{requestStockDetail.requestStockId},
+                 #{requestStockDetail.productId},
+                 #{requestStockDetail.qty},
+                 #{requestStockDetail.qtyUomId},
+                 #{requestStockDetail.conversion}
+        )
+    </insert>
+
+    <insert id="update" parameterType="com.ut.nlSystemAPi.model.RequestStock" useGeneratedKeys="true" keyProperty="requestStock.id">
+        INSERT INTO request_stocks (
+            code,
+            date,
+            company_id,
+            from_location_group_id,
+            to_location_group_id,
+            note,
+            created,
+            created_by
+        ) VALUES (
+                     #{requestStock.code},
+                     #{requestStock.date},
+                     #{requestStock.companyId},
+                     #{requestStock.formLocationGroupId},
+                     #{requestStock.toLocationGroupId},
+                     #{requestStock.memo},
+                     NOW(),
+                     #{requestStock.modifiedBy}
+                 )
+    </insert>
+
+    <update id="updateApproveStatus" parameterType="java.lang.Long">
+        UPDATE request_stocks SET
+                           is_approve = #{requestStockApprove.status},
+                           approved= Now(),
+                           approved_by = #{requestStockApprove.approvedBy}
+        WHERE id = #{requestStockApprove.id};
+    </update>
+
+    <delete id="deleteRequestDetail" parameterType="java.lang.Long">
+        DELETE FROM request_stock_details WHERE `request_stock_id`=#{id}
+    </delete>
+
+    <update id="archive" parameterType="java.lang.Long">
+        UPDATE request_stocks SET
+          status = -1,
+          modified = NOW(),
+          modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE request_stocks SET
+           status = 0,
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+    <select id="getCode" resultType="java.lang.String">
+        SELECT code
+        FROM request_stocks
+        WHERE id = #{id}
+    </select>
+
+    <select id="getLastCode" resultType="java.lang.String">
+        SELECT code
+        FROM request_stocks
+        WHERE YEAR(created) = YEAR(NOW()) AND code LIKE '%RS%' ORDER BY id DESC LIMIT 1
+    </select>
+
+</mapper>

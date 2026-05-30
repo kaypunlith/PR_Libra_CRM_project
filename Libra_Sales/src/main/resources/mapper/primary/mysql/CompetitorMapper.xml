@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CompetitorMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        ut_competitors.id AS id,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ')
+        FROM ut_competitor_business_types
+        WHERE id IN (
+        SELECT ut_competitor_business_type_id
+        FROM ut_competitor_business_details
+        WHERE ut_competitor_business_details.is_active = 1
+        AND ut_competitor_id = ut_competitors.id
+        )) AS businessTypes,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ')
+        FROM ut_competitor_type_of_products
+        WHERE id IN (
+        SELECT ut_competitor_type_of_product_id
+        FROM ut_competitor_main_products
+        WHERE ut_competitor_main_products.is_active = 1
+        AND ut_competitor_id = ut_competitors.id
+        )) AS mainProducts,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ')
+        FROM ut_competitor_type_of_products
+        WHERE id IN (
+        SELECT ut_competitor_type_of_product_id
+        FROM ut_competitor_products
+        WHERE ut_competitor_products.is_active = 1
+        AND ut_competitor_id = ut_competitors.id
+        )) AS productTypes,
+        ut_competitors.`name` AS `name`,
+        ut_competitors.address AS address,
+        ut_competitors.description AS description,
+        ut_competitors.number_customer AS numberOfCustomer,
+        ut_competitors.sales_revenue AS estimateSalesRevenue,
+        ut_competitors.is_close AS isClose
+    </sql>
+
+    <sql id="BASE_COLUMN_ONE">
+        ut_competitors.id AS id,
+        ut_competitor_priority_id AS priorityId,
+        ut_competitor_priorities.name AS priorityName,
+        ut_competitor_statu_id AS statusId,
+        ut_competitor_status.name AS statusName,
+        ut_competitor_stage_id AS stageId,
+        ut_competitor_stages.name AS stageName,
+        ut_competitor_employee_id AS employeeAmountId,
+        ut_competitor_employees.name AS employeeAmountName,
+        ut_competitors.`name` AS `name`,
+        ut_competitors.address AS address,
+        ut_competitors.partner AS partner,
+        ut_competitors.description AS description,
+        ut_competitors.number_customer AS numberOfCustomer,
+        ut_competitors.contact AS contact,
+        ut_competitors.employee_info AS employeeInfo,
+        ut_competitors.sales_revenue AS estimateSalesRevenue,
+        ut_competitors.is_close AS isClose
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM ut_competitors
+        LEFT JOIN ut_competitor_priorities ON ut_competitor_priorities.id = ut_competitors.ut_competitor_priority_id
+        LEFT JOIN ut_competitor_status ON ut_competitor_status.id = ut_competitors.ut_competitor_statu_id
+        LEFT JOIN ut_competitor_stages ON ut_competitor_stages.id = ut_competitors.ut_competitor_stage_id
+        LEFT JOIN ut_competitor_employees ON ut_competitor_employees.id = ut_competitors.ut_competitor_employee_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE ut_competitors.is_active = 1
+        <if test="filter.searchText != null">
+            AND ut_competitors.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CompetitorResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        FROM ut_competitors
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                ut_competitors.`name` ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(ut_competitors.id)
+        FROM ut_competitors
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="CompetitorResponse">
+        SELECT
+        <include refid="BASE_COLUMN_ONE"/>
+        <include refid="BASE_FROM"/>
+        WHERE ut_competitors.is_active = 1 AND ut_competitors.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM ut_competitors
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Competitor.Competitor" useGeneratedKeys="true" keyProperty="competitor.id">
+        INSERT INTO ut_competitors (
+            ut_competitor_priority_id,
+            ut_competitor_statu_id,
+            ut_competitor_stage_id,
+            ut_competitor_employee_id,
+            partner,
+            `name`,
+            address,
+            description,
+            contact,
+            employee_info,
+            number_customer,
+            sales_revenue,
+            created,
+            created_by
+        ) VALUES (
+            #{competitor.priorityId},
+            #{competitor.statusId},
+            #{competitor.stageId},
+            #{competitor.employeeAmountId},
+            #{competitor.partner},
+            #{competitor.name},
+            #{competitor.address},
+            #{competitor.description},
+            #{competitor.contact},
+            #{competitor.employeeInfo},
+            #{competitor.numberOfCustomer},
+            #{competitor.salesRevenue},
+            NOW(),
+            #{competitor.createdBy}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Competitor.Competitor">
+        UPDATE ut_competitors SET
+        <if test="competitor.priorityId != null">ut_competitor_priority_id = #{competitor.priorityId},</if>
+        <if test="competitor.statusId != null">ut_competitor_statu_id = #{competitor.statusId},</if>
+        <if test="competitor.stageId != null">ut_competitor_stage_id = #{competitor.stageId},</if>
+        <if test="competitor.employeeAmountId != null">ut_competitor_employee_id = #{competitor.employeeAmountId},</if>
+        <if test="competitor.partner != null">partner = #{competitor.partner},</if>
+        <if test="competitor.name != null">`name` = #{competitor.name},</if>
+        <if test="competitor.address != null">address = #{competitor.address},</if>
+        <if test="competitor.description != null">description = #{competitor.description},</if>
+        <if test="competitor.contact != null">contact = #{competitor.contact},</if>
+        <if test="competitor.employeeInfo != null">employee_info = #{competitor.employeeInfo},</if>
+        <if test="competitor.numberOfCustomer != null">number_customer = #{competitor.numberOfCustomer},</if>
+        <if test="competitor.salesRevenue != null">sales_revenue = #{competitor.salesRevenue},</if>
+        modified = NOW(),
+        modified_by = #{competitor.modifiedBy}
+        WHERE id = #{competitor.id} AND is_active = 1
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE ut_competitors SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <select id="getMainProduct" parameterType="java.lang.Long" resultMap="CompetitorDetailResponse">
+       SELECT
+           ut_competitor_type_of_products.id AS id,
+           ut_competitor_type_of_products.name AS name
+       FROM ut_competitor_main_products
+       INNER JOIN ut_competitor_type_of_products ON ut_competitor_type_of_products.id = ut_competitor_main_products.ut_competitor_type_of_product_id
+       WHERE ut_competitor_main_products.ut_competitor_id = #{competitorId} AND ut_competitor_main_products.is_active = 1
+    </select>
+
+    <select id="getProductType" parameterType="java.lang.Long" resultMap="CompetitorDetailResponse">
+        SELECT
+            ut_competitor_type_of_products.id AS id,
+            ut_competitor_type_of_products.name AS name
+        FROM ut_competitor_products
+        INNER JOIN ut_competitor_type_of_products ON ut_competitor_type_of_products.id = ut_competitor_products.ut_competitor_type_of_product_id
+        WHERE ut_competitor_products.ut_competitor_id = #{competitorId} AND ut_competitor_products.is_active = 1
+    </select>
+
+    <select id="getBusinessType" parameterType="java.lang.Long" resultMap="CompetitorDetailResponse">
+        SELECT
+            ut_competitor_business_types.id AS id,
+            ut_competitor_business_types.name AS name
+        FROM ut_competitor_business_details
+        INNER JOIN ut_competitor_business_types ON ut_competitor_business_types.id = ut_competitor_business_details.ut_competitor_business_type_id
+        WHERE ut_competitor_business_details.ut_competitor_id = #{competitorId} AND ut_competitor_business_details.is_active = 1
+    </select>
+
+    <select id="getWeakness" parameterType="java.lang.Long" resultMap="CompetitorDetailResponse">
+        SELECT
+            ut_competitor_weaknesses.id AS id,
+            ut_competitor_weaknesses.name AS name
+        FROM ut_competitor_weaknesses_details
+        INNER JOIN ut_competitor_weaknesses ON ut_competitor_weaknesses.id = ut_competitor_weaknesses_details.ut_competitor_weaknesse_id
+        WHERE ut_competitor_weaknesses_details.ut_competitor_id = #{competitorId} AND ut_competitor_weaknesses_details.is_active = 1
+    </select>
+
+    <select id="getStrength" parameterType="java.lang.Long" resultMap="CompetitorDetailResponse">
+        SELECT
+            ut_competitor_strengths.id AS id,
+            ut_competitor_strengths.name AS name
+        FROM ut_competitor_strength_details
+        INNER JOIN ut_competitor_strengths ON ut_competitor_strengths.id = ut_competitor_strength_details.ut_competitor_strength_id
+        WHERE ut_competitor_strength_details.ut_competitor_id = #{competitorId} AND ut_competitor_strength_details.is_active = 1
+    </select>
+
+    <insert id="insertMainProduct" parameterType="java.lang.Long">
+        INSERT INTO ut_competitor_main_products (
+            ut_competitor_id,
+            ut_competitor_type_of_product_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{competitorId},
+                     #{mainProductId},
+                     NOW(),
+                     #{userId},
+                     1
+                 )
+    </insert>
+
+    <insert id="insertProductType" parameterType="java.lang.Long">
+        INSERT INTO ut_competitor_products (
+            ut_competitor_id,
+            ut_competitor_type_of_product_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{competitorId},
+                     #{productTypeId},
+                     NOW(),
+                     #{userId},
+                     1
+                 )
+    </insert>
+
+    <insert id="insertBusinessType" parameterType="java.lang.Long">
+        INSERT INTO ut_competitor_business_details (
+            ut_competitor_id,
+            ut_competitor_business_type_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{competitorId},
+                     #{businessTypeId},
+                     NOW(),
+                     #{userId},
+                     1
+                 )
+    </insert>
+
+    <insert id="insertWeakness" parameterType="java.lang.Long">
+        INSERT INTO ut_competitor_weaknesses_details (
+            ut_competitor_id,
+            ut_competitor_weaknesse_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{competitorId},
+                     #{weaknessId},
+                     NOW(),
+                     #{userId},
+                     1
+                 )
+    </insert>
+
+    <insert id="insertStrength" parameterType="java.lang.Long">
+        INSERT INTO ut_competitor_strength_details (
+            ut_competitor_id,
+            ut_competitor_strength_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{competitorId},
+                     #{strengthId},
+                     NOW(),
+                     #{userId},
+                     1
+                 )
+    </insert>
+
+    <update id="deleteMainProduct" parameterType="java.lang.Long">
+        UPDATE ut_competitor_main_products SET
+           is_active = 2,
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE ut_competitor_id = #{competitorId} AND is_active = 1
+    </update>
+
+    <update id="deleteProductType" parameterType="java.lang.Long">
+        UPDATE ut_competitor_products SET
+           is_active = 2,
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE ut_competitor_id = #{competitorId} AND is_active = 1
+    </update>
+
+    <update id="deleteBusinessType" parameterType="java.lang.Long">
+        UPDATE ut_competitor_business_details SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE ut_competitor_id = #{competitorId} AND is_active = 1
+    </update>
+
+    <update id="deleteWeakness" parameterType="java.lang.Long">
+        UPDATE ut_competitor_weaknesses_details SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE ut_competitor_id = #{competitorId} AND is_active = 1
+    </update>
+
+    <update id="deleteStrength" parameterType="java.lang.Long">
+        UPDATE ut_competitor_strength_details SET
+           is_active = 2,
+           modified = NOW(),
+           modified_by = #{userId}
+        WHERE ut_competitor_id = #{competitorId} AND is_active = 1
+    </update>
+
+    <select id="getEmployeeName" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT name FROM employees WHERE is_active = 1 AND user_id = #{userId}
+    </select>
+
+    <select id="getModifiedDate" parameterType="java.lang.Long" resultType="java.lang.String">
+        SELECT modified FROM ut_competitors WHERE id = #{id}
+    </select>
+
+</mapper>

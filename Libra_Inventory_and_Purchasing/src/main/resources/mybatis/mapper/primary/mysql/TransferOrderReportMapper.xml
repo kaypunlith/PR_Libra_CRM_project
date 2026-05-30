@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.TransferOrderReportMapper">
+    <sql id="BASE_COLUMN_LIST">
+      transfer_orders.id AS id,
+      transfer_orders.to_code AS toNumber,
+      transfer_orders.from_location_group_id AS fromWarehouseId,
+      transfer_orders.to_location_group_id AS toWarehouseId,
+      from_location_groups.name AS fromWarehouseName,
+      to_location_groups.name AS toWarehouseName,
+      transfer_orders.order_date AS orderDate,
+      transfer_orders.fulfillment_date AS fulfillmentDate,
+      transfer_orders.status AS status
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM transfer_orders
+            LEFT JOIN location_groups AS from_location_groups ON from_location_groups.id = transfer_orders.from_location_group_id
+            LEFT JOIN location_groups AS to_location_groups ON to_location_groups.id = transfer_orders.to_location_group_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE transfer_orders.status > 0
+            <if test="filter.searchText != null">
+                AND transfer_orders.to_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            </if>
+            <if test="filter.dateFrom != null">
+                AND transfer_orders.order_date &gt;= #{filter.dateFrom}
+            </if>
+            <if test="filter.dateTo != null">
+                AND transfer_orders.order_date &lt;= #{filter.dateTo}
+            </if>
+            <if test="filter.fromWarehouseId != null">
+                AND transfer_orders.from_location_group_id = #{filter.fromWarehouseId}
+            </if>
+            <if test="filter.toWarehouseId != null">
+                AND transfer_orders.to_location_group_id = #{filter.toWarehouseId}
+            </if>
+            <if test="filter.status != null">
+                AND transfer_orders.status = #{filter.status}
+            </if>
+            <if test="filter.createdBy != null">
+                AND transfer_orders.created_by = #{filter.createdBy}
+            </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportFilter" resultMap="TransferOrderReportResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                transfer_orders.to_code ASC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(transfer_orders.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+
+
+
+
+
+
+
+    <!-- Item Summary -->
+    <sql id="BASE_WHERE_ITEM_SUMMARY">
+        WHERE transfer_orders.status > 0
+       <if test="filterByItem.dateFrom != null">
+            AND transfer_orders.order_date &gt;= #{filterByItem.dateFrom}
+        </if>
+        <if test="filterByItem.dateTo != null">
+            AND transfer_orders.order_date &lt;= #{filterByItem.dateTo}
+        </if>
+        <if test="filterByItem.fromWarehouseId != null">
+            AND transfer_orders.from_location_group_id = #{filterByItem.fromWarehouseId}
+        </if>
+        <if test="filterByItem.toWarehouseId != null">
+            AND transfer_orders.to_location_group_id = #{filterByItem.toWarehouseId}
+        </if>
+        <if test="filterByItem.productGroupId != null">
+            AND transfer_order_details.product_id IN (SELECT id FROM products WHERE pgroup_id = #{filterByItem.productGroupId})
+        </if>
+        <if test="filterByItem.parentId != null">
+            AND (SELECT parent_id FROM products WHERE id = transfer_order_details.product_id) = #{filterByItem.parentId}
+        </if>
+        <if test="filterByItem.productId != null">
+            AND transfer_order_details.product_id = #{filterByItem.productId}
+        </if>
+        <if test="filterByItem.createBy != null">
+            AND transfer_orders.created_by = #{filterByItem.createBy}
+        </if>
+    </sql>
+
+    <select id="countListByItemSummary" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportByItemFilter" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT products.parent_id)
+            FROM transfer_orders
+            INNER JOIN transfer_order_details ON transfer_orders.id = transfer_order_details.transfer_order_id
+            INNER JOIN products ON products.parent_id = transfer_order_details.product_id
+        <include refid="BASE_WHERE_ITEM_SUMMARY"/>
+    </select>
+
+     <select id="getListByItemSummary" resultMap="TransferOrderReportByItemResponse">
+         SELECT
+         IFNULL(products.parent_id, 0) AS parentId,
+         CASE
+         WHEN products.parent_id IS NULL THEN 'No Parent'
+         ELSE CONCAT_WS(' ', parents.code, parents.name)
+         END AS parentName
+         FROM transfer_orders
+         INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+         INNER JOIN products ON products.id = transfer_order_details.product_id
+         LEFT JOIN products AS parents ON products.parent_id = parents.id
+         <include refid="BASE_WHERE_ITEM_DETAIL"/>
+         GROUP BY products.parent_id
+         <if test="filterByItem.page != null and filterByItem.rowsPerPage != null">
+             LIMIT #{filterByItem.page}, #{filterByItem.rowsPerPage}
+         </if>
+    </select>
+
+
+    <select id="getListByItemSummaryDetail" parameterType="java.lang.Long" resultMap="TransferOrderReportByItemDetailResponse">
+        SELECT
+        transfer_orders.id AS id,
+        CONCAT_WS(' ', products.code, products.name) AS productName,
+        SUM(IFNULL((transfer_order_details.qty * transfer_order_details.conversion), 0)) AS qty,
+        products.price_uom_id AS priceUomId,
+        CASE
+        WHEN products.small_val_uom = 1 THEN
+        (SELECT abbr FROM uoms WHERE id = priceUomId)
+        ELSE
+        (SELECT abbr
+        FROM uoms
+        INNER JOIN uom_conversions ON uom_conversions.to_uom_id = uoms.id
+        WHERE from_uom_id = priceUomId
+        AND is_small_uom = 1
+        AND uom_conversions.is_active = 1
+        ORDER BY uom_conversions.id DESC
+        LIMIT 1)
+        END AS uom,
+        ((SELECT cost FROM inventory_valuations WHERE is_active = 1 AND pid = transfer_order_details.product_id AND date &lt;= transfer_orders.order_date ORDER BY date DESC, created DESC, id DESC LIMIT 1)
+            / IFNULL(products.small_val_uom, 1)) AS unitCost
+        FROM transfer_orders
+                 INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+                 INNER JOIN products ON products.id=transfer_order_details.product_id
+                 LEFT JOIN location_groups lg_from ON lg_from.id = transfer_orders.from_location_group_id
+                 LEFT JOIN location_groups lg_to ON lg_to.id = transfer_orders.to_location_group_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        <choose>
+            <when test="parentId == 0">
+                AND products.parent_id IS NULL
+            </when>
+            <otherwise>
+                AND products.parent_id = #{parentId}
+            </otherwise>
+        </choose>
+    </select>
+
+
+    <!-- Item Detail -->
+    <sql id="BASE_WHERE_ITEM_DETAIL">
+        WHERE transfer_orders.status > 0
+        <if test="filterByItem.dateFrom != null">
+            AND transfer_orders.order_date &gt;= #{filterByItem.dateFrom}
+        </if>
+        <if test="filterByItem.dateTo != null">
+            AND transfer_orders.order_date &lt;= #{filterByItem.dateTo}
+        </if>
+        <if test="filterByItem.status != null">
+            AND transfer_orders.status = #{filterByItem.status}
+        </if>
+        <if test="filterByItem.fromWarehouseId != null">
+            AND transfer_orders.from_location_group_id = #{filterByItem.fromWarehouseId}
+        </if>
+        <if test="filterByItem.toWarehouseId != null">
+            AND transfer_orders.to_location_group_id = #{filterByItem.toWarehouseId}
+        </if>
+        <if test="filterByItem.productGroupId != null">
+            AND transfer_order_details.product_id IN
+            (SELECT id FROM products WHERE pgroup_id = #{filterByItem.productGroupId})
+        </if>
+        <if test="filterByItem.productId != null">
+            AND transfer_order_details.product_id = #{filterByItem.productId}
+        </if>
+        <if test="filterByItem.createBy != null">
+            AND transfer_orders.created_by = #{filterByItem.createBy}
+        </if>
+    </sql>
+
+    <select id="countListByItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportByItemFilter" resultType="java.lang.Long">
+        SELECT
+            COUNT(transfer_orders.id)
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        GROUP BY product_id
+    </select>
+
+    
+    <select id="getListByItemDetail" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportByItemFilter" resultMap="TransferOrderReportByItemResponse">
+        SELECT
+            product_id AS parentId,
+            (SELECT CONCAT_WS(' ',code,name) FROM products WHERE id=product_id) AS parentName
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        GROUP BY product_id
+        <if test="filterByItem.page != null and filterByItem.rowsPerPage != null">
+            LIMIT #{filterByItem.page}, #{filterByItem.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getGrandTotalCost" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportByItemFilter" resultMap="TransferOrderReportByItemDetailResponse">
+        SELECT
+        SUM(subquery.qty_converted) AS qty,
+        SUM(subquery.row_cost) AS grandDetailTotalCost
+        FROM (
+        SELECT
+        transfer_order_details.qty * transfer_order_details.conversion AS qty_converted,
+        IFNULL(
+        (SELECT cost
+        FROM inventory_valuations
+        WHERE is_active = 1
+        AND pid = transfer_order_details.product_id
+        AND date &lt;= transfer_orders.order_date
+        ORDER BY date DESC, created DESC, id DESC
+        LIMIT 1) / NULLIF(products.small_val_uom, 0) *
+        (transfer_order_details.qty * transfer_order_details.conversion),
+        0
+        ) AS row_cost
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id = transfer_order_details.transfer_order_id
+        INNER JOIN products ON products.id = transfer_order_details.product_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        ) AS subquery
+    </select>
+
+    <select id="getSubTotalCost" resultType="java.lang.Double">
+        SELECT SUM(transfer_order_details.qty * transfer_order_details.conversion)
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+        INNER JOIN products ON products.id=transfer_order_details.product_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        <choose>
+            <when test="parentId == 0">
+                AND products.parent_id IS NULL
+            </when>
+            <otherwise>
+                AND products.parent_id = #{parentId}
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="getListByItemDetailDetail" resultMap="TransferOrderReportByItemDetailResponse">
+        SELECT
+            transfer_orders.id AS id,
+            'Transfer Order' AS type,
+            CONCAT_WS(' ', products.code, products.name) AS productName,
+            transfer_orders.order_date AS `date`,
+            transfer_orders.to_code AS toNumber,
+            lg_from.name AS fromWarehouseName,
+            lg_to.name AS toWarehouseName,
+            IFNULL(transfer_order_details.conversion, 1) AS conversion,
+            IFNULL(transfer_order_details.qty, 0) AS qty,
+            uoms.name AS uom,
+            ((SELECT cost FROM inventory_valuations WHERE is_active = 1 AND pid = transfer_order_details.product_id AND date &lt;= transfer_orders.order_date ORDER BY date DESC, created DESC, id DESC LIMIT 1) / IFNULL(products.small_val_uom, 1)) AS unitCost
+        FROM transfer_orders
+                 INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+                 INNER JOIN products ON products.id=transfer_order_details.product_id
+                 INNER JOIN uoms ON uoms.id = transfer_order_details.qty_uom_id
+                 LEFT JOIN location_groups lg_from ON lg_from.id = transfer_orders.from_location_group_id
+                 LEFT JOIN location_groups lg_to ON lg_to.id = transfer_orders.to_location_group_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        AND product_id = #{parentId}
+    </select>
+
+
+
+
+    <!-- Parent Summary -->
+    <select id="getListByItemParentSummary" resultMap="TransferOrderReportByItemResponse">
+        SELECT
+        IFNULL(parent.id, 0) AS parentId,
+        CASE
+        WHEN parent.id IS NULL THEN 'No Parent'
+        ELSE CONCAT_WS(' ', parent.code, parent.name)
+        END AS parentName,
+        ((SELECT cost FROM inventory_valuations WHERE is_active = 1 AND pid = transfer_order_details.product_id AND date &lt;= transfer_orders.order_date ORDER BY date DESC, created DESC, id DESC LIMIT 1)
+            / IFNULL(products.small_val_uom, 1)) *
+            SUM((transfer_order_details.qty * transfer_order_details.conversion)) AS totalCost
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+        LEFT JOIN products ON products.parent_id = transfer_order_details.product_id
+        LEFT JOIN products AS parent ON products.parent_id = products.id
+        LEFT JOIN location_groups lg_from ON lg_from.id = transfer_orders.from_location_group_id
+        LEFT JOIN location_groups lg_to ON lg_to.id = transfer_orders.to_location_group_id
+        LEFT JOIN uoms ON uoms.id = transfer_order_details.qty_uom_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        GROUP BY parent.id
+        <if test="filterByItem.page != null and filterByItem.rowsPerPage != null">
+            LIMIT #{filterByItem.page}, #{filterByItem.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListByParentSummary" parameterType="com.ut.nlSystemAPi.model.filter.TransferOrderReportByItemFilter" resultType="java.lang.Long">
+        SELECT CASE
+        WHEN COUNT(parent.id) = 0 THEN 1
+        ELSE COUNT(parent.id)
+        END AS parent_count
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id=transfer_order_details.transfer_order_id
+        LEFT JOIN products ON products.parent_id = transfer_order_details.product_id
+        LEFT JOIN products AS parent ON products.parent_id = products.id
+        LEFT JOIN location_groups lg_from ON lg_from.id = transfer_orders.from_location_group_id
+        LEFT JOIN location_groups lg_to ON lg_to.id = transfer_orders.to_location_group_id
+        LEFT JOIN uoms ON uoms.id = transfer_order_details.qty_uom_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+    </select>
+
+    <select id="sumGrandTotalParentSummary" resultType="java.lang.Double">
+        SELECT SUM(totalCost) AS grandTotal
+        FROM (
+        SELECT
+        IFNULL(
+        (SELECT cost
+        FROM inventory_valuations
+        WHERE is_active = 1
+        AND pid = transfer_order_details.product_id
+        AND date &lt;= transfer_orders.order_date
+        ORDER BY date DESC, created DESC, id DESC
+        LIMIT 1) / NULLIF(transfer_order_details.conversion, 0) * transfer_order_details.qty,
+        0
+        ) AS totalCost
+        FROM transfer_orders
+        INNER JOIN transfer_order_details ON transfer_orders.id = transfer_order_details.transfer_order_id
+        LEFT JOIN products ON products.id = transfer_order_details.product_id
+        LEFT JOIN products AS parent ON products.parent_id = parent.id
+        LEFT JOIN location_groups lg_from ON lg_from.id = transfer_orders.from_location_group_id
+        LEFT JOIN location_groups lg_to ON lg_to.id = transfer_orders.to_location_group_id
+        LEFT JOIN uoms ON uoms.id = transfer_order_details.qty_uom_id
+        <include refid="BASE_WHERE_ITEM_DETAIL"/>
+        ) AS subquery
+    </select>
+</mapper>

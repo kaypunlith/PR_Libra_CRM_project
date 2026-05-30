@@ -1,0 +1,11 @@
+package com.ut.nlSystemAPi.model.request.Login.ExpenseRequest;
+
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+@Data
+public class close {
+      @ApiModelProperty(position = 1);
+      private
+
+}

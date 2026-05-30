@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.WorkShiftMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    work_shifts.id AS id,
+    work_shifts.name AS `name`,
+    work_shifts.time_from AS timeFrom,
+    work_shifts.time_to AS timeTo,
+    work_shifts.duration,
+    description AS description,
+    CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+    CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy,
+    work_shifts.created AS created,
+    work_shifts.modified AS modified
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM work_shifts
+    LEFT JOIN users AS creator ON creator.id = work_shifts.created_by
+    LEFT JOIN users AS modifier ON modifier.id = work_shifts.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE work_shifts.is_active = 1
+    <if test="filter.searchText != null">AND work_shifts.`name` LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+  </sql>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(work_shifts.id)
+    FROM work_shifts
+    WHERE work_shifts.is_active = 1 AND work_shifts.name = #{name}
+    <if test="id != null"> AND work_shifts.id != #{id} </if>
+  </select>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="WorkShiftResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+          work_shifts.id DESC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getListWithOutPermission" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="WorkShiftResponse">
+    SELECT
+      id AS id,
+      `name` AS name
+    FROM work_shifts
+    WHERE is_active = 1
+    <if test="filter.searchText != null">AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+    ORDER BY id ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getListWorkShiftType" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="WorkShiftTypeResponse">
+    SELECT
+    id AS id,
+    `name` AS name
+    FROM work_shift_types
+    WHERE is_active = 1
+    <if test="filter.searchText != null">AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+    ORDER BY id ASC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="WorkShiftResponse">
+    SELECT
+    late_check_in_time AS lateCheckingTime,
+    leave_early_time AS leaveEarlyTime,
+    beginning_check_in AS beginningCheckIn,
+    ending_check_in AS endingCheckIn,
+    beginning_check_out AS beginningCheckOut,
+    ending_check_out AS endingCheckOut,
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE work_shifts.is_active = 1 AND work_shifts.id = #{id}
+  </select>
+
+  <select id="getCount" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(work_shifts.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.WorkShift" useGeneratedKeys="true"  keyProperty="workShift.id">
+    INSERT INTO work_shifts (
+      work_shift_type_id,
+      `name`,
+      time_from,
+      time_to,
+      duration,
+      late_check_in_time,
+      leave_early_time,
+      beginning_check_in,
+      ending_check_in,
+      beginning_check_out,
+      ending_check_out,
+      description,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{workShift.workShiftType},
+      #{workShift.name},
+      #{workShift.timeFrom},
+      #{workShift.timeTo},
+      TIME(#{workShift.timeTo}) - TIME(#{workShift.timeFrom}),
+      #{workShift.lateCheckingTime},
+      #{workShift.leaveEarlyTime},
+      #{workShift.beginningCheckIn},
+      #{workShift.endingCheckIn},
+      #{workShift.beginningCheckOut},
+      #{workShift.endingCheckOut},
+      #{workShift.description},
+      NOW(),
+      #{creatorId},
+      1
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.WorkShift">
+    UPDATE work_shifts SET
+    <if test="workShift.workShiftType  != null">`work_shift_type_id` = #{workShift.workShiftType  },</if>
+    <if test="workShift.name != null">`name` = #{workShift.name},</if>
+    <if test="workShift.timeFrom != null and workShift.timeTo != null">
+      `time_from` = #{workShift.timeFrom},
+      `time_to` = #{workShift.timeTo},
+      `duration` = TIME(#{workShift.timeTo}) - TIME(#{workShift.timeFrom}),
+    </if>
+    <if test="workShift.lateCheckingTime != null">`late_check_in_time` = #{workShift.lateCheckingTime},</if>
+    <if test="workShift.leaveEarlyTime != null">`leave_early_time` = #{workShift.leaveEarlyTime},</if>
+    <if test="workShift.beginningCheckIn != null">`beginning_check_in` = #{workShift.beginningCheckIn},</if>
+    <if test="workShift.endingCheckIn != null">`ending_check_in` = #{workShift.endingCheckIn},</if>
+    <if test="workShift.beginningCheckOut != null">`beginning_check_out` = #{workShift.beginningCheckOut},</if>
+    <if test="workShift.endingCheckOut != null">`ending_check_out` = #{workShift.endingCheckOut},</if>
+    <if test="workShift.description != null">`description` = #{workShift.description},</if>
+    modified = NOW(),
+    modified_by = #{modifierId}
+    WHERE id = #{workShift.id}
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE work_shifts SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </delete>
+
+  <insert id="insertWorkShiftDay">
+    INSERT INTO work_shift_days (
+      work_shift_id,
+      day_id,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      #{workShiftId},
+      #{dayId},
+      NOW(),
+      #{creatorId},
+      1
+    )
+  </insert>
+
+  <select id="getListDays" parameterType="java.lang.Long" resultMap="DayResponse">
+    SELECT days.id AS id, days.`name` AS `name`, days.is_active AS isActive
+    FROM work_shift_days 
+      LEFT JOIN `days` on `days`.id = work_shift_days.day_id
+    WHERE work_shift_days.is_active = 1 AND work_shift_days.work_shift_id = #{workShiftId}
+  </select>
+
+  <update id="deleteListDays" parameterType="java.lang.Long">
+    UPDATE work_shift_days SET
+    is_active = 2,
+    modified = NOW(),
+    modified_by = #{modifierId}
+    WHERE work_shift_id = #{workShiftId}
+  </update>
+
+</mapper>

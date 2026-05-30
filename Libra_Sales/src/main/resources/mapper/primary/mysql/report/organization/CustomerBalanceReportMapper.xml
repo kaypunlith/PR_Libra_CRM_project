@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+
+    <sql id="BASE_WHERE_CUSTOMER_BALANCE">
+        WHERE general_ledgers.is_approve = 1
+        AND general_ledgers.is_active = 1
+        AND general_ledger_details.customer_id IS NOT NULL
+        AND general_ledger_details.customer_id != ''
+        AND general_ledger_details.chart_account_id IN (
+        SELECT id FROM chart_accounts WHERE
+        chart_account_type_id = 2
+        )
+        AND general_ledger_details.company_id IN (
+        SELECT company_id FROM user_companies
+        WHERE user_id = #{userId}
+        )
+        <if test="filter.searchText != null">
+            AND (
+            general_ledger_details.type LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR general_ledgers.reference LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR sales_orders.so_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND general_ledgers.date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND general_ledgers.date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.classId != null">
+            AND general_ledger_details.class_id = #{filter.classId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND general_ledger_details.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND general_ledger_details.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.companyId != null">
+            AND general_ledger_details.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.adjustmentEntry != null">
+            AND general_ledgers.is_adj = #{filter.adjustmentEntry}
+        </if>
+        <if test="filter.Input != null">
+            AND general_ledgers.is_sys = #{filter.Input}
+        </if>
+    </sql>
+
+    <select id="getListCustomerBalance" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerBalanceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Organization.CustomerBalanceReportResponse">
+        SELECT
+        customers.id AS organizationId,
+        customers.name AS organizationName,
+        general_ledgers.id AS id,
+        general_ledger_details.type AS type,
+        general_ledgers.date AS `date`,
+        companies.name AS companyName,
+        general_ledgers.reference AS reference,
+        sales_orders.so_code AS invoiceCode,
+        (SELECT CONCAT(account_codes, ' · ', account_description) FROM chart_accounts WHERE id = general_ledger_details.chart_account_id) AS account,
+        IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1) AS amount,
+        IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1) AS balance
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id = general_ledger_details.general_ledger_id
+        LEFT JOIN customers ON general_ledger_details.customer_id = customers.id
+        LEFT JOIN companies ON general_ledger_details.company_id = companies.id
+        LEFT JOIN sales_orders ON general_ledgers.sales_order_id = sales_orders.id
+        <include refid="BASE_WHERE_CUSTOMER_BALANCE"/>
+        ORDER BY customers.name ASC, general_ledgers.date ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListCustomerBalance" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerBalanceReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(customers.id)
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id = general_ledger_details.general_ledger_id
+        LEFT JOIN customers ON general_ledger_details.customer_id = customers.id
+        LEFT JOIN companies ON general_ledger_details.company_id = companies.id
+        LEFT JOIN sales_orders ON general_ledgers.sales_order_id = sales_orders.id
+        <include refid="BASE_WHERE_CUSTOMER_BALANCE"/>
+    </select>
+
+    <select id="sumGrandTotalCustomerBalance" parameterType="com.ut.nlSystemAPi.model.filter.Report.Organization.CustomerBalanceReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.ReportGrandTotalResponse">
+        SELECT
+        SUM(IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1)) AS grandTotalAmount,
+        SUM(IF(general_ledger_details.debit > 0, general_ledger_details.debit, general_ledger_details.credit * -1)) AS grandTotalBalance
+        FROM general_ledgers
+        INNER JOIN general_ledger_details ON general_ledgers.id = general_ledger_details.general_ledger_id
+        LEFT JOIN customers ON general_ledger_details.customer_id = customers.id
+        LEFT JOIN companies ON general_ledger_details.company_id = companies.id
+        LEFT JOIN sales_orders ON general_ledgers.sales_order_id = sales_orders.id
+        <include refid="BASE_WHERE_CUSTOMER_BALANCE"/>
+    </select>
+
+</mapper>

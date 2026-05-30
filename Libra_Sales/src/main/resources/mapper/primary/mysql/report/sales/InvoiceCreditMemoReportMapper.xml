@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SalesReportMapper">
+
+    <sql id="BASE_WHERE_INVOICE_CREDIT_MEMO">
+        WHERE company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <choose>
+            <when test="filter.status != null">
+                AND credit_memos.status = #{filter.status}
+            </when>
+            <otherwise>
+                AND credit_memos.status > 0
+            </otherwise>
+        </choose>
+        AND location_group_id IN (SELECT location_group_id FROM user_location_groups WHERE user_id = #{userId})
+        <if test="filter.searchText != null">
+            AND (
+                credit_memos.cm_code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+        <if test="filter.dateFrom != null">
+            AND credit_memos.order_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND credit_memos.order_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.createdBy != null">
+            AND credit_memos.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.companyId != null">
+            AND credit_memos.company_id = #{filter.companyId}
+        </if>
+        <if test="filter.warehouseId != null">
+            AND credit_memos.location_group_id = #{filter.warehouseId}
+        </if>
+        <if test="filter.organizationId != null">
+            AND credit_memos.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND credit_memos.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+    </sql>
+
+    <select id="getListInvoiceCreditMemo" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.InvoiceByRepReportFilter" resultType="com.ut.nlSystemAPi.model.response.Report.Sales.InvoiceCreditMemoReportResponse">
+        SELECT
+        credit_memos.id AS id,
+        credit_memos.order_date AS cmDate,
+        credit_memos.cm_code AS cmNo,
+        credit_memos.invoice_code AS invoiceCode,
+        CONCAT_WS(' ', customers.name) AS organizationName,
+        credit_memos.total_amount-IFNULL(credit_memos.discount,0) AS subTotal,
+        IFNULL(credit_memos.total_vat,0) AS totalVat,
+        credit_memos.total_amount-IFNULL(credit_memos.discount,0)+IFNULL(credit_memos.mark_up,0)+IFNULL(credit_memos.total_vat,0) AS totalAmount,
+        credit_memos.balance AS balance,
+        IF(balance>0 AND DATEDIFF(now(),due_date)>0,DATEDIFF(now(),due_date),'.') AS aging,
+        credit_memos.status AS status,
+        currency_centers.symbol AS currencySymbol
+        FROM credit_memos
+        LEFT JOIN customers ON customers.id = credit_memos.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = credit_memos.currency_center_id
+        <include refid="BASE_WHERE_INVOICE_CREDIT_MEMO"/>
+        ORDER BY credit_memos.order_date DESC, credit_memos.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListInvoiceCreditMemo" parameterType="com.ut.nlSystemAPi.model.filter.Report.Sales.InvoiceCreditMemoReportFilter" resultType="java.lang.Long">
+        SELECT COUNT(credit_memos.id)
+        FROM credit_memos
+        LEFT JOIN customers ON customers.id = credit_memos.customer_id
+        INNER JOIN currency_centers ON currency_centers.id = credit_memos.currency_center_id
+        <include refid="BASE_WHERE_INVOICE_CREDIT_MEMO"/>
+    </select>
+
+</mapper>

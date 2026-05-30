@@ -1,0 +1,632 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.QuotationMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        quotations.id AS id,
+        quotations.type AS `type`,
+        quotations.quotation_date AS `date`,
+        quotations.quotation_code AS code,
+        quotations.company_id AS companyId,
+        (SELECT GROUP_CONCAT((SELECT order_code FROM orders WHERE id = order_quotations.order_id AND status > 0) SEPARATOR ', ') FROM order_quotations WHERE order_quotations.quotation_id = quotations.id) AS soCode,
+        companies.name AS companyName,
+        companies.business_number AS companyTelephone,
+        companies.address AS companyAddress,
+        companies.website AS companyWebsite,
+        IFNULL(companies.vat_number, '') AS companyVat,
+        quotations.customer_id AS organizationId,
+        customers.name AS organizationName,
+        customers.customer_code AS organizationCode,
+        customers.address AS organizationAddress,
+        customers.main_number AS organizationTelephone,
+        quotations.currency_center_id AS currencyId,
+        currency_centers.name AS currencyName,
+        currency_centers.symbol AS currencySymbol,
+        quotations.customer_contact_id AS organizationContactId,
+        customer_contacts.contact_name AS organizationContactName,
+        customer_contacts.contact_telephone AS organizationContactTelephone,
+        quotations.price_type_id AS priceTypeId,
+        price_types.name AS priceTypeName,
+        quotations.note AS note,
+        quotations.total_amount AS subTotal,
+        (quotations.total_amount - IFNULL(quotations.discount, 0) + IFNULL(quotations.total_vat, 0)) AS totalAmount,
+        quotations.vat_setting_id AS vatId,
+        vat_settings.name AS vatName,
+        IFNULL(quotations.total_vat, 0) AS totalVat,
+        IFNULL(quotations.vat_percent, 0) AS vatPercent,
+        IFNULL(quotations.discount, 0) AS discountAmount,
+        IFNULL(quotations.discount_percent, 0) AS discountPercent,
+        IFNULL(quotations.margin_percent, 0) AS marginPercent,
+        quotations.is_close AS isClose,
+        quotations.is_approve AS isApprove,
+        quotations.is_none_vat AS isNoneVat,
+        quotations.share_user AS shareUserIds,
+        quotations.share_except_user AS shareExceptUserIds,
+        quotations.created AS created,
+        COALESCE((SELECT name FROM employees WHERE user_id = quotations.created_by), CONCAT(users.first_name, ' ', users.last_name)) AS createdBy,
+        quotations.modified AS modified,
+        CONCAT(editor.first_name, ' ', editor.last_name) AS modifiedBy,
+        quotations.status AS status,
+        (quotations.created_by = #{userId}) AS isAllowShare,
+        quotations.share_save_option AS shareSaveOption,
+        quotations.share_option AS shareOption,
+        quotations.page_row AS page,
+        quotations.page_amount AS itemPerPage
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM quotations
+        LEFT JOIN customers ON customers.id = quotations.customer_id
+        LEFT JOIN currency_centers ON currency_centers.id = quotations.currency_center_id
+        LEFT JOIN companies ON companies.id = quotations.company_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = quotations.customer_contact_id
+        LEFT JOIN price_types ON price_types.id = quotations.price_type_id
+        LEFT JOIN vat_settings ON vat_settings.id = quotations.vat_setting_id
+        LEFT JOIN users ON users.id = quotations.created_by
+        LEFT JOIN users AS editor ON users.id = quotations.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE quotations.status > 0 AND quotations.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        <if test="filter.type != null">
+            AND quotations.type = #{filter.type}
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND quotations.created_by = #{userId}
+        </if>
+        <if test="filter.organizationGroupId != null">
+            AND quotations.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.customerGroupId})
+        </if>
+        <if test="filter.dateFrom != null">
+            AND quotations.quotation_date >= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND quotations.quotation_date &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.status != null">
+            AND quotations.status = #{filter.status}
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (quotations.quotation_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.customer_code LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR customers.name_kh LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR (SELECT contact_name FROM customer_contacts WHERE id = quotations.customer_contact_id) LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.QuotationFilter" resultMap="QuotationResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY quotations.id
+        ORDER BY quotations.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.QuotationFilter" resultType="java.lang.Long">
+       SELECT COUNT(quotations.id)
+       FROM quotations
+       INNER JOIN customers ON customers.id = quotations.customer_id
+       LEFT JOIN customer_contacts ON customer_contacts.id = quotations.customer_contact_id
+       <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="QuotationResponse">
+       SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+        WHERE quotations.status >= 0 AND quotations.id = #{id} AND quotations.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        GROUP BY quotations.id
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.Quotation" useGeneratedKeys="true" keyProperty="quotation.id">
+        INSERT INTO quotations (
+            type,
+            company_id,
+            quotation_date,
+            customer_id,
+            customer_contact_id,
+            currency_center_id,
+            price_type_id,
+            note,
+            total_vat,
+            vat_percent,
+            vat_setting_id,
+            vat_calculate,
+            discount,
+            discount_percent,
+            total_amount,
+            margin_percent,
+            share_save_option,
+            share_option,
+            share_user,
+            share_except_user,
+            is_apply,
+            is_approve,
+            is_none_vat,
+            created,
+            created_by,
+            edited,
+            edited_by,
+            modified,
+            modified_by
+        ) VALUES (
+                     #{quotation.type},
+                     #{quotation.companyId},
+                     #{quotation.date},
+                     #{quotation.organizationId},
+                     #{quotation.organizationContactId},
+                     #{quotation.currencyId},
+                     #{quotation.priceTypeId},
+                     #{quotation.note},
+                     #{quotation.totalVat},
+                     #{quotation.vatPercent},
+                     #{quotation.vatSettingId},
+                     #{quotation.vatCalculate},
+                     #{quotation.discountAmount},
+                     #{quotation.discountPercent},
+                     #{quotation.totalAmount},
+                     #{quotation.marginPercent},
+                     #{quotation.shareSaveOption},
+                     #{quotation.shareOption},
+                     #{quotation.shareUser},
+                     #{quotation.shareExceptUser},
+                     #{quotation.isApply},
+                     #{quotation.isApproved},
+                     #{quotation.isNoneVat},
+                     #{quotation.created},
+                     #{quotation.createdBy},
+                     #{quotation.edited},
+                     #{quotation.editedBy},
+                     #{quotation.modified},
+                     #{quotation.modifiedBy}
+                 )
+    </insert>
+
+    <insert id="insertTermCondition" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationTermCondition">
+        INSERT INTO quotation_term_conditions (
+            quotation_id,
+            term_condition_type_id,
+            term_condition_id
+        ) VALUES (
+                     #{termCondition.quotationId},
+                     #{termCondition.termConditionTypeId},
+                     #{termCondition.termConditionId}
+                 )
+    </insert>
+
+    <select id="getTermCondition" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.TermCondition.TermConditionResponse">
+        SELECT *
+        FROM (
+                 SELECT
+                     qtc.term_condition_type_id AS typeId,
+                     tct.name AS typeName,
+                     qtc.term_condition_id AS id,
+                     tc.name AS name
+                 FROM quotation_term_conditions qtc
+                          INNER JOIN term_condition_types tct ON tct.id = qtc.term_condition_type_id
+                          INNER JOIN term_conditions tc ON tc.id = qtc.term_condition_id
+                 WHERE qtc.quotation_id = #{quotationId}
+
+                 UNION ALL
+
+                 SELECT
+                     tca.term_condition_type_id AS typeId,
+                     tct.name AS typeName,
+                     IFNULL(tca.term_condition_default_id, 0) AS id,
+                     IFNULL(tc.name, '') AS name
+                 FROM term_condition_applies tca
+                          INNER JOIN term_condition_types tct ON tct.id = tca.term_condition_type_id
+                          LEFT JOIN term_conditions tc ON tc.id = tca.term_condition_default_id
+                 WHERE tca.is_active = 1
+                   AND tca.module_type_id IN (
+                     SELECT id FROM module_types WHERE status = 1 AND (name = 'Quotation' OR name = 'Quotation (Software)')
+                 )
+                AND EXISTS (
+                     SELECT 1
+                     FROM quotation_term_conditions qtc2
+                     WHERE qtc2.quotation_id = #{quotationId}
+                       AND qtc2.term_condition_type_id = tca.term_condition_type_id
+                 )
+             ) AS results
+        GROUP BY typeId
+    </select>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationDetail">
+        INSERT INTO quotation_details (
+            quotation_id,
+            break_name,
+            product_id,
+            qty,
+            conversion,
+            qty_uom_id,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_cost,
+            unit_price,
+            total_price,
+            is_break
+        ) VALUES (
+                     #{detail.quotationId},
+                     #{detail.itemName},
+                     #{detail.itemId},
+                     #{detail.qty},
+                     #{detail.conversion},
+                     #{detail.uomId},
+                     #{detail.discountId},
+                     #{detail.discountAmount},
+                     #{detail.discountPercent},
+                     #{detail.unitCost},
+                     #{detail.unitPrice},
+                     #{detail.totalPrice},
+                     #{detail.isBreak}
+                 )
+    </insert>
+
+    <insert id="insertService" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationServices">
+        INSERT INTO quotation_services (
+            quotation_id,
+            service_id,
+            qty,
+            conversion,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price
+        )
+        VALUES (
+                   #{service.quotationId},
+                   #{service.itemId},
+                   #{service.qty},
+                   #{service.conversion},
+                   #{service.discountId},
+                   #{service.discountAmount},
+                   #{service.discountPercent},
+                   #{service.unitPrice},
+                   #{service.totalPrice}
+               );
+    </insert>
+
+    <insert id="insertMisc" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationMisc">
+        INSERT INTO quotation_miscs (
+            quotation_id,
+            description,
+            qty,
+            qty_uom_id,
+            conversion,
+            discount_id,
+            discount_amount,
+            discount_percent,
+            unit_price,
+            total_price
+        )
+        VALUES (
+                   #{misc.quotationId},
+                   #{misc.itemName},
+                   #{misc.qty},
+                   #{misc.uomId},
+                   #{misc.conversion},
+                   #{misc.discountId},
+                   #{misc.discountAmount},
+                   #{misc.discountPercent},
+                   #{misc.unitPrice},
+                   #{misc.totalPrice}
+               );
+    </insert>
+
+    <select id="getListDetail" parameterType="java.lang.Long" resultMap="QuotationDetailResponse">
+        (
+            SELECT
+                1 AS `type`,
+                quotation_details.id AS id,
+                quotation_details.quotation_id AS quotationId,
+                quotation_details.product_id AS itemId,
+                products.name AS itemName,
+                products.description AS description,
+                products.code AS sku,
+                products.barcode AS upc,
+                products.photo AS productPhotoUrl,
+                products.photo_name AS productPhotoName,
+                products.spec AS spec,
+                (SELECT GROUP_CONCAT(pgroups.name SEPARATOR ', ')
+                 FROM pgroups
+                 WHERE pgroups.is_active = 1
+                   AND pgroups.id IN (SELECT pgroup_id FROM product_pgroups WHERE product_pgroups.product_id = products.id)
+                ) AS itemBrand,
+                quotation_details.qty AS qty,
+                IFNULL(products.small_val_uom,1) / IFNULL(quotation_details.conversion, 1) AS conversion,
+                quotation_details.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                quotation_details.discount_amount AS discountAmount,
+                products.default_cost AS unitCost,
+                products.unit_cost AS estimateCost,
+                quotation_details.unit_price AS unitPrice,
+                quotation_details.total_price AS totalPrice
+            FROM quotation_details
+                     LEFT JOIN products ON products.id = quotation_details.product_id
+                     LEFT JOIN uoms ON uoms.id = quotation_details.qty_uom_id
+            WHERE quotation_details.quotation_id = #{quotationId} AND quotation_details.is_break = 0
+        )
+        UNION ALL
+        (
+            SELECT
+                2 AS `type`,
+                quotation_services.id AS id,
+                quotation_services.quotation_id AS quotationId,
+                quotation_services.service_id AS itemId,
+                services.name AS itemName,
+                services.description AS description,
+                services.sku AS sku,
+                services.sku AS upc,
+                NULL AS productPhotoUrl,
+                NULL AS productPhotoName,
+                services.description AS spec,
+                NULL AS itemBrand,
+                quotation_services.qty AS qty,
+                1 AS conversion,
+                services.uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                quotation_services.discount_amount AS discountAmount,
+                0 AS unitCost,
+                NULL AS estimateCost,
+                quotation_services.unit_price AS unitPrice,
+                quotation_services.total_price AS totalPrice
+            FROM quotation_services
+                     LEFT JOIN services ON services.id = quotation_services.service_id
+                     LEFT JOIN uoms ON uoms.id = services.uom_id
+            WHERE quotation_services.quotation_id = #{quotationId}
+        )
+        UNION ALL
+        (
+            SELECT
+                3 AS `type`,
+                quotation_miscs.id AS id,
+                quotation_miscs.quotation_id AS quotationId,
+                quotation_miscs.id AS itemId,
+                quotation_miscs.description AS itemName,
+                NULL AS description,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS productPhotoUrl,
+                NULL AS productPhotoName,
+                NULL AS spec,
+                NULL AS itemBrand,
+                quotation_miscs.qty AS qty,
+                1 AS conversion,
+                quotation_miscs.qty_uom_id AS uomId,
+                uoms.name AS uomName,
+                uoms.abbr AS uomAbbr,
+                quotation_miscs.discount_amount AS discountAmount,
+                0 AS unitCost,
+                NULL AS estimateCost,
+                quotation_miscs.unit_price AS unitPrice,
+                quotation_miscs.total_price AS totalPrice
+            FROM quotation_miscs
+                     LEFT JOIN uoms ON uoms.id = quotation_miscs.qty_uom_id
+            WHERE quotation_miscs.quotation_id = #{quotationId}
+        )
+        UNION ALL
+        (
+            SELECT
+                4 AS `type`,
+                quotation_details.id AS id,
+                quotation_details.quotation_id AS quotationId,
+                quotation_details.id AS itemId,
+                quotation_details.break_name AS itemName,
+                NULL AS description,
+                NULL AS sku,
+                NULL AS upc,
+                NULL AS qty,
+                NULL AS productPhotoUrl,
+                NULL AS productPhotoName,
+                NULL AS spec,
+                NULL AS itemBrand,
+                NULL AS conversion,
+                NULL AS uomId,
+                NULL AS uomName,
+                NULL AS uomAbbr,
+                quotation_details.discount_amount AS discountAmount,
+                NULL AS unitCost,
+                NULL AS estimateCost,
+                NULL AS unitPrice,
+                NULL AS totalPrice
+            FROM quotation_details
+            WHERE quotation_details.quotation_id = #{quotationId} AND quotation_details.is_break = 1
+        )
+        ORDER BY id ASC
+    </select>
+
+    <update id="approve" parameterType="java.lang.Long">
+        UPDATE quotations SET
+        <choose>
+            <when test="status == 2">
+                is_approve = 1,
+            </when>
+            <otherwise>
+                is_approve = 0,
+            </otherwise>
+        </choose>
+        approved = NOW(),
+        approved_by = #{userId}
+        WHERE id = #{id} AND status > 0;
+    </update>
+
+    <update id="close" parameterType="java.lang.Long">
+        UPDATE quotations SET
+        is_close = #{status}
+        WHERE id = #{id} AND status > 0;
+    </update>
+
+    <update id="updateCrm" parameterType="com.ut.nlSystemAPi.model.request.Quotation.CRMPercentRequest">
+        UPDATE crm_quotation_status_percents SET
+        indicator_first = #{request.red},
+        indicator_second = #{request.yellow},
+        indicator_third = #{request.green}
+        WHERE id = 1
+    </update>
+
+    <select id="getCrm" resultMap="CRMPercentResponse">
+        SELECT
+        indicator_first AS red,
+        indicator_second AS yellow,
+        indicator_third AS green
+        FROM crm_quotation_status_percents
+        WHERE id = 1
+    </select>
+
+    <update id="updateShareOption">
+        UPDATE quotations SET share_option = #{shareOption}, share_save_option = #{shareSaveOption} WHERE id = #{id}
+    </update>
+
+    <update id="insertShareUser" parameterType="java.util.Map">
+        UPDATE quotations
+        SET share_user = #{params.userIds}
+        WHERE id = #{params.id}
+    </update>
+
+    <update id="insertShareExceptUser" parameterType="java.util.Map">
+        UPDATE quotations
+        SET share_except_user = #{params.userIds}
+        WHERE id = #{params.id}
+    </update>
+
+    <select id="getCreator" parameterType="java.lang.Long" resultMap="QuotationCreator">
+        SELECT
+            quotations.created AS created,
+            quotations.created_by AS createdBy
+        FROM quotations
+        WHERE id = #{id}
+    </select>
+
+    <select id="countItems" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COUNT(*) AS total
+        FROM (
+                 SELECT id FROM quotation_details WHERE quotation_id = #{quotationId}
+                 UNION ALL
+                 SELECT id FROM quotation_services WHERE quotation_id = #{quotationId}
+                 UNION ALL
+                 SELECT id FROM quotation_miscs WHERE quotation_id = #{quotationId}
+             ) AS combined
+    </select>
+
+    <select id="getStatusInformation" parameterType="java.lang.Long" resultMap="QuotationStatusResponse">
+        SELECT
+        crm_quotation_status_infors.id AS id,
+        crm_quotation_status_infors.expected AS expected,
+        crm_quotation_status_infors.expected_week AS expectedWeek,
+        crm_quotation_status_infors.expected_month AS expectedMonth,
+        crm_quotation_status.id AS status,
+        crm_quotation_status.name AS statusName,
+        customer_lead_divisions.title AS division,
+        crm_quotation_status_infors.description AS description,
+        DATE(crm_quotation_status_infors.created) AS `date`,
+        CASE WHEN users.sex = 'Male' THEN
+        CONCAT('Mr. ', users.first_name, ' ', users.last_name)
+        WHEN users.sex = 'Female' THEN
+        CONCAT('Mrs. ', users.first_name, ' ', users.last_name)
+        ELSE
+        CONCAT(users.first_name, ' ', users.last_name)
+        END AS createdBy
+        FROM crm_quotation_status_infors
+        INNER JOIN crm_quotation_status ON crm_quotation_status.id = crm_quotation_status_infors.crm_quotation_status_id AND crm_quotation_status.is_active = 1
+        INNER JOIN customer_lead_divisions ON customer_lead_divisions.id = crm_quotation_status_infors.devision_id
+        INNER JOIN users ON users.id = crm_quotation_status_infors.created_by
+        WHERE crm_quotation_status_infors.quotation_id = #{quotationId}
+        <if test="latestRecord == 1">
+            ORDER BY crm_quotation_status_infors.id DESC LIMIT 1
+        </if>
+    </select>
+
+    <select id="getStatusInformationDetail" parameterType="java.lang.Long" resultMap="QuotationStatusResponse">
+        SELECT
+            crm_quotation_status_infro_details.crm_quotation_status_reason_id AS id,
+            crm_quotation_status_reasons.name AS name
+        FROM crm_quotation_status_infro_details
+        INNER JOIN crm_quotation_status_reasons ON crm_quotation_status_reasons.id = crm_quotation_status_infro_details.crm_quotation_status_reason_id
+        WHERE crm_quotation_status_infro_details.crm_quotaion_status_infor_id = #{id}
+    </select>
+
+    <insert id="insertStatusInformation" parameterType="com.ut.nlSystemAPi.model.entity.Quotation.QuotationStatusInformation" useGeneratedKeys="true" keyProperty="statusInformation.id">
+        INSERT INTO crm_quotation_status_infors (
+            quotation_id,
+            devision_id,
+            crm_quotation_status_id,
+            description,
+            need_name,
+            expected,
+            expected_week,
+            expected_month,
+            created,
+            created_by
+        )
+        VALUES (
+                   #{statusInformation.quotationId},
+                   #{statusInformation.divisionId},
+                   #{statusInformation.quotationStatusId},
+                   #{statusInformation.description},
+                   #{statusInformation.needName},
+                   #{statusInformation.expectedPercent},
+                   #{statusInformation.expectedWeek},
+                   #{statusInformation.expectedMonth},
+                   NOW(),
+                   #{statusInformation.createdBy}
+               );
+    </insert>
+
+    <insert id="insertStatusInformationDetail" parameterType="java.lang.Long">
+        INSERT INTO crm_quotation_status_infro_details (
+            crm_quotaion_status_infor_id,
+            crm_quotation_status_reason_id
+        )
+        VALUES (
+                   #{statusInformationId},
+                   #{reasonId}
+               );
+    </insert>
+
+    <select id="getUserShare" parameterType="java.lang.String" resultMap="QuotationDetailResponse">
+        SELECT
+            id AS id,
+            CONCAT(last_name, ' ', first_name) AS name
+        FROM users
+        WHERE FIND_IN_SET(id, #{userIds})
+    </select>
+
+    <select id="findProductInfo" resultMap="FindProductInfoResponse">
+        SELECT
+            q.quotation_code AS code,
+            q.quotation_date AS `date`,
+            COALESCE(u.abbr, 'Packet') AS uomAbbr,
+            qd.unit_price AS unitPrice,
+            products.name AS productName,
+            products.code AS sku,
+            products.barcode AS upc,
+            products.photo AS productPhotoUrl,
+            products.photo_name AS productPhotoName,
+            products.spec AS spec
+        FROM
+            quotation_details qd
+        INNER JOIN products ON products.id = qd.product_id
+        INNER JOIN quotations q ON qd.quotation_id = q.id
+        LEFT JOIN uoms u ON qd.qty_uom_id = u.id
+        WHERE qd.product_id = #{productId} AND q.status = 1
+        ORDER BY q.quotation_date DESC
+    </select>
+
+    <update id="updatePagination" parameterType="com.ut.nlSystemAPi.model.request.Quotation.QuotationPaginationRequest">
+        UPDATE quotations SET
+        page_row = #{request.page},
+        page_amount = #{request.itemPerPage}
+        WHERE id = #{request.id}
+    </update>
+
+</mapper>

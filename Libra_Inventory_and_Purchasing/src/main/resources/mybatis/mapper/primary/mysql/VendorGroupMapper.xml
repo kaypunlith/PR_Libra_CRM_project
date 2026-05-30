@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.VendorGroupMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        vgroups.id AS id,
+        vgroups.name AS name,
+        vgroups.vendor_type_id AS typeId,
+        vendor_types.name AS typeName,
+        vgroups.created AS created,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        vgroups.modified AS modified,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM vgroups
+        LEFT JOIN vendor_types ON vendor_types.id = vgroups.vendor_type_id
+        LEFT JOIN users AS users1 ON users1.id = vgroups.created_by
+        LEFT JOIN users AS users2 ON users2.id = vgroups.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE vgroups.is_active = 1
+        <if test="filter.searchText != null">
+            AND vgroups.name LIKE CONCAT('%', #{filter.searchText}, '%') OR vendor_types.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="VendorGroupResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                vgroups.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(vgroups.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="VendorGroupResponse">
+        SELECT
+          <include refid="BASE_COLUMN_LIST"/>
+          <include refid="BASE_FROM"/>
+        WHERE vgroups.is_active = 1 AND vgroups.id = #{id}
+   </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.VendorGroup" useGeneratedKeys="true" keyProperty="vendorGroup.id">
+        INSERT INTO vgroups (
+            name,
+            vendor_type_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+                     #{vendorGroup.name},
+                     #{vendorGroup.typeId},
+                     NOW(),
+                     #{vendorGroup.createdBy},
+                     #{vendorGroup.isActive}
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.VendorGroup">
+        UPDATE vgroups SET
+        <if test="vendorGroup.name != null">name = #{vendorGroup.name},</if>
+        <if test="vendorGroup.typeId != null">vendor_type_id = #{vendorGroup.typeId},</if>
+        modified = NOW(),
+        <if test="vendorGroup.modifiedBy != null">modified_by = #{vendorGroup.modifiedBy}</if>
+        WHERE id = #{vendorGroup.id}
+    </update>
+
+      <update id="delete" parameterType="java.lang.Long">
+        UPDATE vgroups SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+        WHERE id = #{id};
+      </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM vgroups
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <select id="getVgroupCompany" parameterType="java.lang.Long" resultMap="VgroupCompanyResponse">
+        SELECT
+            companies.id AS id,
+            companies.name AS name
+        FROM vgroup_companies
+        LEFT JOIN companies ON companies.id = vgroup_companies.company_id
+        WHERE companies.is_active = 1 AND vgroup_companies.vgroup_id = #{vGroupId}
+    </select>
+
+    <insert id="insertVgroupCompany" parameterType="com.ut.nlSystemAPi.model.VendorGroup">
+        INSERT INTO vgroup_companies (
+            vgroup_id,
+            company_id
+        ) VALUES (
+                     #{vendorGroup.id},
+                     #{vendorGroup.companyId}
+                 )
+    </insert>
+
+    <delete id="deleteVgroupCompany" parameterType="java.lang.Long">
+        DELETE FROM vgroup_companies WHERE vgroup_id = #{id}
+    </delete>
+
+    <select id="getVendorVgroup" parameterType="java.lang.Long" resultMap="VendorVGroupResponse">
+        SELECT
+            vendor_vgroups.vendor_id AS id,
+            vendors.name AS name
+        FROM vendor_vgroups
+                 LEFT JOIN vendors ON vendors.id = vendor_vgroups.vendor_id
+        WHERE vendors.is_active = 1 AND vendor_vgroups.vgroup_id = #{vGroupId}
+    </select>
+
+    <insert id="insertVendorVgroup" parameterType="com.ut.nlSystemAPi.model.VendorGroup">
+        INSERT INTO vendor_vgroups (
+            vgroup_id,
+            vendor_id
+        ) VALUES (
+                     #{vendorGroup.id},
+                     #{vendorGroup.vendorId}
+                 )
+    </insert>
+
+    <delete id="deleteVendorVgroup" parameterType="java.lang.Long">
+        DELETE FROM vendor_vgroups WHERE vgroup_id = #{id}
+    </delete>
+
+</mapper>

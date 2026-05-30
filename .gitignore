@@ -1,0 +1,40 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.versions
+pom.xml.bak
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+build/
+.mvn/wrapper/maven-wrapper.jar # Some projects ignore this, others track it
+
+# Gradle
+.gradle/
+build/
+
+# IDE - IntelliJ, VS Code, Eclipse (as seen in your image)
+.idea/
+.vscode/
+.settings/
+.project
+.classpath
+*.iml
+*.ipr
+*.iws
+
+# Operating System
+.DS_Store
+Thumbs.db
+.svn/
+
+# Logs and temporary files
+logs/
+*.log
+tmp/
+.temp/
+
+# Local scripts
+run-all.ps1
+

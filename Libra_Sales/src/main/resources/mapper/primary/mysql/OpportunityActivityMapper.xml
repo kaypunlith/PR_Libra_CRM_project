@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OpportunityActivityMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        coa.id AS id,
+        (SELECT GROUP_CONCAT(egroups.name SEPARATOR ', ') FROM egroups WHERE egroups.id IN (SELECT egroup_id FROM crm_opportunity_activity_egroups WHERE crm_opportunity_activity_id = coa.id)) AS employeeGroupName,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM crm_opportunity_stags WHERE crm_opportunity_stags.id IN (SELECT crm_opportunity_stag_id FROM crm_opportunity_stag_activities WHERE crm_opportunity_activity_id = coa.id)) AS stageName,
+        coa.name AS activityName,
+        (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM crm_opportunity_tasks WHERE crm_opportunity_activity_id = coa.id AND is_active = 1) AS taskName,
+        coa.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        coa.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_opportunity_activities AS coa
+        LEFT JOIN users AS creator ON creator.id = coa.created_by
+        LEFT JOIN users AS modifier ON modifier.id = coa.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE coa.is_active = 1
+        <if test="filter.searchText != null">
+            AND coa.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="OpportunityActivityResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>coa.name ASC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(coa.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="OpportunityActivityResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE coa.is_active = 1 AND coa.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="activity.id">
+        INSERT INTO crm_opportunity_activities(name, is_active)
+        VALUES (#{activity.name}, #{activity.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE crm_opportunity_activities SET name = #{activity.name}
+        WHERE id = #{activity.id} AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_opportunity_activities SET is_active = 2
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id) FROM crm_opportunity_activities
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insertEmployeeGroup">INSERT INTO crm_opportunity_activity_egroups(crm_opportunity_activity_id, egroup_id) VALUES (#{activityId}, #{employeeGroupId})</insert>
+    <insert id="insertStage">INSERT INTO crm_opportunity_stag_activities(crm_opportunity_activity_id, crm_opportunity_stag_id) VALUES (#{activityId}, #{stageId})</insert>
+    <insert id="insertTask">INSERT INTO crm_opportunity_tasks(crm_opportunity_activity_id, name, created, created_by, is_active) VALUES (#{activityId}, #{name}, NOW(), #{userId}, 1)</insert>
+    <delete id="deleteEmployeeGroup">DELETE FROM crm_opportunity_activity_egroups WHERE crm_opportunity_activity_id = #{activityId}</delete>
+    <delete id="deleteStage">DELETE FROM crm_opportunity_stag_activities WHERE crm_opportunity_activity_id = #{activityId}</delete>
+    <update id="deleteTask">UPDATE crm_opportunity_tasks SET is_active = 2, modified = NOW(), modified_by = #{userId} WHERE crm_opportunity_activity_id = #{activityId}</update>
+    <select id="getEmployeeGroupIds" resultType="java.lang.Long">SELECT egroup_id FROM crm_opportunity_activity_egroups WHERE crm_opportunity_activity_id = #{activityId}</select>
+    <select id="getStageIds" resultType="java.lang.Long">SELECT crm_opportunity_stag_id FROM crm_opportunity_stag_activities WHERE crm_opportunity_activity_id = #{activityId}</select>
+    <select id="getTasks" resultType="java.lang.String">SELECT name FROM crm_opportunity_tasks WHERE crm_opportunity_activity_id = #{activityId} AND is_active = 1</select>
+
+</mapper>

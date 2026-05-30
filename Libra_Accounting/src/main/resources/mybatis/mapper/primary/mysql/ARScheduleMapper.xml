@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ARScheduleMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    ar_schedules.id AS id,
+    branches.name AS branchName,
+    branches.id AS branchId,
+    CONCAT(ar_schedules.start_date, ' ', ar_schedules.start_time ) AS startDate,
+    CONCAT(ar_schedules.end_date, ' ', ar_schedules.end_time ) AS endDate,
+    ar_schedules.title AS title,
+    ar_schedules.backgroundColor AS backgroundColor,
+    ar_schedules.privacy AS privacy,
+    DATE_FORMAT(ar_schedules.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(ar_schedules.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM ar_schedules
+    LEFT JOIN branches ON branches.id = ar_schedules.branch_id
+    LEFT JOIN users AS users1 ON users1.id = ar_schedules.created_by
+    LEFT JOIN users AS users2 ON users2.id = ar_schedules.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE ar_schedules.is_active = 1
+    <if test="filter.dateFrom != null">
+        AND ar_schedules.start_date >= DATE(#{filter.dateFrom})
+    </if>
+    <if test="filter.dateTo != null">
+        AND ar_schedules.start_date &lt;= DATE(#{filter.dateTo})
+    </if>
+    <if test="filter.searchText != null and filter.searchText != ''">
+      AND (sales_orders.so_code LIKE CONCAT('%', #{filter.searchText}, '%'))
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultMap="ARScheduleResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        ar_schedules.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleFilter" resultType="java.lang.Long">
+    SELECT COUNT(ar_schedules.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getDetails" parameterType="java.lang.Long" resultMap="ARScheduleResponseDetails">
+    SELECT
+    sales_orders.id AS id,
+    sales_orders.so_code AS name,
+    (sales_orders.balance) AS amountDue,
+    (SELECT name FROM customers WHERE id = sales_orders.customer_id) AS customerName
+    FROM ar_schedule_details
+    LEFT JOIN sales_orders ON sales_orders.id = ar_schedule_details.sales_order_id
+    WHERE ar_schedule_details.ar_schedule_id = #{arScheduleId} AND ar_schedule_details.is_active = 1 LIMIT 1;
+  </select>
+
+  <select id="getOne" resultMap="ARScheduleResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE ar_schedules.id = #{id} AND ar_schedules.is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM chart_accounts
+    WHERE is_active &lt; 2 AND account_codes = #{accountCode}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+   <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ARSchedule" useGeneratedKeys="true" keyProperty="arSchedule.id">
+    INSERT INTO ar_schedules(
+      branch_id,
+      start_date,
+      start_time,
+      end_date,
+      end_time,
+      title,
+      backgroundColor,
+      privacy,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+        #{arSchedule.branchId},
+         #{arSchedule.startDate},
+         #{arSchedule.startTime},
+         #{arSchedule.endDate},
+         #{arSchedule.endTime},
+         #{arSchedule.title},
+         #{arSchedule.backgroundColor},
+         #{arSchedule.privacy},
+         NOW(),
+         #{arSchedule.createdBy},
+         #{arSchedule.isActive}
+       );
+  </insert>
+
+  <insert id="insertDetails" parameterType="com.ut.nlSystemAPi.model.ARScheduleDetails">
+    INSERT INTO ar_schedule_details (ar_schedule_id, sales_order_id, amount_due)
+    VALUES (#{arScheduleDetails.arScheduleId}, #{arScheduleDetails.salesOrderId}, #{arScheduleDetails.amountDue});
+  </insert>
+
+  <update id="deleteDetails" parameterType="java.lang.Long">
+    UPDATE ar_schedule_details SET is_active = 2 WHERE ar_schedule_id = #{arScheduleId};
+  </update>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.request.Login.ARAPSchedule.ARAPScheduleUpdateRequest">
+    UPDATE ar_schedules SET
+      <if test="arSchedule.branchId != null"> `branch_id` = #{arSchedule.branchId},</if>
+    <if test="arSchedule.startDate != null"> `start_date` = #{arSchedule.startDate},</if>
+    <if test="arSchedule.endDate != null"> `end_date` = #{arSchedule.endDate},</if>
+    <if test="arSchedule.startTime != null"> `start_time` = #{arSchedule.startTime},</if>
+    <if test="arSchedule.endTime != null"> `end_time` = #{arSchedule.endTime},</if>
+    <if test="arSchedule.title != null"> `title` = #{arSchedule.title},</if>
+    <if test="arSchedule.backgroundColor != null"> `backgroundColor` = #{arSchedule.backgroundColor},</if>
+    <if test="arSchedule.privacy != null"> `privacy` = #{arSchedule.privacy},</if>
+      modified = NOW(),
+      modified_by = #{arSchedule.modifiedBy}
+    WHERE id = #{arSchedule.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE ar_schedules SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+    <select id="getInvoiceBookingOverdue" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="ARScheduleTotalResponse">
+        SELECT
+            CASE
+                WHEN type = 1 THEN 'Trading'
+                ELSE 'Software'
+            END AS name,
+            COUNT(sales_orders.customer_id) AS total,
+            IFNULL(SUM(sales_orders.balance), 0) AS amount
+        FROM sales_orders
+        WHERE sales_orders.status > 0
+            AND sales_orders.balance > 0
+            AND sales_orders.id IN (
+                SELECT sales_order_id
+                FROM ar_schedule_details
+                INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+                WHERE ar_schedules.is_close = 0
+                AND ar_schedules.is_active = 1
+                <if test="filter.branchId != null">
+                    AND ar_schedules.branch_id = #{filter.branchId}
+                </if>
+                AND ar_schedules.start_date &lt;= NOW()
+            )
+        GROUP BY type
+    </select>
+
+    <select id="getInvoiceBooked" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="ARScheduleTotalResponse">
+        SELECT
+            CASE
+                WHEN type = 1 THEN 'Trading'
+                ELSE 'Software'
+            END AS name,
+            COUNT(sales_orders.customer_id) AS total,
+            IFNULL(SUM(sales_orders.balance), 0) AS amount
+        FROM sales_orders
+        WHERE sales_orders.status > 0
+        AND sales_orders.balance > 0
+        AND sales_orders.id IN (
+            SELECT sales_order_id
+            FROM ar_schedule_details
+            INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+            WHERE ar_schedules.is_close = 0
+            AND ar_schedules.is_active = 1
+            <if test="filter.branchId != null">
+                AND ar_schedules.branch_id = #{filter.branchId}
+            </if>
+        )
+        GROUP BY type
+    </select>
+
+    <select id="getInvoiceBookedByUser" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="ARScheduleTotalResponse">
+        SELECT
+            (SELECT CONCAT(last_name, ' ',first_name) FROM users WHERE id = ar_schedules.created_by) AS name,
+            COUNT(sales_orders.customer_id) AS total,
+            IFNULL(SUM(sales_orders.balance), 0) AS amount
+        FROM sales_orders
+        INNER JOIN ar_schedule_details ON sales_orders.id = ar_schedule_details.sales_order_id AND ar_schedule_details.is_active = 1
+        INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+        WHERE sales_orders.status >= 1
+        AND sales_orders.balance > 0
+        AND ar_schedules.is_active = 1
+        AND sales_orders.id IN (
+            SELECT sales_order_id
+            FROM ar_schedule_details
+            INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+            WHERE ar_schedules.is_close = 0
+            AND ar_schedules.is_active = 1
+            <if test="filter.branchId != null">
+                AND ar_schedules.branch_id = #{filter.branchId}
+            </if>
+        )
+        GROUP BY ar_schedules.created_by
+    </select>
+
+    <select id="getTotalCustomer" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultMap="ARScheduleTotalResponse">
+        SELECT
+            COUNT(DISTINCT sales_orders.customer_id) AS totalOrganization,
+            IFNULL(SUM(sales_orders.balance), 0) AS amount
+        FROM sales_orders
+        WHERE sales_orders.status >= 1
+        AND sales_orders.balance > 0
+        AND sales_orders.id IN (
+            SELECT sales_order_id
+            FROM ar_schedule_details
+            INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id AND ar_schedule_details.is_active = 1
+            WHERE ar_schedules.is_close = 0
+            AND ar_schedules.is_active = 1
+            <if test="filter.branchId != null">
+                AND ar_schedules.branch_id = #{filter.branchId}
+            </if>
+        )
+        <if test="filter.branchId != null">
+            AND branch_id = #{filter.branchId}
+        </if>
+    </select>
+
+    <select id="getInvoiceBookedByWeek" parameterType="com.ut.nlSystemAPi.model.filter.ARAPScheduleWeekFilter" resultMap="ARScheduleTotalResponse">
+        SELECT
+            COUNT(sales_orders.customer_id) AS total,
+            CONCAT('Week ', CEIL(DAY(ar_schedules.start_date) / 7)) AS name,
+            SUM(sales_orders.balance) AS amount
+        FROM sales_orders
+        INNER JOIN ar_schedule_details ON sales_orders.id = ar_schedule_details.sales_order_id AND ar_schedule_details.is_active = 1
+        INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+        WHERE sales_orders.status >= 1
+            AND sales_orders.balance > 0
+            AND ar_schedules.is_close = 0
+            AND ar_schedules.is_active = 1
+            <if test="filter.branchId != null">
+                AND ar_schedules.branch_id = #{filter.branchId}
+            </if>
+            AND MONTH(ar_schedules.start_date) = MONTH(NOW())
+            AND YEAR(ar_schedules.start_date) = YEAR(NOW())
+        GROUP BY CEIL(DAY(ar_schedules.start_date) / 7)
+        ORDER BY CEIL(DAY(ar_schedules.start_date) / 7);
+    </select>
+
+    <select id="getInvoiceBookingThisWeek" parameterType="com.ut.nlSystemAPi.model.base.FilterBase" resultType="java.lang.Double">
+        SELECT
+            IFNULL(SUM(sales_orders.balance), 0) AS totalAmountBookingOverdue
+        FROM sales_orders
+        INNER JOIN ar_schedule_details ON ar_schedule_details.sales_order_id = sales_orders.id
+        INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+        WHERE sales_orders.status > 0
+        AND sales_orders.balance > 0
+        AND sales_orders.id IN (
+            SELECT sales_order_id
+            FROM ar_schedule_details
+            INNER JOIN ar_schedules ON ar_schedules.id = ar_schedule_details.ar_schedule_id
+            WHERE ar_schedules.is_close = 0
+            AND ar_schedules.is_active = 1
+            <if test="filter.dateFrom != null and filter.dateFrom">
+                AND YEAR(ar_schedules.start_date) = YEAR(DATE(#{filter.dateFrom}))
+                AND MONTH(ar_schedules.start_date) = MONTH(DATE(#{filter.dateFrom}))
+            </if>
+            <if test="filter.branchId != null">
+                AND ar_schedules.branch_id = #{filter.branchId}
+            </if>
+        )
+        GROUP BY WEEK(ar_schedules.start_date, 1)
+        ORDER BY WEEK(ar_schedules.start_date, 1);
+    </select>
+
+
+</mapper>

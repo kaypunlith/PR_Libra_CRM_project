@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CompanyMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        companies.name AS name,
+        companies.vat_number AS vatNumber,
+        companies.id AS id,
+        currency_centers.id AS currencyCenterId,
+        currency_centers.name AS currencyCenterName,
+        companies.business_number AS officeTelephone,
+        companies.other_number AS otherTelephone,
+        companies.fax_number AS faxNumber,
+        companies.email_address AS email,
+        companies.address AS address,
+        companies.address_kh AS addressInKhmer,
+        companies.photo AS photo,
+        companies.photo AS photo,
+        companies.created AS created,
+        companies.modified AS modified,
+        CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+        CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM companies
+        LEFT JOIN users AS users1 ON users1.id = companies.created_by
+        LEFT JOIN users AS users2 ON users2.id = companies.modified_by
+        LEFT JOIN currency_centers AS currency_centers ON currency_centers.id = companies.currency_center_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE companies.is_active = 1
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CompanyResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                companies.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT( companies.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="CompanyResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE companies.id = #{id} AND companies.is_active = 1
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM companies
+        WHERE is_active = 1 AND (name = #{name})
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="company.id" parameterType="com.ut.nlSystemAPi.model.Company">
+        INSERT INTO companies
+        (
+            name,
+            `currency_center_id`,
+            `vat_number`,
+            `business_number`,
+            other_number,
+            fax_number,
+            email_address,
+            address
+            ,address_kh,
+            photo,
+            created,
+            created_by,
+            is_active
+        )
+        VALUES (
+                   #{company.name},
+                   #{company.baseCurrencyId},
+                   #{company.vatNo},
+                   #{company.officeTelephone},
+                   #{company.otherTelephone},
+                   #{company.faxNumber},
+                   #{company.email},
+                   #{company.address},
+                   #{company.addressInKhmer},
+                   #{company.photo},
+                   NOW(),
+                   #{company.createdBy},
+                    #{company.isActive})
+    </insert>
+
+        <update id="update" parameterType="com.ut.nlSystemAPi.model.Company">
+            UPDATE companies
+            <set>
+                <if test="company.name != null">name = #{company.name},</if>
+                <if test="company.baseCurrencyId != null">currency_center_id = #{company.baseCurrencyId},</if>
+                <if test="company.vatNo != null">vat_number = #{company.vatNo},</if>
+                <if test="company.officeTelephone != null">business_number = #{company.officeTelephone},</if>
+                <if test="company.otherTelephone != null">other_number = #{company.otherTelephone},</if>
+                <if test="company.faxNumber != null">fax_number = #{company.faxNumber},</if>
+                <if test="company.email != null">email_address = #{company.email},</if>
+                <if test="company.address != null">address = #{company.address},</if>
+                <if test="company.addressInKhmer != null">address_kh = #{company.addressInKhmer},</if>
+                <if test="company.photo != null">photo = #{company.photo},</if>
+                <if test="company.isActive != null">is_active = #{company.isActive},</if>
+                modified = NOW(),
+                modified_by = #{company.modifiedBy}
+            </set>
+            WHERE id = #{company.id}
+        </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE companies
+        SET is_active   = 2,
+            modified    = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id};
+    </update>
+
+</mapper>

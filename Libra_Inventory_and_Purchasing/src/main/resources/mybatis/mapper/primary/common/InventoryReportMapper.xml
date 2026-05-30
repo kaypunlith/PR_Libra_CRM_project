@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.InventoryReportMapper">
+
+  <resultMap id="InventoryAdjustmentReportResponse" type="com.ut.nlSystemAPi.model.response.InventoryAdjustmentReport.InventoryAdjustmentReportResponse">
+
+  </resultMap>
+
+  <resultMap id="InventoryAdjustmentReportByItemResponse" type="com.ut.nlSystemAPi.model.response.InventoryAdjustmentReport.InventoryAdjustmentReportByItemResponse">
+
+  </resultMap>
+
+  <resultMap id="InventoryAdjustmentReportByItemDetailResponse" type="com.ut.nlSystemAPi.model.response.InventoryAdjustmentReport.InventoryAdjustmentReportByItemDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="StockAvailableForSaleReportResponse" type="com.ut.nlSystemAPi.model.response.StockAvailableForSale.StockAvailableForSaleReportResponse">
+
+  </resultMap>
+
+  <resultMap id="StockAvailableForSaleReportDetailResponse" type="com.ut.nlSystemAPi.model.response.StockAvailableForSale.StockAvailableForSaleReportDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="GlobalInventoryReportResponse" type="com.ut.nlSystemAPi.model.response.GlobalInventory.GlobalInventoryReportResponse">
+
+  </resultMap>
+
+  <resultMap id="GlobalInventoryReportDetailResponse" type="com.ut.nlSystemAPi.model.response.GlobalInventory.GlobalInventoryReportDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductAverageCostReportResponse" type="com.ut.nlSystemAPi.model.response.ProductAverageCost.ProductAverageCostReportResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPriceListReportResponse" type="com.ut.nlSystemAPi.model.response.ProductPriceList.ProductPriceListReportResponse">
+
+  </resultMap>
+
+  <resultMap id="ProductPriceListDetailReportResponse" type="com.ut.nlSystemAPi.model.response.ProductPriceList.ProductPriceListDetailReportResponse">
+
+  </resultMap>
+
+  <resultMap id="ValuationReportResponse" type="com.ut.nlSystemAPi.model.response.Valuation.ValuationReportResponse">
+
+  </resultMap>
+
+  <resultMap id="ValuationReportDetailResponse" type="com.ut.nlSystemAPi.model.response.Valuation.ValuationReportDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="PriceRequestTrackingReportResponse" type="com.ut.nlSystemAPi.model.response.PriceRequestTracking.PriceRequestTrackingReportResponse">
+
+  </resultMap>
+
+  <resultMap id="PriceRequestTrackingReportPriceRequestResponse" type="com.ut.nlSystemAPi.model.response.PriceRequestTracking.PriceRequestTrackingReportPriceRequestResponse">
+
+  </resultMap>
+
+  <resultMap id="PriceRequestTrackingReportQuotationResponse" type="com.ut.nlSystemAPi.model.response.PriceRequestTracking.PriceRequestTrackingReportQuotationResponse">
+
+  </resultMap>
+
+  <resultMap id="PriceRequestTrackingReportSaleOrderResponse" type="com.ut.nlSystemAPi.model.response.PriceRequestTracking.PriceRequestTrackingReportSaleOrderResponse">
+
+  </resultMap>
+
+  <resultMap id="InventoryActivityReportResponse" type="com.ut.nlSystemAPi.model.response.InventoryActivity.InventoryActivityReportResponse">
+
+  </resultMap>
+
+  <resultMap id="InventoryActivityReportDetailResponse" type="com.ut.nlSystemAPi.model.response.InventoryActivity.InventoryActivityReportDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="ExpiryDateReportResponse" type="com.ut.nlSystemAPi.model.response.ExpiryDateReport.ExpiryDateReportResponse">
+
+  </resultMap>
+
+</mapper>

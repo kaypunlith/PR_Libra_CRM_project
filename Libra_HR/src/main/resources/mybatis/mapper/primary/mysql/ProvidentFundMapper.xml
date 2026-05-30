@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ProvidentFundMapper">
+    
+  <sql id="BASE_COLUMN_LIST">
+      id AS employeeId,
+      name_kh AS nameKh,
+      `name` AS nameEn,
+      code AS employeesCode,
+      (SELECT name FROM positions WHERE id = position_id) AS positionName,
+      (SELECT name FROM departments WHERE id = department_id) AS departmentName,
+      account_number AS bankAccount,
+      account_id AS accountNumber,
+      telephone AS telephone,
+      employees.gender AS gender,
+      (SELECT COALESCE(SUM(total_of_months),0) FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10
+      AND amount > 0 AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = employees.id
+      AND payrolls.pay_date &lt;= #{filter.filterMonth})) AS totalOfMonth,
+      (SELECT
+      (SELECT COALESCE(SUM(amount),0) FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10
+      AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = employees.id
+      AND payrolls.pay_date &lt;= #{filter.filterMonth} )) -
+      (SELECT COALESCE(SUM(amount),0) FROM provident_fund_details WHERE is_active = 1 AND status = 2 AND employee_id = employees.id
+      AND provident_fund_id IN (SELECT id FROM provident_funds WHERE is_active = 1 AND date &lt;= #{filter.filterMonth}))) AS providentFundAmount
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM employees
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE is_active = 1 AND is_provident_fund = 1
+    AND id NOT IN (SELECT employee_id FROM provident_fund_details WHERE is_active = 1 AND status = 1)
+    <if test="filter.searchText != null">
+      AND (
+        (employees.name_en LIKE #{filter.searchText}) OR
+        (employees.name_kh LIKE #{filter.searchText}) OR
+        (employees.code LIKE #{filter.searchText})
+      )
+    </if>
+    <if test="filter.employeeId != null">
+        AND employees.id = #{filter.employeeId}
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.ProvidentFundListFilter" resultMap="ProvidentFundResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+            id DESC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="count" parameterType="com.ut.nlSystemAPi.model.ProvidentFundListFilter" resultType="java.lang.Long">
+    SELECT COUNT(*)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="listProFundHistory" resultMap="ProvidentFundHistory">
+      SELECT
+      id,
+      `date`,
+      historyAmount
+      FROM (
+          SELECT
+          pd.id AS id,
+          DATE_FORMAT(p.pay_date, "%d-%b-%Y") AS `date`,
+          CONCAT_WS('', '+', pd.amount, '$') AS historyAmount,
+          p.pay_date AS sort_date
+          FROM payrolls AS p
+          INNER JOIN payroll_details AS pd ON p.id = pd.payroll_id
+          WHERE p.is_active = 1
+          AND pd.is_active = 1
+          AND pd.payroll_item_id = 10
+          AND pd.amount > 0
+          AND p.employee_id = #{employeesId}
+          AND p.pay_date &lt;= #{filterMonth}
+
+          UNION ALL
+
+          SELECT
+          pfd.id AS id,
+          DATE_FORMAT(pf.request_date, "%d-%b-%Y") AS `date`,
+          CONCAT_WS('', '-', pfd.amount, '$') AS historyAmount,
+          pf.request_date AS sort_date
+          FROM provident_funds AS pf
+          INNER JOIN provident_fund_details AS pfd
+          ON pf.id = pfd.provident_fund_id
+          WHERE pfd.is_active = 1
+          AND pfd.status = 2
+          AND pfd.employee_id = #{employeesId}
+          AND pf.date &lt; #{filterMonth}
+          ) AS history
+      ORDER BY sort_date DESC
+  </select>
+
+  <select id="getOne" resultMap="ProvidentFundResponse">
+    SELECT
+        provident_funds.id AS id,
+        DATE_FORMAT(request_date, "%d-%b-%Y") AS requestDate,
+        date AS filterMonth,
+        title AS title
+    FROM provident_funds
+    WHERE is_active = 1 AND id = #{id}
+  </select>
+
+  <select id="listProFundByEmp" resultMap="ProvidentFundDetailResponse">
+    SELECT
+        provident_funds.date AS filterMonth,
+        pfd.status AS status,
+        pfd.amount AS amountRequest,
+        pfd.employee_id AS employeeId,
+        employees.code AS employeesCode,
+        employees.name_kh AS nameKh,
+        employees.name_en AS nameEn,
+        employees.gender AS gender,
+        employees.telephone AS telephone,
+        positions.name AS positionName,
+        departments.name AS departmentName,
+        employees.account_number AS bankAccount,
+        employees.account_id as accountNumber,
+        (SELECT
+            (SELECT COALESCE(SUM(amount),0) FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10
+             AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = pfd.employee_id
+             AND payrolls.pay_date &lt;= #{filterMonth} )) -
+            (SELECT COALESCE(SUM(amount),0) FROM provident_fund_details WHERE is_active = 1 AND employee_id = pfd.employee_id
+             AND provident_fund_id IN (SELECT id FROM provident_funds WHERE is_active = 1 AND date &lt; #{filterMonth}) )) AS providentFundAmount,
+        pfd.amount AS providentFundAmount,
+        IFNULL(pfd.total_months, 0) AS totalOfMonth,
+        IFNULL(pfd.bonus_amount, 0) AS bonusHaftProfundAmount
+    FROM provident_fund_details AS pfd
+        INNER JOIN provident_funds ON provident_funds.id = pfd.provident_fund_id
+        INNER JOIN employees ON employees.id = pfd.employee_id
+        LEFT JOIN positions ON positions.id = employees.position_id
+        LEFT JOIN departments ON departments.id = employees.department_id
+    WHERE pfd.is_active = 1 AND pfd.provident_fund_id = #{proFundId}
+  </select>
+
+  <sql id="PROVIDENT_FUND_COLUMN_LIST">
+        *,
+        DATE_FORMAT(request_date, "%d-%b-%Y") AS requestDate,
+        DATE_FORMAT(created, "%d-%m-%Y %k:%i") AS createdDate,
+        DATE_FORMAT(modified, "%d-%m-%Y %k:%i") AS modifiedDate,
+        title AS title,
+        (SELECT COALESCE(SUM(amount),0) FROM provident_fund_details WHERE provident_fund_id = provident_funds.id AND is_active = 1) AS amountRequest,
+        (SELECT username FROM users WHERE id = provident_funds.created_by) AS createdByName,
+        (SELECT username FROM users WHERE id = provident_funds.modified_by) AS modifiedByName
+  </sql>
+
+  <sql id="PROVIDENT_FUND_FROM">
+    FROM provident_funds
+  </sql>
+
+  <sql id="PROVIDENT_FUND_WHERE">
+      WHERE is_active = 1
+      <if test="filter.titleId != null and filter.titleId > 0">
+          AND id = #{filter.titleId}
+      </if>
+      <if test="filter.status != null and filter.status > 0">
+          AND status = #{filter.status}
+      </if>
+      <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+          AND DATE(provident_funds.created) >= #{filter.dateFrom} AND DATE(provident_funds.created) &lt;= #{filter.dateTo}
+      </if>
+  </sql>
+
+  <select id="getListProFund" resultMap="ProvidentFund">
+    SELECT
+    <include refid="PROVIDENT_FUND_COLUMN_LIST"/>
+    <include refid="PROVIDENT_FUND_FROM"/>
+    <include refid="PROVIDENT_FUND_WHERE"/>
+    ORDER BY id DESC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countProFund" resultType="int">
+    SELECT count(*)
+    <include refid="PROVIDENT_FUND_FROM"/>
+    <include refid="PROVIDENT_FUND_WHERE"/>
+  </select>
+
+  <select id="getLastDateRequest" resultType="java.lang.String">
+    SELECT request_date
+    FROM provident_funds
+    WHERE is_active = 1 AND status = 2 AND id IN (SELECT provident_fund_id FROM provident_fund_details WHERE is_active = 1 AND employee_id = #{employeeId})
+    ORDER BY id DESC LIMIT 01
+  </select>
+
+  <select id="getTotalofMonth" resultType="java.lang.Long">
+     SELECT COALESCE(SUM(total_of_months),0)
+     FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 10
+        AND amount > 0 AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = #{employeeId}
+        AND payrolls.pay_date &lt;= #{filterDate} AND payrolls.pay_date > #{lastDateRequest})
+  </select>
+
+  <select id="checkStatusEmp" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM provident_fund_details
+    WHERE provident_fund_id = #{proFundId} AND status = 1 AND is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employees
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="providentFund.id">
+    INSERT INTO provident_funds (
+      request_date,
+      date,
+      title,
+      status,
+      created,
+      created_by,
+      modified,
+      modified_by,
+      is_active
+    ) VALUES (
+      #{providentFund.requestDate},
+      #{providentFund.filterMonth},
+      #{providentFund.title},
+      #{providentFund.status},
+      NOW(),
+      #{providentFund.createdBy},
+      NOW(),
+      #{providentFund.modifiedBy},
+      #{providentFund.isActive}
+    )
+  </insert>
+
+  <insert id="insertProFundDetail" useGeneratedKeys="true" keyProperty="providentFundDetail.id">
+    INSERT INTO provident_fund_details (
+       provident_fund_id,
+       employee_id,
+       amount,
+       total_months,
+       bonus_amount,
+       status,
+       created,
+       created_by,
+       is_active
+    ) VALUES (
+       #{providentFundDetail.providentFundId},
+       #{providentFundDetail.employeesId},
+       #{providentFundDetail.amountRequest},
+       #{providentFundDetail.totalOfMonth},
+       #{providentFundDetail.bonusHaftProfundAmount},
+       #{providentFundDetail.status},
+       NOW(),
+       #{providentFundDetail.createdBy},
+       #{providentFundDetail.isActive}
+    );
+  </insert>
+
+  <update id="update">
+    UPDATE provident_funds SET
+      <if test="providentFund.title != null">title = #{providentFund.title},</if>
+      modified = NOW(),
+      modified_by = #{providentFund.modifiedBy}
+      WHERE id = #{providentFund.id}
+  </update>
+
+  <delete id="deleteProFundDetail">
+    UPDATE provident_fund_details SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE provident_fund_id = #{providentFundId}
+  </delete>
+
+  <delete id="delete">
+    UPDATE provident_funds SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+
+    UPDATE provident_fund_details SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE provident_fund_id = #{id};
+  </delete>
+
+  <update id="updateStatusAll">
+    UPDATE provident_funds SET
+        status = #{providentFundUpdateStatus.status},
+        modified = NOW(),
+        modified_by = #{providentFundUpdateStatus.modifiedBy}
+    WHERE id = #{providentFundUpdateStatus.id};
+
+    UPDATE provident_funds SET
+        amount_request = (SELECT COALESCE(SUM(amount),0) FROM provident_fund_details WHERE provident_fund_id = #{providentFundUpdateStatus.id} AND is_active = 1)
+    WHERE id = #{providentFundUpdateStatus.id};
+  </update>
+
+  <update id="updateStatusProFund">
+    UPDATE provident_funds SET
+        modified = NOW(),
+        modified_by = #{providentFundRequestStatus.modifiedBy}
+    WHERE is_active = 1 AND id = #{providentFundRequestStatus.providentFundId}
+  </update>
+
+  <update id="updateStatusByEmp">
+    UPDATE provident_fund_details SET
+        status = #{providentFundRequestStatusByEmp.status},
+        modified = NOW(),
+        modified_by = #{providentFundRequestStatusByEmp.modifiedBy}
+    WHERE is_active = 1 AND provident_fund_id = #{proFundId} AND employee_id = #{providentFundRequestStatusByEmp.employeesId}
+  </update>
+
+  <select id="getListTitle" resultMap="TitleResponse">
+    SELECT
+     id AS id,
+     title AS title
+    FROM provident_funds
+    WHERE is_active = 1
+  </select>
+
+  <select id="getEmployeeProvidentFund" resultMap="EmployeesResponse">
+    SELECT
+        id AS id,
+        code AS empId,
+        name_kh AS nameKh,
+        name_en AS nameEn,
+        department_id AS departmentId,
+        (SELECT name FROM departments WHERE is_active = 1 AND id = department_id) AS departmentName
+    FROM employees
+    WHERE is_active = 1 AND is_provident_fund = 1
+      <if test="filter.groupId != null and filter.groupId > 0">
+          AND employees.department_id IN (SELECT id FROM departments WHERE is_active = 1 AND group_id = #{filter.groupId})
+      </if>
+      <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+    
+</mapper>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.RoleMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    *,
+    DATE_FORMAT(created, "%d/%m/%y %r") AS modifiedDate
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM `groups`
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE is_active = 1
+    <if test="filter.searchText != null">AND name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="Role">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        name ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="Role">
+    SELECT *
+    FROM `groups`
+    WHERE is_active = 1 AND id = #{id}
+  </select>
+
+  <select id="getUser" parameterType="java.lang.Long" resultMap="RoleUser">
+    SELECT
+      *,
+      (SELECT COUNT(id) FROM user_groups WHERE user_id = users.id AND group_id = #{id} LIMIT 01) AS checked
+    FROM users
+    WHERE is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM `groups`
+    WHERE name = #{name} AND is_active = 1
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Role" useGeneratedKeys="true" keyProperty="role.id">
+    INSERT INTO `groups` (
+      sys_code,
+      name,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+      MD5(NOW()),
+      #{role.name},
+      NOW(),
+      #{role.createdBy},
+      #{role.isActive}
+    )
+  </insert>
+
+  <insert id="insertUserRole">
+    DELETE FROM    WHERE user_id = #{userId};
+    INSERT INTO user_groups (user_id, group_id) VALUES (#{userId}, #{roleId});
+  </insert>
+
+  <insert id="insertRoleUser">
+    INSERT INTO user_groups (user_id, group_id) VALUES (#{userId}, #{roleId});
+  </insert>
+
+  <insert id="deleteRoleUser">
+    DELETE FROM user_groups WHERE group_id = #{roleId}
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Role">
+    UPDATE `groups` SET
+      <if test="role.name != null">`name` = #{role.name},</if>
+      <if test="role.isActive != null">`is_active` = #{role.isActive},</if>
+      modified = NOW(),
+      modified_by = #{role.modifiedBy}
+    WHERE id = #{role.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE `groups` SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id}
+  </update>
+
+  <select id="getModule" resultMap="ModuleType">
+        SELECT
+          *
+        FROM
+          module_types
+        WHERE
+          is_setting = 0 AND
+          status = 1 AND
+          id IN (
+            SELECT
+              (SELECT module_type_id FROM modules WHERE id = module_id AND is_view = 1)
+            FROM
+              permissions
+            WHERE
+              group_id IN (SELECT group_id FROM user_groups WHERE user_id = #{userId})
+          )
+    </select>
+
+  <select id="getSettingModule" resultMap="ModuleType">
+        SELECT
+          *
+        FROM
+          module_types
+        WHERE
+          is_setting = 1 AND
+          status = 1 AND
+          id IN (
+            SELECT
+              (SELECT module_type_id FROM modules WHERE id = module_id AND type = 'VIEW')
+            FROM
+              permissions
+            WHERE
+              group_id IN (SELECT group_id FROM user_groups WHERE user_id = #{userId})
+          )
+    </select>
+
+</mapper>

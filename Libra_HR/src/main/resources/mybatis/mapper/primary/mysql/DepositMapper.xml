@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DepositMapper">
+    
+  <sql id="BASE_COLUMN_LIST">
+    *,
+    code AS employeesCode,
+    (SELECT name FROM positions WHERE id = position_id) AS positionName,
+    (SELECT
+        (SELECT COALESCE(SUM(amount),0) FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 5
+         AND payroll_id IN (SELECT id FROM payrolls WHERE is_active = 1 AND employee_id = employees.id
+         AND payrolls.pay_date &lt;= #{filter.filterMonth} AND NOT payrolls.pay_date = '2020-11-25' )) -
+        (SELECT COALESCE(SUM(amount),0) FROM deposit_request_details WHERE is_active = 1 AND employee_id = employees.id
+        AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1 AND date &lt;= #{filter.filterMonth}) )) AS depositAmount
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM employees
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE is_active = 1 AND is_deposit = 1
+    AND id NOT IN (SELECT employee_id FROM deposit_request_details WHERE is_active = 1 AND status = 1)
+    <if test="filter.searchText != null">
+      AND (
+        (employees.name LIKE #{filter.searchText}) OR
+        (employees.name_en LIKE #{filter.searchText}) OR
+        (employees.name_kh LIKE #{filter.searchText}) OR
+        (employees.code LIKE #{filter.searchText})
+      )
+    </if>
+    <if test="filter.employeeId != null">
+        AND employees.id = #{filter.employeeId}
+    </if>
+  </sql>
+
+  <select id="getList" resultMap="DepositResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+        <when test="filter.orderBy != null">
+            ${filter.orderBy}
+        </when>
+        <otherwise>
+            id DESC
+        </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="listDepositHistory" resultMap="DepositHistory">
+    SELECT
+        pd.id,
+        DATE_FORMAT(p.pay_date, "%d-%b-%Y") AS date,
+        CONCAT_WS('','+', pd.amount,'$') AS historyAmount
+    FROM payrolls AS p
+        INNER JOIN payroll_details AS pd ON p.id = pd.payroll_id
+    WHERE p.is_active = 1 AND pd.is_active = 1 AND pd.payroll_item_id = 5 AND pd.amount > 0
+        AND p.pay_date &lt;= #{filterMonth} AND p.employee_id = #{employeesId} AND NOT p.pay_date = '2020-11-25'
+        UNION
+    SELECT
+        eab.id,
+        DATE_FORMAT(eab.date, "%d-%b-%Y") AS date,
+        CONCAT_WS('','+', eab.amount,'$') AS historyAmount
+    FROM employee_adjust_beginnings AS eab
+    WHERE eab.is_active = 1 AND eab.date &lt;= #{filterMonth} AND eab.employee_id = #{employeesId}
+    ORDER BY id DESC
+  </select>
+
+  <select id="getAdjustBeginningDeposit" resultType="java.lang.Float">
+    SELECT COALESCE(SUM(eab.amount),0)
+    FROM employee_adjust_beginnings AS eab
+    WHERE eab.is_active = 1 AND eab.date &lt;= #{filterMonth} AND eab.employee_id = #{employeesId}
+  </select>
+
+    <!--New Code-->
+    <select id="listDepositRequestHistory" resultMap="DepositHistory">
+        SELECT
+            drd.id,
+            DATE_FORMAT(dr.request_date, "%d-%b-%Y") AS date,
+        CONCAT_WS('','-', drd.amount,'$') AS historyAmount
+        FROM deposit_requests AS dr
+            INNER JOIN deposit_request_details AS drd ON dr.id = drd.deposit_request_id
+        WHERE drd.is_active = 1 AND drd.status = 2 AND drd.employee_id = #{employeesId} AND dr.date &lt;= #{filterMonth}
+        ORDER BY DATE(dr.request_date) DESC
+    </select>
+
+  <select id="getOne" resultMap="Deposit">
+    SELECT *,
+        DATE_FORMAT(request_date, "%d-%b-%Y") AS requestDate,
+        date AS filterMonth,
+        title AS title,
+        (SELECT SUM(amount) FROM deposit_request_details WHERE deposit_request_id = deposit_requests.id AND is_active = 1) AS amountRequest,
+        (SELECT username FROM users WHERE id = created_by) AS createdByName
+    FROM deposit_requests
+    WHERE is_active = 1 AND id = #{id}
+  </select>
+
+
+  <select id="listDepositByEmp" resultMap="DepositListByEmployees">
+    SELECT
+        status AS status,
+        remark AS remark,
+        (SELECT date FROM deposit_requests WHERE is_active = 1 AND id = #{depositRequestId})AS filterMonth,
+        amount AS amountRequest,
+        employee_id AS id,
+        (SELECT code FROM employees WHERE is_active = 1 AND id = employee_id) AS employeesCode,
+        (SELECT name_kh FROM employees WHERE is_active = 1 AND id = employee_id) AS nameKh,
+        (SELECT name_en FROM employees WHERE is_active = 1 AND id = employee_id) AS nameEn,
+        (SELECT name FROM positions WHERE is_active = 1 AND id IN (SELECT position_id FROM employees WHERE is_active = 1 AND id = employee_id)) AS positionName,
+        (SELECT
+            (SELECT COALESCE(SUM(amount),0) FROM payroll_details WHERE is_active = 1 AND payroll_item_id = 5
+             AND payroll_id IN (SELECT id FROM payrolls WHERE payrolls.is_active = 1 AND employee_id = dr.employee_id
+             AND payrolls.pay_date &lt;= #{filterMonth} AND NOT payrolls.pay_date = '2020-11-25' )) -
+            (SELECT COALESCE(SUM(amount),0) FROM deposit_request_details WHERE is_active = 1 AND employee_id = dr.employee_id
+            AND deposit_request_id IN (SELECT id FROM deposit_requests WHERE is_active = 1 AND date &lt; #{filterMonth}))) AS depositAmount
+    FROM deposit_request_details AS dr
+    WHERE dr.is_active = 1 AND dr.deposit_request_id = #{depositRequestId}
+  </select>
+
+  <sql id="DEPOSIT_COLUMN_LIST">
+    *,
+    DATE_FORMAT(request_date, "%d-%b-%Y") AS requestDate,
+    DATE_FORMAT(created, "%d-%m-%Y %k:%i") AS createdDate,
+    DATE_FORMAT(modified, "%d-%m-%Y %k:%i") AS modifiedDate,
+    title AS title,
+    (SELECT SUM(amount) FROM deposit_request_details WHERE deposit_request_id = deposit_requests.id AND is_active = 1) AS amountRequest,
+    (SELECT username FROM users WHERE id = deposit_requests.created_by) AS createdByName,
+    (SELECT username FROM users WHERE id = deposit_requests.modified_by) AS modifiedByName
+  </sql>
+
+  <sql id="DEPOSIT_FROM">
+    FROM deposit_requests
+  </sql>
+
+  <sql id="DEPOSIT_WHERE">
+    WHERE is_active = 1
+    <if test="filter.titleId != null and filter.titleId > 0">
+        AND id = #{filter.titleId}
+    </if>
+    <if test="filter.status != null and filter.status > 0">
+        AND status = #{filter.status}
+    </if>
+    <if test="filter.dateFrom != null and filter.dateFrom != '' and filter.dateTo != null and filter.dateTo != ''">
+        AND DATE(deposit_requests.created) >= #{filter.dateFrom} AND DATE(deposit_requests.created) &lt;= #{filter.dateTo}
+    </if>
+  </sql>
+
+  <select id="getListDeposit" resultMap="Deposit">
+    SELECT
+    <include refid="DEPOSIT_COLUMN_LIST"/>
+    <include refid="DEPOSIT_FROM"/>
+    <include refid="DEPOSIT_WHERE"/>
+    ORDER BY id DESC
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countDeposit" resultType="int">
+    SELECT COUNT(deposit_requests.id)
+    <include refid="DEPOSIT_FROM"/>
+    <include refid="DEPOSIT_WHERE"/>
+  </select>
+
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM employees
+    WHERE is_active = 1 AND name = #{name}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <select id="checkStatusEmp" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM deposit_request_details
+    WHERE deposit_request_id = #{depositRequestId} AND status = 1 AND is_active = 1
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="deposit.id">
+    INSERT INTO deposit_requests (
+      request_date,
+      date,
+      title,
+      status,
+      created,
+      created_by,
+      modified,
+      modified_by,
+      is_active
+    ) VALUES (
+      #{deposit.requestDate},
+      #{deposit.filterMonth},
+      #{deposit.title},
+      #{deposit.status},
+      NOW(),
+      #{deposit.createdBy},
+      <if test="deposit.modifiedBy != null">NOW()</if><if test="deposit.modifiedBy == null">NULL</if>,
+      #{deposit.modifiedBy},
+      #{deposit.isActive}
+    );
+  </insert>
+
+  <insert id="insertDepositDetail" useGeneratedKeys="true" keyProperty="depositDetail.id">
+    INSERT INTO deposit_request_details (
+       deposit_request_id,
+       employee_id,
+       amount,
+       <if test="depositDetail.remark != null">remark,</if>
+       status,
+       created,
+       created_by,
+       is_active
+    ) VALUES (
+       #{depositDetail.depositRequestId},
+       #{depositDetail.employeesId},
+       #{depositDetail.amountRequest},
+       <if test="depositDetail.remark != null">#{depositDetail.remark},</if>
+       #{depositDetail.status},
+       NOW(),
+       #{depositDetail.createdBy},
+       #{depositDetail.isActive}
+    );
+  </insert>
+
+  <update id="update">
+    UPDATE deposit_requests SET
+      <if test="deposit.title != null">title = #{deposit.title},</if>
+      <if test="deposit.requestDate != null">request_date = #{deposit.requestDate},</if>
+      <if test="deposit.filterMonth != null">date = #{deposit.filterMonth},</if>
+      modified = NOW(),
+      modified_by = #{deposit.modifiedBy}
+    WHERE id = #{deposit.id}
+  </update>
+
+  <delete id="deleteDepositDetail">
+    UPDATE deposit_request_details SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE deposit_request_id = #{depositRequestId}
+  </delete>
+
+  <delete id="delete">
+    UPDATE deposit_requests SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+
+    UPDATE deposit_request_details SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE deposit_request_id = #{id};
+  </delete>
+
+  <update id="updateStatusAll">
+    UPDATE deposit_requests SET
+        status = #{depositUpdateStatus.status},
+        modified = NOW(),
+        modified_by = #{depositUpdateStatus.modifiedBy}
+    WHERE id = #{depositUpdateStatus.id};
+  </update>
+
+  <update id="updateStatusDepositDetail">
+    UPDATE deposit_requests SET
+        modified = NOW(),
+        modified_by = #{depositRequestStatus.modifiedBy}
+    WHERE is_active = 1 AND id = #{depositRequestStatus.depositRequestId};
+  </update>
+
+  <update id="updateStatusByEmp">
+    UPDATE deposit_request_details SET
+        status = #{depositRequestStatusByEmp.status},
+        modified = NOW(),
+        modified_by = #{depositRequestStatusByEmp.modifiedBy}
+    WHERE is_active = 1 AND deposit_request_id = #{depositRequestId} AND employee_id = #{depositRequestStatusByEmp.employeesId}
+  </update>
+
+  <select id="getListTitle" resultMap="TitleResponse">
+    SELECT
+        id AS id,
+        title AS title
+    FROM deposit_requests
+    WHERE is_active = 1
+  </select>
+
+  <select id="getEmployeeDeposit" resultMap="EmployeesResponse">
+    SELECT
+      id AS id,
+      code AS empId,
+      name_kh AS nameKh,
+      name_en AS nameEn,
+      department_id AS departmentId,
+      (SELECT name FROM departments WHERE is_active = 1 AND id = department_id) AS departmentName
+    FROM employees
+    WHERE is_active = 1 AND is_deposit = 1
+      <if test="filter.groupId != null and filter.groupId > 0">
+          AND employees.department_id IN (SELECT id FROM departments WHERE is_active = 1 AND group_id = #{filter.groupId})
+      </if>
+      <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+</mapper>

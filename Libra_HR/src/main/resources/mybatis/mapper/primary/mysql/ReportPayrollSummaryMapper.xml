@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ReportPayrollSummaryMapper">
+
+  <select id="getDate" resultMap="DateResponse" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter">
+    SELECT
+   	    CONCAT('', 'Staff Payroll Summary for ', DATE_FORMAT(#{filter.date}, "%M %Y")) AS title,
+   	    DATE_FORMAT(#{filter.date}, "%M %Y") AS currentMonth,
+   	    (SELECT DATE_FORMAT(DATE_ADD(#{filter.date}, INTERVAL -1 MONTH), "%M %Y")) AS previousMonth
+  </select>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.response.PayrollReportFilter" resultMap="PayrollSummary">
+    SELECT *,
+        name AS departmentName,
+        (SELECT DATE_ADD(#{filter.date}, INTERVAL -1 MONTH)) AS datePreviousMonth
+    FROM departments
+    WHERE is_active = 1 AND id IN (SELECT department_id FROM employees WHERE is_active = 1)
+    <if test="filter.groupId != null and filter.groupId > 0">
+      AND group_id = #{filter.groupId} AND user_apply = 0
+    </if>
+    <if test="filter.departmentId != null and filter.departmentId > 0">
+      AND id = #{filter.departmentId}
+    </if>
+  </select>
+
+  <select id="amountByManual" resultType="java.lang.Float">
+    SELECT
+        COALESCE(SUM(total_amount),0)
+    FROM payrolls
+    WHERE is_active = 1 AND employee_id IN (SELECT id FROM employees WHERE is_active = 1 AND department_id = #{departmentId}
+    AND paid_by = 1 AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date}))
+    AND (
+      employee_id IN (
+        SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1 AND eas.employee_status_id NOT IN(4,5,6)
+      ) OR employee_id IN (
+        SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1
+         AND eas.employee_status_id IN (4,5,6)
+         AND MONTH(eas.date) > MONTH(#{date}) AND YEAR(eas.date) >= YEAR(#{date})
+      ) OR employee_id IN (
+        SELECT employee_id FROM payrolls WHERE is_active = 1 AND employee_id = employee_id AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date})
+      )
+    )
+--     AND employee_id NOT IN (SELECT employee_id FROM employee_apply_status WHERE is_active = 1 AND employee_status_id = 4 AND payroll_type = 2)
+  </select>
+
+  <select id="amountByATM" resultType="java.lang.Float">
+    SELECT
+        COALESCE(SUM(total_amount),0)
+    FROM payrolls
+    WHERE is_active = 1 AND employee_id IN (SELECT id FROM employees WHERE is_active = 1 AND department_id = #{departmentId}
+    AND paid_by = 2 AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date}))
+    AND (
+      employee_id IN (
+        SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1 AND eas.employee_status_id NOT IN(4,5,6)
+      ) OR employee_id IN (
+        SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1
+           AND eas.employee_status_id IN (4,5,6)
+           AND MONTH(eas.date) > MONTH(#{date}) AND YEAR(eas.date) >= YEAR(#{date})
+      ) OR employee_id IN (
+        SELECT employee_id FROM payrolls WHERE is_active = 1 AND employee_id = employee_id AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date})
+      )
+    )
+--     AND employee_id NOT IN (SELECT employee_id FROM employee_apply_status WHERE is_active = 1 AND employee_status_id = 4 AND payroll_type = 2)
+  </select>
+
+  <select id="lastMonthAmount" resultType="java.lang.Float">
+    SELECT
+        COALESCE(SUM(total_amount),0)
+    FROM payrolls
+    WHERE is_active = 1 AND employee_id IN (SELECT id FROM employees WHERE is_active = 1 AND department_id = #{departmentId}
+    AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date}))
+    AND (
+      employee_id IN (
+        SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1 AND eas.employee_status_id NOT IN(4,5,6)
+      ) OR employee_id IN (
+        SELECT employee_id FROM employee_apply_status AS eas WHERE eas.is_active = 1
+           AND eas.employee_status_id IN (4,5,6)
+           AND MONTH(eas.date) > MONTH(#{date}) AND YEAR(eas.date) >= YEAR(#{date})
+      ) OR employee_id IN (
+        SELECT employee_id FROM payrolls WHERE is_active = 1 AND employee_id = employee_id AND MONTH(pay_date) = MONTH(#{date}) AND YEAR(pay_date) = YEAR(#{date})
+      )
+    )
+  </select>
+
+</mapper>

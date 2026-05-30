@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.DeliveryMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        deliveries.id AS id,
+        deliveries.company_id AS companyId,
+        companies.name AS companyName,
+        deliveries.`date` AS `date`,
+        deliveries.`code` AS `code`,
+        deliveries.`note` AS `note`,
+        deliveries.location_group_id AS warehouseId,
+        location_groups.name AS warehouseName,
+        deliveries.cgroup_id AS customerGroupId,
+        cgroups.name AS customerGroupName,
+        deliveries.customer_id AS customerId,
+        customers.name AS customerName,
+        deliveries.delivery_by AS deliveryId,
+        employees.name AS deliveryName,
+        deliveries.status AS status,
+        deliveries.created AS created,
+        deliveries.is_approve AS isApprove,
+        deliveries.approved AS approved,
+        CONCAT(approver.first_name, ' ', approver.last_name) AS approvedBy,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        deliveries.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM deliveries
+        LEFT JOIN companies ON companies.id = deliveries.company_id
+        LEFT JOIN location_groups ON location_groups.id = deliveries.location_group_id
+        LEFT JOIN cgroups ON cgroups.id = deliveries.cgroup_id
+        LEFT JOIN customers ON customers.id = deliveries.customer_id
+        LEFT JOIN employees ON employees.id = deliveries.delivery_by
+        LEFT JOIN users AS creator ON creator.id = deliveries.created_by
+        LEFT JOIN users AS modifier ON modifier.id = deliveries.modified_by
+        LEFT JOIN users AS approver ON approver.id = deliveries.approved_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE deliveries.status >= 0
+        <if test="filter.searchText != null">
+            AND (
+                deliveries.code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DeliveryResponse">
+        SELECT
+        (SELECT GROUP_CONCAT(so_code SEPARATOR ', ') FROM sales_orders WHERE id IN (SELECT sales_order_id FROM delivery_details WHERE delivery_id = deliveries.id)) AS invoiceCode,
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY deliveries.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(deliveries.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="DeliveryResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE deliveries.id = #{id} AND deliveries.status >= 0
+    </select>
+
+    <select id="getDetails" parameterType="java.lang.Long" resultMap="DeliveryDetailResponse">
+        SELECT
+            delivery_details.id AS id,
+            sales_orders.id AS salesInvoiceId,
+            delivery_details.sales_order_detail_id AS salesInvoiceDetailId,
+            sales_orders.order_date AS invoiceDate,
+            sales_orders.so_code AS invoiceCode,
+            sales_orders.order_id AS saleOrderId,
+            products.id AS productId,
+            products.name AS productName,
+            location_groups.id AS warehouseId,
+            location_groups.name AS warehouseName,
+            delivery_details.location_id AS locationId,
+            delivery_details.uom_id AS uomId,
+            uoms.name AS uomName,
+            delivery_details.expired_date AS expiredDate,
+            delivery_details.qty AS qty
+        FROM delivery_details
+        LEFT JOIN sales_orders ON sales_orders.id = delivery_details.sales_order_id
+        LEFT JOIN products ON products.id = delivery_details.product_id
+        LEFT JOIN location_groups ON location_groups.id = sales_orders.location_group_id
+        LEFT JOIN uoms ON uoms.id = delivery_details.uom_id
+        WHERE delivery_details.delivery_id = #{deliveryId}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.Delivery.Delivery" useGeneratedKeys="true" keyProperty="delivery.id">
+        INSERT INTO deliveries (
+            company_id,
+            `date`,
+            `note`,
+            location_group_id,
+            cgroup_id,
+            customer_id,
+            delivery_by,
+            created,
+            created_by,
+            status
+        ) VALUES (
+                     #{delivery.companyId},
+                     #{delivery.date},
+                     #{delivery.note},
+                     #{delivery.warehouseId},
+                     #{delivery.customerGroupId},
+                     #{delivery.customerId},
+                     #{delivery.deliveryId},
+                     NOW(),
+                     #{delivery.createdBy},
+                     #{delivery.status}
+                 )
+    </insert>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.Delivery.DeliveryDetail" useGeneratedKeys="true" keyProperty="detail.id">
+        INSERT INTO delivery_details (
+            delivery_id,
+            sales_order_id,
+            sales_order_detail_id,
+            product_id,
+            location_id,
+            uom_id,
+            expired_date,
+            qty
+        ) VALUES (
+            #{detail.deliveryId},
+            #{detail.salesInvoiceId},
+            #{detail.salesInvoiceDetailId},
+            #{detail.productId},
+            #{detail.locationId},
+            #{detail.uomId},
+            #{detail.expiredDate},
+            #{detail.qty}
+        )
+    </insert>
+
+    <select id="getLocationHavingStock" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT location_id
+        FROM ${warehouseId}_group_totals
+        WHERE location_group_id = #{warehouseId} AND total_qty > 0
+        LIMIT 1
+    </select>
+
+    <update id="updateStatus">
+        UPDATE deliveries SET
+            status = #{status},
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="approve">
+        UPDATE deliveries SET
+            is_approve = 1,
+            approved = NOW(),
+            approved_by = #{userId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStockOrders">
+        DELETE FROM stock_orders WHERE sales_order_id = #{salesInvoiceId} AND product_id = #{productId} AND location_group_id = #{warehouseId}
+    </update>
+
+    <update id="updateSalesInvoice">
+        UPDATE sales_orders SET delivery_id = #{deliveryId} WHERE id = #{id}
+    </update>
+
+    <update id="updateStatusSalesInvoice" parameterType="java.lang.Long">
+        UPDATE sales_orders SET status = 2 WHERE id = #{salesInvoiceId}
+    </update>
+
+    <select id="countItemOrder" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COUNT(id) FROM order_details WHERE order_id = #{saleOrderId}
+    </select>
+
+    <select id="countItemDelivery" parameterType="java.lang.Long" resultType="java.lang.Long">
+        SELECT COUNT(id) FROM sales_order_details WHERE sales_order_id IN (SELECT id FROM sales_orders WHERE status > 0 AND delivery_id IS NOT NULL AND order_id = #{saleOrderId})
+    </select>
+
+    <update id="updateStatusSalesOrder" parameterType="java.lang.Long">
+        UPDATE `orders` SET `status` = 4 WHERE `id` = #{saleOrderId}
+    </update>
+
+</mapper>

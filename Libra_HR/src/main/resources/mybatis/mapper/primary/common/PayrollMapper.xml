@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PayrollMapper">
+
+  <resultMap id="PayrollResponse" type="com.ut.nlSystemAPi.model.response.PayrollResponse">
+
+  </resultMap>
+
+  <resultMap id="OtRequestResponse" type="com.ut.nlSystemAPi.model.response.OtRquestResponse">
+
+  </resultMap>
+
+  <resultMap id="ViewAttendanceResponse" type="com.ut.nlSystemAPi.model.response.ViewAttendanceResponse">
+
+  </resultMap>
+
+  <resultMap id="OtherPayResponse" type="com.ut.nlSystemAPi.model.response.OtherPayResponse">
+
+  </resultMap>
+
+  <resultMap id="BonusDetailResponse" type="com.ut.nlSystemAPi.model.response.BonusDetail">
+
+  </resultMap>
+
+  <resultMap id="PayrollItemType" type="com.ut.nlSystemAPi.model.response.PayrollItemType">
+
+  </resultMap>
+
+  <resultMap id="PayrollItem" type="com.ut.nlSystemAPi.model.response.PayrollItem">
+
+  </resultMap>
+
+  <resultMap id="PayrollDetailResponse" type="com.ut.nlSystemAPi.model.response.PayrollDetailResponse">
+
+  </resultMap>
+
+  <resultMap id="DepartmentListResponse" type="com.ut.nlSystemAPi.model.response.DepartmentListResponse">
+
+  </resultMap>
+
+  <resultMap id="PayrollRevert" type="com.ut.nlSystemAPi.model.PayrollRevert">
+
+  </resultMap>
+
+  <resultMap id="EmployeeStatusHistory" type="com.ut.nlSystemAPi.model.response.EmployeeStatusHistory">
+
+  </resultMap>
+
+</mapper>

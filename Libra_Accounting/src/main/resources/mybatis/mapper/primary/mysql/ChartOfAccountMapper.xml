@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ChartOfAccountMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+ chart_accounts.id AS id,
+  chart_accounts.parent_id AS parentId,
+  chart_account_parent.account_codes AS parentCode,
+  (GREATEST(COALESCE(CHAR_LENGTH(TRIM(TRAILING '0' FROM chart_accounts.account_codes)) - 1, 0), 0) * 20) AS spacing,
+  chart_account_parent.account_description AS parentDescription,
+  chart_accounts.chart_account_type_id AS chartAccountTypeId,
+  chart_account_types.name AS chartAccountTypeName,
+  chart_accounts.chart_account_group_id AS chartAccountGroupId,
+  chart_account_groups.name AS chartAccountGroupName,
+  (SELECT branch_id FROM `chart_account_branches` WHERE `chart_account_id` = chart_accounts.id LIMIT 1) AS branchId,
+  (SELECT name FROM branches WHERE id = (SELECT branch_id FROM `chart_account_branches` WHERE `chart_account_id` = chart_accounts.id LIMIT 1)) AS branchName,
+  chart_accounts.account_codes AS accountCodes,
+  chart_accounts.account_description AS accountDescription,
+  chart_accounts.manual AS manual,
+  chart_accounts.orcode AS orcode,
+  chart_accounts.pvcode AS pvcode,
+  chart_accounts.is_active AS status,
+  DATE_FORMAT(chart_accounts.created, '%d-%b-%y %h:%i') AS createdDate,
+  DATE_FORMAT(chart_accounts.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+  CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+  CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM chart_accounts
+  LEFT JOIN chart_accounts AS chart_account_parent ON chart_account_parent.id = chart_accounts.parent_id
+  LEFT JOIN users AS users1 ON users1.id = chart_accounts.created_by
+  LEFT JOIN users AS users2 ON users2.id = chart_accounts.modified_by
+  LEFT JOIN chart_account_types ON chart_account_types.id = chart_accounts.chart_account_type_id
+  LEFT JOIN chart_account_groups ON chart_account_groups.id = chart_accounts.chart_account_group_id
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE chart_accounts.is_active &lt; 2
+    <if test="filter.companyId != null">
+      AND chart_accounts.id IN (SELECT chart_account_id FROM chart_account_companies WHERE chart_account_companies.company_id = #{filter.companyId})
+    </if>
+    <if test="filter.accountTypeId != null">
+      AND chart_accounts.chart_account_type_id = #{filter.accountTypeId}
+    </if>
+    <if test="filter.accountGroupId != null">
+      AND chart_accounts.chart_account_group_id = #{filter.accountGroupId}
+    </if>
+    <if test="filter.searchText != null">
+      AND ((chart_accounts.account_codes LIKE CONCAT("%", #{filter.searchText}, "%"))
+        OR (chart_accounts.account_description LIKE CONCAT("%", #{filter.searchText}, "%")))
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultMap="ChartOfAccountResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        chart_accounts.chart_account_type_id ASC, chart_accounts.id ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultType="java.lang.Long">
+    SELECT COUNT(chart_accounts.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getCompanyByAccountChartId" parameterType="java.lang.Long" resultMap="CompanyChartAccountResponse">
+    SELECT
+      companies.id AS id,
+      companies.`name` AS name
+    FROM companies
+    INNER JOIN chart_account_companies ON chart_account_companies.company_id = companies.id
+    WHERE companies.is_active = 1 AND chart_account_companies.chart_account_id = #{chartAccId}
+  </select>
+
+  <select id="getBranchByAccountChartId" parameterType="java.lang.Long" resultMap="CompanyChartAccountResponse">
+    SELECT
+      branches.id AS id,
+      branches.`name` AS name
+    FROM branches
+           INNER JOIN chart_account_branches ON chart_account_branches.branch_id = branches.id
+    WHERE chart_account_branches.chart_account_id = #{chartAccId}
+  </select>
+
+  <select id="getOne" resultMap="ChartOfAccountResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE chart_accounts.id = #{id} AND chart_accounts.is_active &lt; 2
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(id)
+    FROM chart_accounts
+    WHERE is_active &lt; 2 AND account_codes = #{accountCode}
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ChartOfAccount" useGeneratedKeys="true" keyProperty="chartOfAccount.id">
+    INSERT INTO chart_accounts(
+      parent_id,
+      chart_account_type_id,
+      chart_account_group_id,
+      apply_branch_type,
+      account_codes,
+      account_description,
+      manual,
+      created,
+      created_by,
+      is_active
+    ) VALUES (
+         #{chartOfAccount.parentId},
+         #{chartOfAccount.chartAccountTypeId},
+         #{chartOfAccount.chartAccountGroupId},
+         #{chartOfAccount.applyBranchType},
+         #{chartOfAccount.accountCodes},
+         #{chartOfAccount.accountDescription},
+         #{chartOfAccount.manual},
+         NOW(),
+         #{chartOfAccount.createdBy},
+         #{chartOfAccount.isActive}
+       );
+  </insert>
+
+  <insert id="insertCompanyId" parameterType="java.lang.Long">
+    INSERT INTO chart_account_companies(
+      chart_account_id,
+      company_id
+    ) VALUES (
+        #{chartOfAccountId},
+        #{companyId}
+    );
+  </insert>
+
+  <insert id="insertBranchId" parameterType="java.lang.Long">
+    INSERT INTO chart_account_branches(
+      chart_account_id,
+      branch_id
+    ) VALUES (
+               #{chartOfAccountId},
+               #{branchId}
+             );
+  </insert>
+
+  <delete id="deleteChartAccountCompany" parameterType="java.lang.Long">
+    DELETE FROM chart_account_companies WHERE chart_account_id = #{chartOfAccountId};
+  </delete>
+
+  <delete id="deleteChartAccountBranch" parameterType="java.lang.Long">
+    DELETE FROM chart_account_branches WHERE chart_account_id = #{chartOfAccountId};
+  </delete>
+
+
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.request.Login.ChartOfAccountRequest.ChartOfAccountUpdateRequest">
+    UPDATE chart_accounts SET
+      <if test="chartOfAccount.parentId != null"> `parent_id` = #{chartOfAccount.parentId},</if>
+      <if test="chartOfAccount.chartAccountTypeId != null"> `chart_account_type_id` = #{chartOfAccount.chartAccountTypeId},</if>
+      <if test="chartOfAccount.chartAccountGroupId != null"> `chart_account_group_id` = #{chartOfAccount.chartAccountGroupId},</if>
+      <if test="chartOfAccount.accountCodes != null"> `account_codes` = #{chartOfAccount.accountCodes},</if>
+      <if test="chartOfAccount.accountDescription != null"> `account_description` = #{chartOfAccount.accountDescription},</if>
+      <if test="chartOfAccount.manual != null"> `manual` = #{chartOfAccount.manual},</if>
+      modified = NOW(),
+      modified_by = #{chartOfAccount.modifiedBy}
+    WHERE id = #{chartOfAccount.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE chart_accounts SET
+          is_active = 2,
+          modified = NOW(),
+          modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <update id="updateStatus" parameterType="java.lang.Long">
+    UPDATE chart_accounts SET
+        is_active = #{statusId},
+        modified = NOW(),
+        modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+  <select id="getChartAccountBalance" resultType="java.lang.Double" parameterType="java.lang.Long">
+    SELECT
+        IFNULL(SUM(general_ledger_details.debit) - SUM(general_ledger_details.credit), 0)
+    FROM general_ledgers
+    INNER JOIN general_ledger_details ON general_ledger_details.general_ledger_id = general_ledgers.id
+    WHERE general_ledgers.is_approve=1 AND general_ledgers.is_active = 1 AND chart_account_id = #{chartOfAccountId}
+  </select>
+
+  <select id="getListData" parameterType="com.ut.nlSystemAPi.model.filter.ChartAccountFilter" resultMap="ChartOfAccountResponse">
+    SELECT
+      id AS id,
+      CONCAT(chart_accounts.account_codes, '-', chart_accounts.account_description) AS accountDescription
+    FROM chart_accounts
+    WHERE chart_accounts.is_active &lt; 2
+      <choose>
+        <when test="parentId != null">
+          AND parent_id = #{parentId}
+        </when>
+        <otherwise>
+          AND parent_id IS NULL
+        </otherwise>
+      </choose>
+      <if test="filter.accountTypeId != null">
+        AND chart_accounts.chart_account_type_id = #{filter.accountTypeId}
+      </if>
+      <if test="filter.accountGroupId != null">
+        AND chart_accounts.chart_account_group_id = #{filter.accountGroupId}
+      </if>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+
+</mapper>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.LeadGroupMapper">
+
+    <resultMap id="LeadGroupResponse" type="com.ut.nlSystemAPi.model.response.LeadGroup.LeadGroupResponse">
+        <id property="id" column="id"/>
+        <result property="companyName" column="companyName"/>
+        <result property="leadGroupName" column="leadGroupName"/>
+        <result property="employeeGroupName" column="employeeGroupName"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <resultMap id="LeadGroupDetailResponse" type="com.ut.nlSystemAPi.model.response.Lead.LeadDetailResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+    </resultMap>
+
+</mapper>

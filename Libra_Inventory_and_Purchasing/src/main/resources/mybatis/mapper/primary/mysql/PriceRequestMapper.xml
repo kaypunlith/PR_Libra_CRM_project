@@ -1,0 +1,625 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.PriceRequestMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        price_requests.id AS id,
+        price_requests.request_date AS requestDate,
+        price_requests.request_code AS `priceRequest`,
+        CONCAT(users.first_name, " ", users.last_name) AS requestBy,
+        price_requests.customer_name AS organizationName,
+        price_requests.pgroup_name AS brand,
+        price_requests.model AS model,
+        price_requests.qty AS qty,
+        price_request_vendors.id AS prStatusId,
+        price_request_vendors.name AS prStatusName,
+        price_requests.is_convert AS isConvert,
+        price_request_percentages.name AS percentageName,
+        price_request_priorities.color AS priorityColor,
+        price_request_priorities.name AS priorityName,
+        price_requests.file_pdf AS filePdf,
+        price_requests.file_pdf_name AS filePdfName,
+        price_requests.file_photo AS filePhoto,
+        price_requests.file_photo_name AS filePhotoName,
+        delivery_status.name AS leadTimeName,
+        price_requests.status AS `status`,
+        price_requests.created AS created,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+        price_requests.modified AS modified,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy,
+        price_requests.product_id AS productId,
+        (SELECT count(id) FROM price_request_mobiles WHERE price_request_id = price_requests.id) AS telegramPushAmount,
+		0 AS ctp,
+		price_requests.name AS priceRequestName,
+        price_requests.note AS note
+    </sql>
+
+    <sql id="BASE_COLUMN_LIST_DETAIL">
+        price_requests.id AS id,
+        price_requests.product_id AS productId,
+        price_requests.company_id AS companyId,
+        companies.name AS companyName,
+        price_requests.name AS name,
+        price_requests.customer_id AS organizationId,
+        price_requests.customer_name AS organizationName,
+        price_requests.pgroup_name AS brand,
+        price_requests.request_date AS requestDate,
+        price_requests.request_by AS requestBy,
+        CONCAT(users.first_name, " ", users.last_name) AS requestByName,
+        price_requests.customer_contact_name AS customerContactName,
+        price_requests.qty AS qty,
+        price_requests.request_code AS requestCode,
+        price_requests.date_expected AS dateExpected,
+        price_requests.is_convert AS isConvert,
+        price_requests.model AS modelName,
+        price_requests.price_request_percentage_id AS percentageId,
+        price_request_percentages.name AS percentageName,
+        price_requests.price_request_priority_id AS priorityId,
+        price_request_priorities.name AS priorityName,
+        price_requests.misc AS misc,
+        price_requests.spec AS spec,
+        price_requests.note AS note,
+        price_requests.price AS price,
+        price_requests.term_of_payment AS termOfPayment,
+        price_requests.url AS url,
+        price_requests.ship_from AS shipFromId,
+        countries.name AS shipFromName,
+        price_requests.made_in_country AS madeInCountryid,
+        countries.name AS madeInCountryName,
+        price_requests.currency_center_id AS currencyCenterId,
+        currency_centers.name AS currencyCenterName,
+        price_requests.vendor_name AS vendorName,
+        uoms.name AS uomsName,
+        price_requests.price_request_vendor_id AS prStatusId,
+        price_request_vendors.name AS prStatusName,
+        price_requests.price_request_close_id AS closeReasonId,
+        price_request_closes.name AS closeReasonName,
+        price_requests.closed AS closedDate,
+        price_requests.closed_by AS closedBy,
+        CONCAT(users3.first_name, ' ', users3.last_name) AS closedByName,
+        price_requests.uom_id AS uomId,
+        price_requests.delivery_status_id AS leadTimeId,
+        delivery_status.name AS leadTimeName,
+        price_requests.file_pdf AS filePdf,
+        price_requests.file_pdf_name AS filePdfName,
+        price_requests.file_photo AS filePhoto,
+        price_requests.file_photo_name AS filePhotoName,
+        price_requests.created AS created,
+        price_requests.created_by AS createdBy,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS createdByName,
+        price_requests.modified AS modified,
+        CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedByName,
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = price_requests.approved_by) AS approvedBy,
+        (SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = price_requests.approved_by) AS rejectedBy,
+        price_requests.photo_1 AS photo1,
+        price_requests.photo_1_name AS photo1Name,
+        price_requests.photo_2 AS photo2,
+        price_requests.photo_2_name AS photo2Name,
+        price_requests.photo_3 AS photo3,
+        price_requests.photo_3_name AS photo3Name,
+        price_requests.photo_4 AS photo4,
+        price_requests.photo_4_name AS photo4Name
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM price_requests
+            LEFT JOIN users ON users.id = price_requests.request_by
+            LEFT JOIN countries ON countries.id = price_requests.made_in_country
+            LEFT JOIN users AS users1 ON users1.id = price_requests.created_by
+            LEFT JOIN users AS users2 ON users2.id = price_requests.modified_by
+            LEFT JOIN users AS users3 ON users3.id = price_requests.closed_by
+            LEFT JOIN uoms ON uoms.id = price_requests.uom_id
+            LEFT JOIN companies ON companies.id = price_requests.company_id
+            LEFT JOIN price_request_closes ON price_request_closes.id = price_requests.price_request_close_id
+            LEFT JOIN price_request_percentages ON price_request_percentages.id = price_requests.price_request_percentage_id
+            LEFT JOIN price_request_priorities ON price_request_priorities.id = price_requests.price_request_priority_id
+            LEFT JOIN currency_centers ON currency_centers.id = price_requests.currency_center_id
+            LEFT JOIN delivery_status ON delivery_status.id = price_requests.delivery_status_id
+            LEFT JOIN price_request_vendors ON price_request_vendors.id = price_requests.price_request_vendor_id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE price_requests.status >= 0
+        <if test="filter.status != null and filter.status >= 0">
+            <choose>
+                <when test="filter.status == 3">
+                    AND price_requests.is_convert = 1
+                </when>
+                <otherwise>
+                    AND price_requests.status = #{filter.status}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND price_requests.request_date &gt;= STR_TO_DATE(#{filter.dateFrom}, '%Y-%m-%d')
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND price_requests.request_date &lt;= STR_TO_DATE(CONCAT(#{filter.dateTo}, '23:59:59'), '%Y-%m-%d %H:%i:%s')
+        </if>
+        <if test="filter.createdBy != null and filter.createdBy != ''">
+            AND price_requests.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.organizationGroupId != null and filter.organizationGroupId != ''">
+            AND price_requests.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (
+               price_requests.model LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR price_requests.pgroup_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR price_requests.request_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND price_requests.created_by = #{userId}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestFilter" resultMap="PriceRequestResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                price_requests.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="getListQuotation" parameterType="java.lang.Long" resultMap="QuotationResponse">
+        SELECT
+            quotations.id AS quotationId,
+            quotations.quotation_date AS quotationDate,
+            quotations.quotation_code AS quotationCode,
+            quotation_details.qty_uom_id AS uomId,
+            uoms.name AS uomName,
+            quotation_details.unit_price AS unitPrice,
+            customers.id AS organizationId,
+            customers.customer_code AS organizationCode,
+            COALESCE(customers.name, customers.name_kh) AS organizationName
+        FROM quotations
+            INNER JOIN quotation_details ON quotations.id = quotation_details.quotation_id
+            INNER JOIN customers ON quotations.customer_id = customers.id
+            INNER JOIN uoms ON quotation_details.qty_uom_id = uoms.id
+        WHERE quotations.status = 1 AND quotation_details.product_id = #{productId}
+        ORDER BY quotations.quotation_date DESC
+    </select>
+
+    <select id="getListSaleOrder" parameterType="java.lang.Long" resultMap="SaleOrderResponse">
+        SELECT
+            orders.id AS saleOrderId,
+            orders.order_date AS saleOrderDate,
+            orders.order_code AS saleOrderCode,
+            order_details.qty_uom_id AS uomId,
+            uoms.name AS uomName,
+            order_details.unit_price AS unitPrice,
+            customers.id AS organizationId,
+            customers.customer_code AS organizationCode,
+            COALESCE(customers.name, customers.name_kh) AS organizationName
+        FROM orders
+            INNER JOIN order_details ON orders.id = order_details.order_id
+            INNER JOIN customers ON orders.customer_id = customers.id
+            INNER JOIN uoms ON order_details.qty_uom_id = uoms.id
+        WHERE orders.status = 1 AND order_details.product_id = #{productId}
+        ORDER BY orders.order_date DESC
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(price_requests.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getLastCode" resultType="java.lang.String">
+        SELECT request_code
+        FROM price_requests
+        WHERE YEAR(created) = YEAR(NOW()) AND request_code LIKE '%PRF%' AND LENGTH(request_code) = 12 ORDER BY id DESC LIMIT 1
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="PriceRequestResponseDetail">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_DETAIL"/>
+        <include refid="BASE_FROM"/>
+        WHERE price_requests.id = #{id} AND price_requests.status >= 0
+    </select>
+
+    <select id="getDataSendToTelegram" parameterType="java.lang.Long" resultMap="PriceRequest">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_DETAIL"/>
+        <include refid="BASE_FROM"/>
+        WHERE price_requests.id = #{id} AND price_requests.status > 0
+    </select>
+
+    <insert id="insertPriceRequestMobile" parameterType="java.lang.Long">
+         INSERT INTO price_request_mobiles (price_request_id, created, created_by) VALUES (#{id}, NOW(), #{userId});
+    </insert>
+
+    <select id="print" parameterType="java.lang.Long" resultMap="PriceRequestResponseDetail">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_DETAIL"/>
+        <include refid="BASE_FROM"/>
+        WHERE price_requests.customer_id = #{customerId} AND price_requests.status = 1
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM price_requests
+        WHERE name = #{name}
+        <if test="id != null"> AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.PriceRequest" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO price_requests (
+            company_id,
+            name,
+            customer_id,
+            customer_name,
+            pgroup_name,
+            request_date,
+            request_by,
+            customer_contact_name,
+            qty,
+            request_code,
+            date_expected,
+            model,
+            price_request_percentage_id,
+            price_request_priority_id,
+            misc,
+            spec,
+            note,
+            price,
+            term_of_payment,
+            url,
+            ship_from,
+            made_in_country,
+            currency_center_id,
+            vendor_name,
+            price_request_vendor_id,
+            uom_id,
+            delivery_status_id,
+            file_pdf,
+            file_pdf_name,
+            file_photo,
+            file_photo_name,
+            created,
+            created_by,
+            photo_1,
+            photo_1_name,
+            photo_2,
+            photo_2_name,
+            photo_3,
+            photo_3_name,
+            photo_4,
+            photo_4_name,
+            status
+        ) VALUES (
+                     #{priceRequest.companyId},
+                     #{priceRequest.name},
+                     #{priceRequest.organizationId},
+                     #{priceRequest.organizationName},
+                     #{priceRequest.brand},
+                     #{priceRequest.requestDate},
+                     #{priceRequest.requestById},
+                     #{priceRequest.customerContactName},
+                     #{priceRequest.qty},
+                     #{priceRequest.requestCode},
+                     #{priceRequest.dateExpected},
+                     #{priceRequest.modelName},
+                     #{priceRequest.percentageId},
+                     #{priceRequest.priorityId},
+                     #{priceRequest.misc},
+                     #{priceRequest.spec},
+                     #{priceRequest.note},
+                     #{priceRequest.price},
+                     #{priceRequest.termOfPayment},
+                     #{priceRequest.url},
+                     #{priceRequest.shipFromId},
+                     #{priceRequest.madeInCountryId},
+                     #{priceRequest.currencyCenterId},
+                     #{priceRequest.vendorName},
+                     #{priceRequest.prStatusId},
+                     #{priceRequest.uomId},
+                     #{priceRequest.leadTimeId},
+                     #{priceRequest.filePdf},
+                     #{priceRequest.filePdfName},
+                     #{priceRequest.filePhoto},
+                     #{priceRequest.filePhotoName},
+                     NOW(),
+                     #{priceRequest.createdBy},
+                     #{priceRequest.photo1},
+                     #{priceRequest.photo1Name},
+                     #{priceRequest.photo2},
+                     #{priceRequest.photo2Name},
+                     #{priceRequest.photo3},
+                     #{priceRequest.photo3Name},
+                     #{priceRequest.photo4},
+                     #{priceRequest.photo4Name},
+                     1
+                 )
+    </insert>
+
+
+    <!-- Update an Existing Price Request -->
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.PriceRequest">
+        UPDATE price_requests
+        SET
+        <if test="priceRequest.companyId != null">company_id = #{priceRequest.companyId},</if>
+        <if test="priceRequest.name != null">name = #{priceRequest.name},</if>
+        <if test="priceRequest.organizationId != null">customer_id = #{priceRequest.organizationId},</if>
+        <if test="priceRequest.organizationName != null">customer_name = #{priceRequest.organizationName},</if>
+        <if test="priceRequest.brand != null">pgroup_name = #{priceRequest.brand},</if>
+        <if test="priceRequest.requestDate != null">request_date = #{priceRequest.requestDate},</if>
+        <if test="priceRequest.requestById != null">request_by = #{priceRequest.requestById},</if>
+        <if test="priceRequest.customerContactName != null">customer_contact_name = #{priceRequest.customerContactName},</if>
+        <if test="priceRequest.qty != null">qty = #{priceRequest.qty},</if>
+        <if test="priceRequest.requestCode != null">request_code = #{priceRequest.requestCode},</if>
+        <if test="priceRequest.dateExpected != null">date_expected = #{priceRequest.dateExpected},</if>
+        <if test="priceRequest.modelName != null">model = #{priceRequest.modelName},</if>
+        <if test="priceRequest.percentageId != null">price_request_percentage_id = #{priceRequest.percentageId},</if>
+        <if test="priceRequest.priorityId != null">price_request_priority_id = #{priceRequest.priorityId},</if>
+        <if test="priceRequest.misc != null">misc = #{priceRequest.misc},</if>
+        <if test="priceRequest.spec != null">spec = #{priceRequest.spec},</if>
+        <if test="priceRequest.note != null">note = #{priceRequest.note},</if>
+        <if test="priceRequest.price != null">price = #{priceRequest.price},</if>
+        <if test="priceRequest.termOfPayment != null">term_of_payment = #{priceRequest.termOfPayment},</if>
+        <if test="priceRequest.url != null">url = #{priceRequest.url},</if>
+        <if test="priceRequest.shipFromId != null">ship_from = #{priceRequest.shipFromId},</if>
+        <if test="priceRequest.madeInCountryId != null">made_in_country = #{priceRequest.madeInCountryId},</if>
+        <if test="priceRequest.currencyCenterId != null">currency_center_id = #{priceRequest.currencyCenterId},</if>
+        <if test="priceRequest.vendorName != null">vendor_name = #{priceRequest.vendorName},</if>
+        <if test="priceRequest.prStatusId != null">price_request_vendor_id = #{priceRequest.prStatusId},</if>
+        <if test="priceRequest.uomId != null">uom_id = #{priceRequest.uomId},</if>
+        <if test="priceRequest.leadTimeId != null">delivery_status_id = #{priceRequest.leadTimeId},</if>
+        <if test="priceRequest.filePdf != null">file_pdf = #{priceRequest.filePdf},</if>
+        <if test="priceRequest.filePdfName != null">file_pdf_name = #{priceRequest.filePdfName},</if>
+        <if test="priceRequest.filePhoto != null">file_photo = #{priceRequest.filePhoto},</if>
+        <if test="priceRequest.filePhotoName != null">file_photo_name = #{priceRequest.filePhotoName},</if>
+        <if test="priceRequest.photo1 != null">photo_1 = #{priceRequest.photo1},</if>
+        <if test="priceRequest.photo1Name != null">photo_1_name = #{priceRequest.photo1Name},</if>
+        <if test="priceRequest.photo2 != null">photo_2 = #{priceRequest.photo2},</if>
+        <if test="priceRequest.photo2Name != null">photo_2_name = #{priceRequest.photo2Name},</if>
+        <if test="priceRequest.photo3 != null">photo_3 = #{priceRequest.photo3},</if>
+        <if test="priceRequest.photo3Name != null">photo_3_name = #{priceRequest.photo3Name},</if>
+        <if test="priceRequest.photo4 != null">photo_4 = #{priceRequest.photo4},</if>
+        <if test="priceRequest.photo4Name != null">photo_4_name = #{priceRequest.photo4Name},</if>
+        modified_by = #{priceRequest.modifiedBy},
+        modified = NOW()
+        WHERE id = #{priceRequest.id}
+    </update>
+
+    <!-- Logic to Deactivate a Price Request -->
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE price_requests SET
+            status = 0,
+            modified_by = #{modifiedBy},
+            modified = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.request.Login.PriceRequest.PriceRequestStatusUpdate">
+        UPDATE price_requests
+        <set>
+            <if test="statusUpdate.status == 1">
+                status = 1
+            </if>
+            <if test="statusUpdate.status == 2">
+                status = 2,
+                closed_by = #{statusUpdate.closeBy},
+                closed = NOW()
+            </if>
+        </set>
+        WHERE id = #{statusUpdate.id}
+    </update>
+
+    <select id="getFullName" resultType="java.lang.String">
+        SELECT `username` FROM `users` WHERE `is_active` = 1 AND `id` = #{userId} LIMIT 1
+    </select>
+
+    <sql id="BASE_COLUMN_LIST_SUMMARY">
+        pr.id AS id,
+        pr.created AS requestDate,
+        prm.merge_code AS `priceRequest`,
+        pr.is_convert AS isConvert,
+        CONCAT(u.first_name, " ", u.last_name) AS requestBy,
+        COALESCE(SUM(pr.qty), 0) AS qty,
+        prv.name AS prStatusName,
+        COUNT(prmbl.id) AS telegramPushAmount,
+        GROUP_CONCAT(DISTINCT pr.customer_name) AS organizationName,
+        GROUP_CONCAT(DISTINCT pr.pgroup_name) AS brand,
+        GROUP_CONCAT(DISTINCT pr.model) AS model,
+        pr.note AS note,
+        ds.name AS leadTimeName,
+        0 AS ctp,
+        pr.status AS status
+    </sql>
+
+    <sql id="BASE_FROM_SUMMARY">
+        FROM price_request_merges AS prm
+        LEFT JOIN users AS u ON u.id = prm.created_by
+        LEFT JOIN price_request_merge_details AS prmd ON prmd.price_request_merge_id = prm.id
+        LEFT JOIN price_requests AS pr ON pr.id = prmd.price_request_id
+        LEFT JOIN price_request_vendors AS prv ON prv.id = pr.price_request_vendor_id
+        LEFT JOIN price_request_mobiles AS prmbl ON prmbl.price_request_id = pr.id
+        LEFT JOIN delivery_status AS ds ON ds.id = pr.delivery_status_id
+    </sql>
+
+    <sql id="BASE_WHERE_SUMMARY">
+        WHERE pr.status >= 0
+        <if test="filter.status != null and filter.status >= 0">
+            <choose>
+                <when test="filter.status == 3">
+                    AND pr.is_convert = 1
+                </when>
+                <otherwise>
+                    AND pr.status = #{filter.status}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND pr.request_date &gt;= STR_TO_DATE(#{filter.dateFrom}, '%Y-%m-%d')
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND pr.request_date &lt;= STR_TO_DATE(CONCAT(#{filter.dateTo}, '23:59:59'), '%Y-%m-%d %H:%i:%s')
+        </if>
+        <if test="filter.createdBy != null and filter.createdBy != ''">
+            AND (pr.created_by LIKE CONCAT(#{filter.createdBy}))
+        </if>
+        <if test="filter.organizationGroupId != null and filter.organizationGroupId != ''">
+            AND pr.customer_id IN (SELECT customer_id FROM customer_cgroups WHERE cgroup_id = #{filter.organizationGroupId})
+        </if>
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (pr.model LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR pr.pgroup_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR pr.request_code LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </sql>
+
+    <select id="getListSummary" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestFilter" resultMap="PriceRequestResponseSummary">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_SUMMARY"/>
+        <include refid="BASE_FROM_SUMMARY"/>
+        <include refid="BASE_WHERE_SUMMARY"/>
+        GROUP BY prm.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                pr.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListSummary" parameterType="com.ut.nlSystemAPi.model.filter.PriceRequestFilter" resultType="java.lang.Long">
+        SELECT COUNT(prm.id)
+        <include refid="BASE_FROM_SUMMARY"/>
+        <include refid="BASE_WHERE_SUMMARY"/>
+    </select>
+
+    <update id="updateIsConvert" parameterType="java.lang.Long">
+        UPDATE price_requests SET
+        is_convert = 1,
+        convert_by = #{userId},
+        product_id = #{productId}
+        WHERE id = #{priceRequestId};
+    </update>
+
+    <sql id="BASE_COLUMN_LIST_APPROVE">
+        price_requests.id AS id,
+        price_requests.request_date AS requestDate,
+        price_requests.request_code AS `priceRequest`,
+        CONCAT(users.first_name, " ", users.last_name) AS requestBy,
+        price_requests.customer_name AS organizationName,
+        price_requests.pgroup_name AS brand,
+        price_requests.model AS model,
+        price_requests.qty AS qty,
+        price_requests.is_convert AS isConvert,
+        delivery_status.name AS leadTimeName,
+        price_requests.status AS `status`,
+        price_requests.vendor_name AS vendorName,
+        uoms.name AS uomName,
+        products.unit_cost AS unitCost,
+        CONCAT(users1.first_name, ' ', users1.last_name) AS convertBy,
+        price_requests.file_pdf AS refDoc,
+        price_requests.file_pdf_name AS refDocName,
+        price_requests.file_photo AS photo,
+        price_requests.file_photo_name AS photoName
+    </sql>
+
+    <sql id="BASE_FROM_APPROVE">
+        FROM price_requests
+            LEFT JOIN products ON products.id = price_requests.product_id
+            LEFT JOIN uoms ON uoms.id = price_requests.uom_id
+            LEFT JOIN users ON users.id = price_requests.request_by
+            LEFT JOIN users AS users1 ON users1.id = price_requests.convert_by
+            LEFT JOIN delivery_status ON delivery_status.id = price_requests.delivery_status_id
+    </sql>
+
+    <sql id="BASE_WHERE_APPROVE">
+        WHERE price_requests.status = 2 AND price_requests.is_convert = 1 AND price_requests.product_id IN (SELECT id FROM products WHERE is_active = 3)
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (price_requests.model LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR price_requests.pgroup_name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR price_requests.request_code LIKE CONCAT("%", #{filter.searchText}, "%"))
+        </if>
+    </sql>
+
+    <select id="getListApprove" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="PriceRequestApproveResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST_APPROVE"/>
+        <include refid="BASE_FROM_APPROVE"/>
+        <include refid="BASE_WHERE_APPROVE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                products.id DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListApprove" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(price_requests.id)
+        <include refid="BASE_FROM_APPROVE"/>
+        <include refid="BASE_WHERE_APPROVE"/>
+    </select>
+
+    <update id="approve" parameterType="com.ut.nlSystemAPi.model.request.Login.PriceRequest.PriceRequestApproveRequest">
+        UPDATE products SET
+            <choose>
+                <when test="request.status == 1">
+                    is_active = 1
+                </when>
+                <otherwise>
+                    is_active = 3
+                </otherwise>
+            </choose>
+        WHERE id = (SELECT product_id FROM price_requests WHERE id = #{request.id});
+
+        UPDATE price_requests SET
+            <choose>
+              <when test="request.status == 1">
+                  approved_by = #{userId},
+                  approved = NOW()
+              </when>
+              <otherwise>
+                  reject_note = #{request.reason},
+                  status = 1,
+                  is_convert = 0
+              </otherwise>
+            </choose>
+        WHERE id = #{request.id};
+    </update>
+
+    <select id="getMessageId" resultType="java.lang.Long">
+        SELECT message_id FROM price_requests WHERE id = #{id} ORDER BY id ASC LIMIT 1
+    </select>
+
+    <select id="updateMessageId" resultType="java.lang.Long">
+        UPDATE price_requests SET message_id = #{messageId} WHERE id = #{id}
+    </select>
+
+    <select id="sumListApprove" resultType="java.lang.Long">
+        SELECT IFNULL(COUNT(id),0)
+        FROM price_requests
+        WHERE price_requests.status = 2 AND price_requests.is_convert = 1 AND price_requests.product_id IN (SELECT id FROM products WHERE is_active = 3)
+    </select>
+
+
+</mapper>

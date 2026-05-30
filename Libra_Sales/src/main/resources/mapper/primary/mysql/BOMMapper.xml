@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.BOMMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        boms.id AS id,
+        boms.code AS code,
+        boms.date AS `date`,
+        boqs.id AS boqId,
+        boqs.code AS boqCode,
+        (SELECT pc_code FROM project_costings WHERE boq_id = boqs.id AND status = 2) AS pcCode,
+        boms.company_id AS companyId,
+        companies.name AS companyName,
+        customers.id AS organizationId,
+        customers.customer_code AS organizationCode,
+        customers.name AS organizationName,
+        customer_contacts.id AS organizationContactId,
+        customer_contacts.contact_name AS organizationContact,
+        boms.note AS note,
+        boms.total_cost AS totalCost,
+        boms.total_price AS totalPrice,
+        (SELECT so_code FROM sales_orders WHERE sales_orders.bom_id = boms.id AND status > 0 ORDER BY sales_orders.id DESC LIMIT 1) AS invoiceNo,
+        (SELECT DATEDIFF(sales_orders.order_date, boms.approved) FROM sales_orders WHERE sales_orders.bom_id = boms.id AND status > 0 ORDER BY sales_orders.id DESC LIMIT 1) AS invoiceDateDiff,
+        boms.status AS status,
+        boms.approved AS approved,
+        CONCAT(approver.first_name, ' ', approver.last_name) AS approvedBy,
+        boms.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM boms
+        LEFT JOIN boqs ON boqs.id = boms.boq_id
+        LEFT JOIN companies ON companies.id = boms.company_id
+        LEFT JOIN customers ON customers.id = boms.customer_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = boms.customer_contact_id
+        LEFT JOIN users AS approver ON approver.id = boms.approved_by
+        LEFT JOIN users AS creator ON creator.id = boms.created_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE boms.status >= 0
+        <if test="filter.searchText != null">
+            AND boms.code LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+        <if test="filter.organizationId != null">
+            AND boms.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.status != null">
+            AND boms.status = #{filter.status}
+        </if>
+    </sql>
+
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.BOMFilter" resultType="com.ut.nlSystemAPi.model.response.BOM.BOMResponse">
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY boms.id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+       SELECT COUNT(boms.id)
+       <include refid="BASE_FROM"/>
+       <include refid="BASE_WHERE"/>
+  </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.BOM.BOMResponse">
+       SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+        WHERE boms.status >= 0 AND boms.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.BOQ.BOQDetail" useGeneratedKeys="true" keyProperty="bom.id">
+        INSERT INTO boms (
+            `date`,
+            company_id,
+            boq_id,
+            customer_id,
+            customer_contact_id,
+            note,
+            total_cost,
+            total_price,
+            created,
+            created_by,
+            status
+        ) VALUES (
+                 #{bom.date},
+                 #{bom.companyId},
+                 #{bom.boqId},
+                 #{bom.organizationId},
+                 #{bom.organizationContactId},
+                 #{bom.note},
+                 #{bom.totalCost},
+                 #{bom.totalPrice},
+                 NOW(),
+                 #{bom.createdBy},
+                 1
+             )
+    </insert>
+
+    <select id="getListDetail" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.BOM.BOMDetailResponse">
+        SELECT
+        bom_details.type_id AS `type`,
+        bom_details.id AS id,
+        bom_details.product_id AS productId,
+        CASE WHEN type_id IN (2,3)
+        THEN bom_details.description
+        ELSE products.name END AS productName,
+        products.code AS sku,
+        products.barcode AS upc,
+        bom_details.qty AS qty,
+        IFNULL(products.small_val_uom,1) / IFNULL(bom_details.conversion, 1) AS conversion,
+        bom_details.qty_uom_id AS uomId,
+        uoms.name AS uomName,
+        uoms.abbr AS uomAbbr,
+        bom_details.unit_cost AS unitCost,
+        bom_details.total_cost AS totalCost,
+        bom_details.unit_price AS unitPrice,
+        bom_details.total_price AS totalPrice,
+        bom_details.remark AS remark
+        FROM bom_details
+        LEFT JOIN products ON products.id = bom_details.product_id
+        LEFT JOIN uoms ON uoms.id = bom_details.qty_uom_id
+        WHERE bom_details.bom_id = #{bomId}
+    </select>
+
+    <insert id="insertDetail" parameterType="com.ut.nlSystemAPi.model.entity.BOQ.BOQDetail">
+        INSERT INTO bom_details (
+            bom_id,
+            type_id,
+            product_id,
+            description,
+            qty,
+            conversion,
+            qty_uom_id,
+            unit_cost,
+            total_cost,
+            unit_price,
+            total_price,
+            remark
+        ) VALUES (
+                     #{detail.bomId},
+                     #{detail.type},
+                     #{detail.itemId},
+                     #{detail.itemName},
+                     #{detail.qty},
+                     #{detail.conversion},
+                     #{detail.uomId},
+                     #{detail.unitCost},
+                     #{detail.totalCost},
+                     #{detail.unitPrice},
+                     #{detail.totalPrice},
+                     #{detail.remark}
+                 )
+    </insert>
+
+    <update id="approve" parameterType="java.lang.Long">
+        UPDATE boms SET
+        status = #{status},
+        <choose>
+            <when test="status == 2">
+                is_approve = 1,
+            </when>
+            <otherwise>
+                is_approve = 0,
+            </otherwise>
+        </choose>
+        approved = NOW(),
+        approved_by = #{userId}
+        WHERE id = #{id} AND status > 0;
+    </update>
+
+</mapper>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ModuleTypeMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    module_types.*,
+    module_types.name AS nameOther,
+    CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+    CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM module_types
+    LEFT JOIN users AS creator ON creator.id = module_types.created_by
+    LEFT JOIN users AS modifier ON modifier.id = module_types.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE module_types.status = 1
+    <if test="filter.searchText != null">AND module_types.name LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ModuleType">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        module_types.ordering ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="getListResponse" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="com.ut.nlSystemAPi.model.response.ModuleType.ModuleTypeResponse">
+    SELECT
+      module_types.id AS id,
+      module_types.name AS name,
+      module_types.name AS nameOther,
+      module_types.ordering AS ordering,
+      module_types.status AS status,
+      module_types.created AS created,
+      CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+      module_types.modified AS modified,
+      CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        module_types.ordering ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(module_types.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="ModuleType">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    WHERE module_types.status = 1 AND module_types.id = #{id}
+  </select>
+
+  <select id="getOneResponse" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.ModuleType.ModuleTypeResponse">
+    SELECT
+      module_types.id AS id,
+      module_types.name AS name,
+      module_types.name AS nameOther,
+      module_types.ordering AS ordering,
+      module_types.status AS status,
+      module_types.created AS created,
+      CONCAT(IFNULL(creator.first_name, ''), ' ', IFNULL(creator.last_name, '')) AS createdBy,
+      module_types.modified AS modified,
+      CONCAT(IFNULL(modifier.first_name, ''), ' ', IFNULL(modifier.last_name, '')) AS modifiedBy
+    <include refid="BASE_FROM"/>
+    WHERE module_types.status = 1 AND module_types.id = #{id}
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+    SELECT COUNT(module_types.id)
+    FROM module_types
+    WHERE status = 1 AND name = #{name}
+    <if test="id != null">AND id != #{id}</if>
+  </select>
+
+  <insert id="insert">
+    INSERT INTO module_types (
+      name,
+      ordering,
+      created,
+      created_by,
+      status
+    ) VALUES (
+      #{request.name},
+      #{request.ordering},
+      NOW(),
+      #{userId},
+      COALESCE(#{request.status}, 1)
+    )
+  </insert>
+
+  <update id="update">
+    UPDATE module_types
+    SET
+      name = COALESCE(#{request.name}, name),
+      ordering = COALESCE(#{request.ordering}, ordering),
+      status = COALESCE(#{request.status}, status),
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{request.id}
+      AND status = 1
+  </update>
+
+  <update id="delete">
+    UPDATE module_types
+    SET status = 0,
+        modified = NOW(),
+        modified_by = #{userId}
+    WHERE id = #{id}
+      AND status = 1;
+
+    UPDATE modules
+    SET status = 0,
+        modified = NOW(),
+        modified_by = #{userId}
+    WHERE module_type_id = #{id}
+      AND status = 1
+  </update>
+
+</mapper>

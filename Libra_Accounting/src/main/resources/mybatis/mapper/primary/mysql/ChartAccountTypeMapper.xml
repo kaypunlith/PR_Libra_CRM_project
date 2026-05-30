@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ChartAccountTypeMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    chart_account_types.id AS id,
+    chart_account_types.name AS name,
+    chart_account_types.is_active AS status,
+    DATE_FORMAT(chart_account_types.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(chart_account_types.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM chart_account_types
+    LEFT JOIN users AS users1 ON users1.id = chart_account_types.created_by
+    LEFT JOIN users AS users2 ON users2.id = chart_account_types.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE chart_account_types.is_active &lt; 2
+    <if test="filter.searchText != null">AND (chart_account_types.name LIKE CONCAT("%", #{filter.searchText}, "%"))</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="ChartAccountTypeResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+         ${filter.orderBy}
+      </when>
+      <otherwise>
+         chart_account_types.id ASC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <update id="updateStatus" parameterType="com.ut.nlSystemAPi.model.ChartAccountType">
+        UPDATE chart_account_types SET
+    <if test="chartAccountType.status != null"> `is_active` = #{chartAccountType.status},</if>
+        modified = NOW(),
+        modified_by = #{chartAccountType.modifiedBy}
+        WHERE id = #{chartAccountType.id}
+  </update>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+        SELECT COUNT(chart_account_types.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" resultMap="ChartAccountTypeResponse">
+        SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+        WHERE chart_account_types.id = #{id} AND chart_account_types.is_active = 1
+  </select>
+
+  <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM chart_account_types
+        WHERE is_active = 1 AND (name = #{name})
+    <if test="id != null"> AND id != #{id} </if>
+  </select>
+
+      <insert id="insert" parameterType="com.ut.nlSystemAPi.model.ChartAccountType">
+          INSERT INTO chart_account_types(
+              name,
+              created,
+              created_by,
+              is_active
+          ) VALUES (
+                       #{chartAccountType.name},
+                       NOW(),
+                       #{chartAccountType.createdBy},
+                       #{chartAccountType.isActive}
+            );
+      </insert>
+
+      <update id="update" parameterType="com.ut.nlSystemAPi.model.ChartAccountType">
+          UPDATE chart_account_types SET
+          <if test="chartAccountType.name != null"> `name` = #{chartAccountType.name},</if>
+          <if test="chartAccountType.isActive != null"> `is_active` = #{chartAccountType.isActive},</if>
+          modified = NOW(),
+          modified_by = #{chartAccountType.modifiedBy}
+          WHERE id = #{chartAccountType.id}
+      </update>
+
+      <update id="delete" parameterType="java.lang.Long">
+          UPDATE chart_account_types SET
+             is_active = 2,
+             modified = NOW(),
+             modified_by = #{userId}
+          WHERE id = #{id};
+      </update>
+
+</mapper>

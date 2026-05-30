@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.UserMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    users.id AS id,
+    CONCAT(users.first_name, ' ', users.last_name ) AS fullName,
+    users.first_name AS firstName,
+    users.last_name AS lastName,
+    users.username AS username,
+    DATE_FORMAT(users.created, '%d-%b-%y %h:%i') AS createdDate,
+    DATE_FORMAT(users.modified, '%d-%b-%y %h:%i') AS modifiedDate,
+    CONCAT(users1.first_name, ' ', users1.last_name ) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name ) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+    FROM users
+    LEFT JOIN users AS users1 ON users1.id = users.created_by
+    LEFT JOIN users AS users2 ON users2.id = users.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+    WHERE users.is_active = 1
+    <if test="filter.searchText != null">
+      AND (
+      users.username LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR users.first_name LIKE CONCAT("%", #{filter.searchText}, "%")
+      OR users.last_name LIKE CONCAT("%", #{filter.searchText}, "%")
+      )
+    </if>
+    <if test="filter.groupId != null">
+      AND users.id IN (SELECT user_id FROM user_groups WHERE group_id = #{filter.groupId})
+    </if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="UserResponse">
+    SELECT
+    <include refid="BASE_COLUMN_LIST"/>
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+    ORDER BY
+    <choose>
+      <when test="filter.orderBy != null">
+        ${filter.orderBy}
+      </when>
+      <otherwise>
+        users.id DESC
+      </otherwise>
+    </choose>
+    <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(users.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="User">
+    SELECT  users.id AS id,
+            CONCAT(users.first_name, ' ', users.last_name) AS fullName,
+            users.first_name AS firstName,
+            users.last_name AS lastName,
+            users.username AS username,
+            expired AS expireDate,
+            sex AS sex,
+            dob AS dob,
+            address AS address,
+            telephone AS telephone,
+            email AS email,
+            nationality AS nationalityId,
+            (SELECT `name` FROM nationalities WHERE id = users.nationality ) AS nationalityName,
+            password AS password
+    FROM users WHERE is_active = 1 AND id = #{id} LIMIT 01
+  </select>
+
+  <select id="getOneByUsername" parameterType="java.lang.String" resultMap="User">
+    SELECT *
+    FROM users
+    WHERE is_active = 1 AND username = #{username} AND session_id IS NOT NULL AND DATE(session_active) = DATE(NOW()) LIMIT 01
+  </select>
+
+  <select id="getOneByUserId" resultMap="UserResponse">
+    SELECT *,
+    (SELECT company_id FROM `user_companies` WHERE user_id = #{userId} LIMIT 1) AS companyId,
+    (SELECT id FROM `employees` WHERE user_id = #{userId} LIMIT 1) AS employeeId,
+    (SELECT exchange_rates.rate_to_sell
+    FROM exchange_rates
+    WHERE exchange_rates.is_active = 1 AND exchange_rates.currency_center_id = 2
+    ORDER BY id DESC LIMIT 1) AS rateToSell
+    FROM users
+    WHERE is_active = 1 AND id = #{userId}
+  </select>
+
+  <select id="getOneByGroup" parameterType="java.lang.Long" resultMap="User">
+    SELECT *
+    FROM users
+    WHERE is_active = 1 AND id IN (SELECT user_id FROM user_groups WHERE group_id = #{groupId})
+  </select>
+
+  <select id="getOneUserGroupList" parameterType="java.lang.Long" resultMap="UserGroupList">
+    SELECT * FROM `groups` WHERE is_active = 1 AND id IN (SELECT group_id FROM user_groups WHERE user_id = #{id});
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Users.User" useGeneratedKeys="true" keyProperty="user.id">
+    INSERT INTO users (
+      <if test="user.firstName != null">first_name,</if>
+      <if test="user.lastName != null">last_name,</if>
+    <if test="user.expireDate != null">expired,</if>
+    <if test="user.sex != null">sex,</if>
+    <if test="user.dob != null">dob,</if>
+    <if test="user.address != null">address,</if>
+    <if test="user.telephone != null">telephone,</if>
+    <if test="user.email != null">email,</if>
+    <if test="user.nationalityId != null">nationality,</if>
+      <if test="user.username != null">username,</if>
+      <if test="user.password != null">password,</if>
+      created,
+      created_by,
+      modified,
+      modified_by,
+      is_active
+    ) VALUES (
+      <if test="user.firstName != null">#{user.firstName},</if>
+      <if test="user.lastName != null">#{user.lastName},</if>
+    <if test="user.expireDate != null">#{user.expireDate},</if>
+    <if test="user.sex != null">#{user.sex},</if>
+    <if test="user.dob != null">#{user.dob},</if>
+    <if test="user.address != null">#{user.address},</if>
+    <if test="user.telephone != null">#{user.telephone},</if>
+    <if test="user.email != null">#{user.email},</if>
+    <if test="user.nationalityId != null">#{user.nationalityId},</if>
+      <if test="user.username != null">#{user.username},</if>
+      <if test="user.password != null">#{user.password},</if>
+      NOW(),
+      #{user.createdBy},
+      NOW(),
+      #{user.createdBy},
+      1
+    );
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Users.User">
+    UPDATE users SET
+      <if test="user.firstName != null">first_name = #{user.firstName},</if>
+      <if test="user.lastName != null">last_name = #{user.lastName},</if>
+      <if test="user.expireDate != null">expired = #{user.expireDate},</if>
+      <if test="user.sex != null">sex = #{user.sex},</if>
+      <if test="user.dob != null">dob = #{user.dob},</if>
+      <if test="user.address != null">address = #{user.address},</if>
+      <if test="user.telephone != null">telephone = #{user.telephone},</if>
+      <if test="user.email != null">email = #{user.email},</if>
+      <if test="user.nationalityId != null">nationality = #{user.nationalityId},</if>
+      <if test="user.username != null">username = #{user.username},</if>
+      <if test="user.password != null">password = #{user.password},</if>
+      <if test="user.signature != null">signature = #{user.signature},</if>
+      modified = NOW(),
+      modified_by = #{user.modifiedBy}
+    WHERE id = #{user.id}
+  </update>
+
+  <update id="editProfile" parameterType="com.ut.nlSystemAPi.model.Users.User">
+    UPDATE employees SET
+      <if test="user.photo != null">photo = #{user.photo},</if>
+      <if test="user.photoType != null">photo_type = #{user.photoType},</if>
+      <if test="user.employeeName != null">name = #{user.employeeName},</if>
+      <if test="user.employeeGender != null">sex = #{user.employeeGender},</if>
+      <if test="user.employeeDob != null">dob = #{user.employeeDob},</if>
+      <if test="user.employeePhoneNumber != null">personal_number = #{user.employeePhoneNumber},</if>
+      <if test="user.employeeEmail != null">email = #{user.employeeEmail},</if>
+      <if test="user.provinceId != null">province_id = #{user.provinceId},</if>
+      <if test="user.districtId != null">district_id = #{user.districtId},</if>
+      <if test="user.communeId != null">commune_id = #{user.communeId},</if>
+      <if test="user.villageId != null">village_id = #{user.villageId},</if>
+
+      modified = NOW(),
+      modified_by = #{user.modifiedBy}
+    WHERE id = #{user.employeeId};
+  </update>
+
+  <delete id="delete" parameterType="java.lang.Long">
+    UPDATE users SET
+      modified = NOW(),
+      modified_by = 1,
+      is_active = 2
+    WHERE id = #{id}
+  </delete>
+
+  <insert id="insertSystemRoleUser">
+    INSERT INTO user_groups (user_id, group_id) VALUES (#{userId}, #{groupId});
+  </insert>
+
+  <insert id="deleteSystemRoleUser">
+    DELETE FROM user_groups WHERE user_id = #{userId}
+  </insert>
+
+  <select id="getEmployeeId" parameterType="java.lang.Long" resultType="java.lang.Long">
+    SELECT employeeId FROM users WHERE is_active = 1 AND id = #{userId} LIMIT 01
+  </select>
+
+  <select id="getUserBilling" parameterType="java.lang.Long" resultMap="UserBilling">
+    SELECT sys_code, first_name, last_name, username, password, is_active FROM users WHERE id = #{userId} LIMIT 01
+  </select>
+
+</mapper>

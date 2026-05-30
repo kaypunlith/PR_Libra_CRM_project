@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.UomsMapper">
+
+  <sql id="BASE_COLUMN_LIST">
+    uoms.id AS id,
+    uoms.id AS id,
+    uoms.name AS name,
+    uoms.type AS type,
+    uoms.abbr AS abbr,
+    uoms.description AS description,
+    uoms.modified AS modified,
+    uoms.created AS created,
+    CONCAT(users1.first_name, ' ', users1.last_name) AS createdBy,
+    CONCAT(users2.first_name, ' ', users2.last_name) AS modifiedBy
+  </sql>
+
+  <sql id="BASE_FROM">
+      FROM uoms
+      LEFT JOIN users AS users1 ON users1.id = uoms.created_by
+      LEFT JOIN users AS users2 ON users2.id = uoms.modified_by
+  </sql>
+
+  <sql id="BASE_WHERE">
+      WHERE uoms.is_active = 1
+    <if test="filter.searchText != null"> AND uoms.name LIKE CONCAT("%", #{filter.searchText}, "%") OR uoms.type LIKE CONCAT("%", #{filter.searchText}, "%")</if>
+  </sql>
+
+  <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="UomsResponse">
+    SELECT
+     <include refid="BASE_COLUMN_LIST"/>
+     <include refid="BASE_FROM"/>
+     <include refid="BASE_WHERE"/>
+     ORDER BY
+     <choose>
+          <when test="filter.orderBy != null">
+            ${filter.orderBy}
+          </when>
+          <otherwise>
+              uoms.id DESC
+          </otherwise>
+     </choose>
+     <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+  </select>
+
+  <select id="countList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultType="java.lang.Long">
+    SELECT COUNT(uoms.id)
+    <include refid="BASE_FROM"/>
+    <include refid="BASE_WHERE"/>
+  </select>
+
+  <select id="getOne" parameterType="java.lang.Long" resultMap="UomsResponse">
+    SELECT
+      <include refid="BASE_COLUMN_LIST"/>
+      <include refid="BASE_FROM"/>
+    WHERE uoms.is_active = 1 AND uoms.id = #{id}
+  </select>
+
+  <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Uoms" useGeneratedKeys="true" keyProperty="uoms.id">
+    INSERT INTO uoms (
+        type,
+        sys_code,
+        name,
+        abbr,
+        description,
+        created,
+        created_by,
+        is_active
+    ) VALUES (
+      #{uoms.type},
+        UUID(),
+      #{uoms.name},
+      #{uoms.abbr},
+      #{uoms.description},
+      NOW(),
+      #{uoms.createdBy},
+      #{uoms.isActive}
+    )
+  </insert>
+
+  <update id="update" parameterType="com.ut.nlSystemAPi.model.Uoms">
+    UPDATE uoms SET
+      <if test="uoms.type != null">`type` = #{uoms.type},</if>
+      <if test="uoms.name != null">`name` = #{uoms.name},</if>
+      <if test="uoms.abbr != null">`abbr` = #{uoms.abbr},</if>
+      <if test="uoms.description != null">`description` = #{uoms.description},</if>
+      modified = NOW(),
+      <if test="uoms.modifiedBy != null">`modified_by` = #{uoms.modifiedBy}</if>
+    WHERE id = #{uoms.id}
+  </update>
+
+  <update id="delete" parameterType="java.lang.Long">
+    UPDATE uoms SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{id};
+  </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM uoms
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+</mapper>
