@@ -73,7 +73,6 @@
     <select id="getListOrganization" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.OrganizationDropdownFilter" resultMap="DropdownResponse">
         SELECT
         cus.id AS id,
-        cus.user_app_id AS userAppId,
         cus.customer_code AS code,
         CONCAT(cus.name_kh, ' (', cus.name, ')') AS name,
         cus.recurrence AS recurrence,
@@ -109,7 +108,33 @@
             )
         </if>
         GROUP BY cus.id
-        ORDER BY cus.id ASC
+        ORDER BY cus.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+
+    <select id="getListLead" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.OrganizationDropdownFilter" resultMap="DropdownResponse">
+        SELECT
+        cus.id AS id,
+        cus.customer_code AS code,
+        cus.name AS name,
+        cus.name_kh AS nameKh
+        FROM customers AS cus
+        WHERE cus.is_active = 3
+        AND cus.customer_type = 2
+        <if test="filter.searchText != null">
+            AND (cus.name LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR cus.name_kh LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR cus.customer_code LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR cus.main_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR cus.mobile_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            OR cus.other_number LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        GROUP BY cus.id
+        ORDER BY cus.id DESC
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
         </if>
@@ -132,6 +157,95 @@
         <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
     </select>
 
+    <select id="getListCustomerContact" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.CustomerContactDropdownFilter" resultMap="DropdownResponse">
+        SELECT
+        customer_contacts.id AS id,
+        customer_contacts.contact_name AS name,
+        customer_contacts.is_apply AS isApply
+        FROM customer_contacts
+        WHERE customer_contacts.is_active = 3
+        AND customer_contacts.contact_type = 2
+        AND customer_id IS NULL
+        <if test="filter.searchText != null">
+            AND (
+                customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_email LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+        ORDER BY customer_contacts.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListEmployeeGroup" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        id AS id,
+        name AS name
+        FROM egroups
+        WHERE 1 = 1
+        <if test="filter.searchText != null">
+            AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListTypeOfNetwork" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        id AS id,
+        name AS name
+        FROM type_network_partner_managements
+        WHERE is_active = 1
+        <if test="filter.searchText != null">
+            AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListPartnerManagementPosition" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        id AS id,
+        name AS name
+        FROM partner_management_positions
+        WHERE 1 = 1
+        <if test="filter.searchText != null">
+            AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListPartnerManagementIndustry" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        id AS id,
+        name AS name
+        FROM partner_management_industries
+        WHERE 1 = 1
+        <if test="filter.searchText != null">
+            AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListClassPartnerManagement" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        class_partner_managements.id AS id,
+        class_partner_managements.name AS name
+        FROM class_partner_managements
+        INNER JOIN class_egroup_partner_managements cepm ON cepm.class_id = class_partner_managements.id
+        INNER JOIN employee_egroups ee ON ee.egroup_id = cepm.egroup_id
+        INNER JOIN employees current_employee  ON current_employee.id = ee.employee_id AND current_employee.is_active = 1
+        AND current_employee.user_id = #{userId}
+        WHERE class_partner_managements.is_active = 1
+        <if test="filter.searchText != null">
+            AND class_partner_managements.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY class_partner_managements.id DESC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
     <select id="getListOrganizationGroup" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
         SELECT
         `id` as id,
@@ -141,6 +255,40 @@
             AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
         </if>
         ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListLeadGroup" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.LeadGroupDropdownFilter" resultMap="DropdownResponse">
+        SELECT
+        cgroups.id AS id,
+        cgroups.name AS name
+        FROM cgroups
+        WHERE cgroups.is_active = 3
+        AND cgroups.group_type = 2
+        AND cgroups.id IN (
+            SELECT cgroup_id
+            FROM cgroup_companies
+            WHERE company_id IN (
+                SELECT company_id
+                FROM user_companies
+                WHERE user_id = #{userId}
+            )
+        )
+        <if test="filter.companyId != null">
+            AND cgroups.id IN (
+                SELECT cgroup_id
+                FROM cgroup_companies
+                WHERE company_id = #{filter.companyId}
+            )
+        </if>
+        <if test="filter.searchText != null">
+            AND cgroups.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        <if test="filter.viewByUser == 1">
+            AND cgroups.created_by = #{userId}
+        </if>
+        GROUP BY cgroups.id, cgroups.name
+        ORDER BY cgroups.name ASC
         <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
     </select>
 
@@ -277,7 +425,7 @@
         id as id,
         quotation_code as code,
         total_amount as amount
-        FROM `quotations`
+        FROM `  `
         WHERE status = 1 AND is_close = 0
         <if test="filter.searchText != null">
             AND `quotation_code` LIKE CONCAT("%", #{filter.searchText}, "%")
@@ -290,6 +438,28 @@
         </if>
         <if test="filter.organizationId != null">
             AND customer_id = #{filter.organizationId}
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListActivityCardQuotation" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.QuotationDropdownFilter" resultMap="QuotationDropdownResponse">
+        SELECT
+        id as id,
+        quotation_code as code,
+        total_amount as amount
+        FROM `quotations`
+        WHERE status > 0
+        <choose>
+            <when test="filter.organizationId != null">
+                AND customer_id = #{filter.organizationId}
+            </when>
+            <otherwise>
+                AND 1 = 0
+            </otherwise>
+        </choose>
+        <if test="filter.searchText != null">
+            AND `quotation_code` LIKE CONCAT("%", #{filter.searchText}, "%")
         </if>
         ORDER BY id ASC
         <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
@@ -395,6 +565,99 @@
         FROM `customer_lead_negotiations` WHERE `is_active` = 1
         <if test="filter.searchText != null">
             AND `name` LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY id ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListOpportunityStage" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.OpportunityStageDropdownFilter" resultMap="DropdownResponse">
+        SELECT
+        cos.id AS id,
+        cos.name AS name,
+        cos.is_apply AS isApply
+        FROM crm_opportunity_stags AS cos
+        WHERE cos.is_active = 1
+        <if test="filter.searchText != null">
+            AND cos.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        GROUP BY cos.id, cos.name, cos.is_apply
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListOpportunityStageProbability" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.OpportunityStageDropdownFilter" resultMap="DropdownResponse">
+        SELECT
+        cpss.crm_opportunity_stag_id AS id,
+        cpss.percent AS percent
+        FROM crm_opportunity_stags AS cos
+
+       INNER JOIN crm_pipeline_setting_stags AS cpss ON cpss.crm_opportunity_stag_id = cos.id
+        WHERE cos.is_active = 1 AND  cpss.crm_opportunity_stag_id = #{filter.stageId}
+          AND cpss.crm_pipeline_setting_id = #{filter.pipelineId}
+        <if test="filter.searchText != null">
+            AND cos.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        GROUP BY cos.id, cos.name, cos.is_apply
+        ORDER BY IFNULL(MIN(cpss.ordering), cos.id) ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListOpportunitySource" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        id AS id,
+        name AS name,
+        type AS typeId
+        FROM crm_opportunity_sources
+        WHERE is_active = 1
+        <if test="filter.searchText != null">
+            AND name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        ORDER BY name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListOpportunityActivity" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.OpportunityStageDropdownFilter" resultMap="DropdownResponse">
+        SELECT DISTINCT
+        coa.id AS id,
+        coa.name AS name
+        FROM crm_opportunity_activities AS coa
+        LEFT JOIN crm_opportunity_stag_activities AS cosa getListSupportTicketBaseOnON cosa.crm_opportunity_activity_id = coa.id
+        WHERE coa.is_active = 1
+        <if test="filter.searchText != null">
+            AND coa.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        <if test="filter.stageId != null">
+            AND cosa.crm_opportunity_stag_id = #{filter.stageId}
+        </if>
+        ORDER BY coa.name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListSupportTicketActivity" parameterType="com.ut.nlSystemAPi.model.filter.Dropdown.SupportStageDropdownFilter" resultMap="DropdownResponse">
+        SELECT DISTINCT
+        csa.id AS id,
+        csa.name AS name
+        FROM crm_support_activities AS csa
+        LEFT JOIN crm_support_stag_activities AS cssa ON cssa.crm_support_activity_id = csa.id
+        WHERE csa.is_active = 1
+        <if test="filter.searchText != null">
+            AND csa.name LIKE CONCAT("%", #{filter.searchText}, "%")
+        </if>
+        <if test="filter.stageId != null">
+            AND cssa.crm_support_stag_id = #{filter.stageId}
+        </if>
+        ORDER BY csa.name ASC
+        <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
+    </select>
+
+    <select id="getListSupportTicketBaseOn" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="DropdownResponse">
+        SELECT
+        id AS id,
+        name AS name
+        FROM hr_working_hours
+        WHERE is_active = 1
+        AND year = YEAR(CURDATE())
+        <if test="filter.searchText != null">
+            AND name LIKE CONCAT("%", #{filter.searchText}, "%")
         </if>
         ORDER BY id ASC
         <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>

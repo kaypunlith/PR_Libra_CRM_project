@@ -83,7 +83,7 @@ public class ClassPartnerManagementServiceImpl implements ClassPartnerManagement
 
             List<ClassPartnerManagementResponse> responses = classPartnerManagementMapper.getOne(id);
             if (!responses.isEmpty()) {
-                responses.get(0).setEgroupIds(classPartnerManagementMapper.getEgroupIds(id));
+//                responses.get(0).setEgroupIds(classPartnerManagementMapper.getEgroupIds(id));
                 responses.get(0).setTypeNetworkEmployees(classPartnerManagementMapper.getTypeNetworkEmployees(id));
             }
             LocalTime endDuration = LocalTime.now();
@@ -189,8 +189,8 @@ public class ClassPartnerManagementServiceImpl implements ClassPartnerManagement
     }
 
     private void saveRelations(Long classId, ClassPartnerManagementRequest request) {
-        if (request.getEgroupIds() != null) {
-            for (Long egroupId : request.getEgroupIds()) {
+        if (request.getEmployeeGroupIds() != null) {
+            for (Long egroupId : request.getEmployeeGroupIds()) {
                 if (egroupId != null) {
                     classPartnerManagementMapper.insertEgroup(classId, egroupId);
                 }

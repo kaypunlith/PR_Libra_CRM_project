@@ -13,6 +13,9 @@ public class LeadGroupResponse {
     private Long id;
 
     @ApiModelProperty(position = 2)
+    private String name;
+
+    @ApiModelProperty(position = 2)
     private String companyName;
 
     @ApiModelProperty(position = 3)

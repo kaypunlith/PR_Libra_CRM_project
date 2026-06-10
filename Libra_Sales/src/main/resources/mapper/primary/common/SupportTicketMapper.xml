@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportTicketMapper">
+
+    <resultMap id="SupportTicketResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketResponse">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="caseTitle" column="caseTitle"/>
+        <result property="summary" column="summary"/>
+        <result property="pipelineId" column="pipelineId"/>
+        <result property="pipelineName" column="pipelineName"/>
+        <result property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="probability" column="probability"/>
+        <result property="typeId" column="typeId"/>
+        <result property="typeName" column="typeName"/>
+        <result property="organizationId" column="organizationId"/>
+        <result property="organizationName" column="organizationName"/>
+        <result property="priorityId" column="priorityId"/>
+        <result property="priorityName" column="priorityName"/>
+        <result property="assignedTo" column="assignedTo"/>
+        <result property="assignedToName" column="assignedToName"/>
+        <result property="contactId" column="contactId"/>
+        <result property="contactName" column="contactName"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+</mapper>

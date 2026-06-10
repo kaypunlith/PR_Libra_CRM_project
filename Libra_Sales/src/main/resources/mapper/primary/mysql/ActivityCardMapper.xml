@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ActivityCardMapper">
+
+    <sql id="BASE_CUSTOMER_COLUMN_LIST">
+        customers.id AS id,
+        (
+            SELECT GROUP_CONCAT(cgroups.name SEPARATOR ', ')
+            FROM cgroups
+            WHERE cgroups.id IN (
+                SELECT customer_cgroups.cgroup_id
+                FROM customer_cgroups
+                WHERE customer_cgroups.customer_id = customers.id
+                GROUP BY customer_cgroups.cgroup_id
+            )
+        ) AS customerGroupName,
+        customers.customer_code AS customerCode,
+        customers.name AS customerName,
+        customers.main_number AS telephone,
+        payment_terms.name AS paymentTermName,
+        (
+            SELECT GROUP_CONCAT(customer_contacts.contact_name SEPARATOR ', ')
+            FROM customer_contacts
+            WHERE customer_contacts.customer_id = customers.id
+            AND customer_contacts.is_active IN (1, 3)
+        ) AS contactName,
+        customers.customer_type AS customerTypeId
+    </sql>
+
+    <sql id="BASE_CUSTOMER_FROM">
+        FROM customers
+        LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
+    </sql>
+
+    <sql id="BASE_CUSTOMER_WHERE">
+        WHERE customers.is_active IN (1, 3)
+        AND customers.id IN (
+            SELECT customer_companies.customer_id
+            FROM customer_companies
+            WHERE customer_companies.company_id IN (
+                SELECT user_companies.company_id
+                FROM user_companies
+                WHERE user_companies.user_id = #{userId}
+            )
+        )
+        <if test="filter.viewByUser == 1">
+            AND customers.created_by = #{userId}
+        </if>
+        <if test="filter.customerId != null">
+            AND customers.id = #{filter.customerId}
+        </if>
+        <if test="filter.customerId == null and filter.saleTargetId != null and filter.saleTargetEmployeeId != null">
+            AND customers.id IN (
+                SELECT sale_target_employee_organizations.customer_id
+                FROM sale_target_employee_organizations
+                INNER JOIN sale_target_employees ON sale_target_employees.id = sale_target_employee_organizations.sale_target_employee_id
+                INNER JOIN sale_targets ON sale_targets.id = sale_target_employees.sale_target_id
+                WHERE sale_target_employees.employee_id = #{filter.saleTargetEmployeeId}
+                AND sale_target_employees.is_active = 1
+                AND sale_target_employee_organizations.is_active = 1
+                AND sale_target_employees.sale_target_id = #{filter.saleTargetId}
+                AND sale_targets.is_active = 1
+            )
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                customers.customer_code LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.main_number LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR payment_terms.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR EXISTS (
+                    SELECT 1
+                    FROM customer_contacts
+                    WHERE customer_contacts.customer_id = customers.id
+                    AND customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                )
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="ActivityCardCustomerResponse">
+        SELECT
+        <include refid="BASE_CUSTOMER_COLUMN_LIST"/>
+        <include refid="BASE_CUSTOMER_FROM"/>
+        <include refid="BASE_CUSTOMER_WHERE"/>
+        GROUP BY customers.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                customers.name DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT customers.id)
+        <include refid="BASE_CUSTOMER_FROM"/>
+        <include refid="BASE_CUSTOMER_WHERE"/>
+    </select>
+
+    <sql id="BASE_ACTIVITY_CARD_COLUMN_LIST">
+        crm_activities_cards.id AS id,
+        customers.id AS customerId,
+        customers.name AS customerName,
+        customer_contacts.id AS customerContactId,
+        customer_contacts.contact_name AS contactName,
+        crm_activities_cards.position AS position,
+        crm_activities_cards.action_status AS actionStatusId,
+        crm_activities_status.name AS status,
+        crm_activities_cards.quotation_id AS quotationId,
+        quotations.quotation_code AS quotationCode,
+        crm_activities_cards.issue_date AS date,
+        crm_activities_cards.type AS typeId,
+        CASE
+            WHEN crm_activities_cards.type = 0 THEN 'Issue'
+            WHEN crm_activities_cards.type = 1 THEN 'Win'
+            WHEN crm_activities_cards.type = 2 THEN 'Loss'
+            ELSE ''
+        END AS typeName,
+        crm_activities_cards.subject AS subject,
+        crm_activities_cards.result_action AS result,
+        crm_activities_cards.other AS other,
+        crm_activities_cards.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy
+    </sql>
+
+    <sql id="BASE_ACTIVITY_CARD_FROM">
+        FROM crm_activities_cards
+        INNER JOIN customer_contacts ON customer_contacts.id = crm_activities_cards.customer_contact_id
+        INNER JOIN customers ON customers.id = customer_contacts.customer_id
+        LEFT JOIN crm_activities_status ON crm_activities_status.id = crm_activities_cards.action_status
+        LEFT JOIN quotations ON quotations.id = crm_activities_cards.quotation_id
+        LEFT JOIN users AS creator ON creator.id = crm_activities_cards.created_by
+    </sql>
+
+    <sql id="BASE_ACTIVITY_CARD_WHERE">
+        WHERE crm_activities_cards.is_active = 1
+        AND customer_contacts.is_active IN (1, 3)
+        AND customers.is_active IN (1, 3)
+        AND customers.id IN (
+            SELECT customer_companies.customer_id
+            FROM customer_companies
+            WHERE customer_companies.company_id IN (
+                SELECT user_companies.company_id
+                FROM user_companies
+                WHERE user_companies.user_id = #{userId}
+            )
+        )
+        <if test="filter.customerId != null">
+            AND customers.id = #{filter.customerId}
+        </if>
+        <if test="filter.dateFrom != null and filter.dateFrom != ''">
+            AND DATE(crm_activities_cards.issue_date) &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null and filter.dateTo != ''">
+            AND DATE(crm_activities_cards.issue_date) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                crm_activities_cards.issue_date LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_status.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.position LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.subject LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.result_action LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR crm_activities_cards.other LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR quotations.quotation_code LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR CASE
+                    WHEN crm_activities_cards.type = 0 THEN 'Issue'
+                    WHEN crm_activities_cards.type = 1 THEN 'Win'
+                    WHEN crm_activities_cards.type = 2 THEN 'Loss'
+                    ELSE ''
+                END LIKE CONCAT("%", #{filter.searchText}, "%")
+            )
+        </if>
+    </sql>
+
+    <select id="getListReport" resultMap="ActivityCardResponse">
+        SELECT
+        <include refid="BASE_ACTIVITY_CARD_COLUMN_LIST"/>
+        <include refid="BASE_ACTIVITY_CARD_FROM"/>
+        <include refid="BASE_ACTIVITY_CARD_WHERE"/>
+        GROUP BY crm_activities_cards.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                crm_activities_cards.issue_date DESC
+            </otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countListReport" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT crm_activities_cards.id)
+        <include refid="BASE_ACTIVITY_CARD_FROM"/>
+        <include refid="BASE_ACTIVITY_CARD_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="ActivityCardResponse">
+        SELECT
+        <include refid="BASE_ACTIVITY_CARD_COLUMN_LIST"/>
+        <include refid="BASE_ACTIVITY_CARD_FROM"/>
+        WHERE crm_activities_cards.is_active = 1
+        AND customer_contacts.is_active IN (1, 3)
+        AND customers.is_active IN (1, 3)
+        AND customers.id IN (
+            SELECT customer_companies.customer_id
+            FROM customer_companies
+            WHERE customer_companies.company_id IN (
+                SELECT user_companies.company_id
+                FROM user_companies
+                WHERE user_companies.user_id = #{userId}
+            )
+        )
+        AND crm_activities_cards.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="activityCard.id">
+        INSERT INTO crm_activities_cards (
+            customer_contact_id,
+            position,
+            action_status,
+            quotation_id,
+            issue_date,
+            type,
+            subject,
+            result_action,
+            other,
+            is_active,
+            created,
+            created_by
+        ) VALUES (
+            #{activityCard.customerContactId},
+            #{activityCard.position},
+            #{activityCard.actionStatusId},
+            #{activityCard.quotationId},
+            #{activityCard.issueDate},
+            #{activityCard.typeId},
+            #{activityCard.subject},
+            #{activityCard.resultAction},
+            #{activityCard.other},
+            #{activityCard.isActive},
+            NOW(),
+            #{activityCard.createdBy}
+        )
+    </insert>
+
+    <update id="updateCustomerContactPosition">
+        UPDATE customer_contacts
+        SET position = #{position}
+        WHERE id = #{customerContactId}
+        AND is_active IN (1, 3)
+    </update>
+
+    <update id="delete">
+        UPDATE crm_activities_cards
+        SET is_active = 2
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+</mapper>

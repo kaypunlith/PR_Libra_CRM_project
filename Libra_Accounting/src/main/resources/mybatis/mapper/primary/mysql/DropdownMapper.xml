@@ -175,7 +175,7 @@
             `id` as id,
             `name` as nameEn,
             name_kh AS nameKh,
-            code AS code
+            employee_code AS code
         FROM `employees` WHERE `is_active` = 1
         <if test="filter.searchText != null">
             AND (`name` LIKE CONCAT("%", #{filter.searchText}, "%") OR `name_kh` LIKE CONCAT("%", #{filter.searchText}, "%"))

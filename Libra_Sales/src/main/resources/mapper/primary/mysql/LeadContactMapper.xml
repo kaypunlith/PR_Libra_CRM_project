@@ -69,7 +69,7 @@
                 ${filter.orderBy}
             </when>
             <otherwise>
-                customer_contacts.contact_name ASC
+                customer_contacts.id DESC
             </otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">

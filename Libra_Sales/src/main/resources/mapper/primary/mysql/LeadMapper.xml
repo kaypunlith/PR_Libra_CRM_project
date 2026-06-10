@@ -133,7 +133,7 @@
                 ${filter.orderBy}
             </when>
             <otherwise>
-                customers.lead_code ASC
+                customers.lead_code DESC
             </otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">

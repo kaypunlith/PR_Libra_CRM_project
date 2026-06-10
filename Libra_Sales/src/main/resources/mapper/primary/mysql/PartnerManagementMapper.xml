@@ -77,13 +77,6 @@
         <if test="typeNetworkId != null">AND partner_managements.type_network_id = #{typeNetworkId}</if>
         AND EXISTS (
             SELECT 1
-            FROM class_user_type_network_partner_managements cutnpm
-            WHERE cutnpm.class_id = partner_managements.class_id
-              AND cutnpm.type_network_id = partner_managements.type_network_id
-              AND cutnpm.user_id = #{userId}
-        )
-        AND EXISTS (
-            SELECT 1
             FROM class_egroup_partner_managements cepm
 
             INNER JOIN employee_egroups ee ON ee.egroup_id = cepm.egroup_id

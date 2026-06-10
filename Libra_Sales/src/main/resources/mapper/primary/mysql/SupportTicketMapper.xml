@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportTicketMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cs.id AS id,
+        cs.code AS code,
+        cs.case_title AS caseTitle,
+        cs.summary AS summary,
+        csd.crm_support_pipeline_setting_id AS pipelineId,
+        csps.description AS pipelineName,
+        csd.crm_support_stag_id AS stageId,
+        css.name AS stageName,
+        csd.probability AS probability,
+        csps.type_id AS typeId,
+        CASE csps.type_id WHEN 1 THEN 'Internal' WHEN 2 THEN 'External' END AS typeName,
+        cs.customer_id AS organizationId,
+        customers.name AS organizationName,
+        cs.priority_id AS priorityId,
+        hr_todo_list_priorities.name AS priorityName,
+        cs.assigned_to AS assignedTo,
+        CONCAT(assigned.first_name, ' ', assigned.last_name) AS assignedToName,
+        cs.customer_contact_id AS contactId,
+        customer_contacts.contact_name AS contactName,
+        cs.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cs.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_supports AS cs
+        LEFT JOIN crm_support_details AS csd ON csd.crm_support_id = cs.id AND csd.is_active = 1 AND csd.is_convert = 0
+        LEFT JOIN crm_support_pipeline_settings AS csps ON csps.id = csd.crm_support_pipeline_setting_id
+        LEFT JOIN crm_support_stags AS css ON css.id = csd.crm_support_stag_id
+        LEFT JOIN customers ON customers.id = cs.customer_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = cs.customer_contact_id
+        LEFT JOIN hr_todo_list_priorities ON hr_todo_list_priorities.id = cs.priority_id
+        LEFT JOIN users AS assigned ON assigned.id = cs.assigned_to
+        LEFT JOIN users AS creator ON creator.id = cs.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cs.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cs.is_active = #{filter.status}
+        AND csd.crm_support_pipeline_setting_id IN (
+            SELECT crm_support_pipeline_setting_id
+            FROM crm_support_pipeline_setting_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id
+                FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        <if test="filter.pipelineId != null">
+            AND csd.crm_support_pipeline_setting_id = #{filter.pipelineId}
+        </if>
+        <if test="filter.assignedTo != null">
+            AND cs.assigned_to = #{filter.assignedTo}
+        </if>
+        <if test="filter.createdBy != null">
+            AND cs.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.organizationId != null">
+            AND cs.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.dateFrom != null">
+            AND DATE(cs.created) &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(cs.created) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                cs.case_title LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR cs.code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR css.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="SupportTicketResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY cs.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>csd.crm_support_pipeline_setting_id ASC, csd.crm_support_stag_id ASC, cs.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT cs.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="SupportTicketResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE cs.is_active IN (1, 2)
+        AND cs.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="support.id">
+        INSERT INTO crm_supports (
+            case_title, summary, priority_id, customer_id, customer_contact_id,
+            assigned_to, created, created_by, is_active
+        ) VALUES (
+            #{support.caseTitle}, #{support.summary}, #{support.priorityId}, #{support.customerId}, #{support.customerContactId},
+            #{support.assignedTo}, NOW(), #{support.createdBy}, #{support.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE crm_supports
+        SET case_title = #{support.caseTitle},
+            summary = #{support.summary},
+            priority_id = #{support.priorityId},
+            customer_id = #{support.customerId},
+            customer_contact_id = #{support.customerContactId},
+            assigned_to = #{support.assignedTo},
+            modified = NOW(),
+            modified_by = #{support.modifiedBy}
+        WHERE id = #{support.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_supports
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+    <update id="updateCode">
+        UPDATE crm_supports
+        SET code = #{code}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertDetail" useGeneratedKeys="true" keyProperty="detail.id">
+        INSERT INTO crm_support_details (
+            crm_support_id, crm_support_pipeline_setting_id, crm_support_stag_id,
+            probability, created, created_by, is_active, is_convert
+        ) VALUES (
+            #{detail.supportId}, #{detail.pipelineId}, #{detail.stageId},
+            #{detail.probability}, NOW(), #{detail.createdBy}, #{detail.isActive}, 0
+        )
+    </insert>
+
+    <update id="closeDetail">
+        UPDATE crm_support_details
+        SET is_active = 2
+        WHERE crm_support_id = #{supportId}
+        AND crm_support_pipeline_setting_id = #{pipelineId}
+        <if test="stageId != null">
+            AND crm_support_stag_id = #{stageId}
+        </if>
+        AND is_active = 1
+    </update>
+
+    <select id="getStagePercent" resultType="java.lang.Double">
+        SELECT percent
+        FROM crm_support_pipeline_setting_stags
+        WHERE crm_support_stag_id = #{stageId}
+        ORDER BY ordering ASC
+        LIMIT 1
+    </select>
+
+    <insert id="insertEmployeeGroup">
+        INSERT INTO crm_support_egroups(crm_support_id, egroup_id)
+        VALUES (#{supportId}, #{employeeGroupId})
+    </insert>
+
+    <delete id="deleteEmployeeGroup">
+        DELETE FROM crm_support_egroups
+        WHERE crm_support_id = #{supportId}
+    </delete>
+
+</mapper>

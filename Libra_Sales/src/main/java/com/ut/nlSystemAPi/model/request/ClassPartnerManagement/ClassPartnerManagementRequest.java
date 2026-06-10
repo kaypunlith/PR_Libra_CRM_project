@@ -11,7 +11,7 @@ public class ClassPartnerManagementRequest {
     private String name;
 
     @ApiModelProperty(position = 2)
-    private List<Long> egroupIds;
+    private List<Long> employeeGroupIds;
 
     @ApiModelProperty(position = 3)
     private List<ClassPartnerManagementTypeNetworkEmployeeRequest> typeNetworkEmployees;

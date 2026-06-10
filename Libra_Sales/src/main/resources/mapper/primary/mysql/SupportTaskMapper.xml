@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportTaskMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cst.id AS id,
+        cst.crm_support_activity_id AS activityId,
+        csa.name AS activityName,
+        cst.name AS taskName,
+        cst.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cst.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_support_tasks AS cst
+        INNER JOIN crm_support_activities AS csa ON csa.id = cst.crm_support_activity_id
+        LEFT JOIN users AS creator ON creator.id = cst.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cst.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cst.is_active = 1
+        AND csa.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                cst.name LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR csa.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="SupportTaskResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>cst.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(cst.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="SupportTaskResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE cst.is_active = 1
+        AND csa.is_active = 1
+        AND cst.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="task.id">
+        INSERT INTO crm_support_tasks(crm_support_activity_id, name, created, created_by, is_active)
+        VALUES (#{task.activityId}, #{task.name}, NOW(), #{task.createdBy}, #{task.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE crm_support_tasks
+        SET crm_support_activity_id = #{task.activityId},
+            name = #{task.name},
+            modified = NOW(),
+            modified_by = #{task.modifiedBy}
+        WHERE id = #{task.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_support_tasks
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM crm_support_tasks
+        WHERE is_active = 1
+        AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+</mapper>

@@ -19,6 +19,7 @@ import com.ut.nlSystemAPi.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import java.net.UnknownHostException;
 import java.time.LocalTime;
@@ -161,6 +162,30 @@ public class DropdownServiceImpl implements DropdownService {
     }
 
     @Override
+    public ResponseMessage<BaseResult> getListLead(OrganizationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2003L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListLead(filter, userId);
+
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization/list", null, null, "Organization", "Organization (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization/list", line, error.toString(), "Organization", "Organization (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
     public ResponseMessage<BaseResult> getListOrganizationContact(CustomerContactDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
         LocalTime startDuration = LocalTime.now();
         Long line = 2004L;
@@ -183,6 +208,141 @@ public class DropdownServiceImpl implements DropdownService {
     }
 
     @Override
+    public ResponseMessage<BaseResult> getListCustomerContact(CustomerContactDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2005L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListCustomerContact(filter, userId);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/customer-contact/list", null, null, "CustomerContact", "CustomerContact (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/customer-contact/list", line, error.toString(), "CustomerContact", "CustomerContact (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListEmployeeGroup(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2005L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListEmployeeGroup(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/employee-group/list", null, null, "EmployeeGroup", "EmployeeGroup (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/employee-group/list", line, error.toString(), "EmployeeGroup", "EmployeeGroup (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListTypeOfNetwork(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2006L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListTypeOfNetwork(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/type-of-network/list", null, null, "TypeOfNetwork", "TypeOfNetwork (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/type-of-network/list", line, error.toString(), "TypeOfNetwork", "TypeOfNetwork (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListPartnerManagementPosition(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2007L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListPartnerManagementPosition(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/partner-management-position/list", null, null, "PartnerManagementPosition", "PartnerManagementPosition (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/partner-management-position/list", line, error.toString(), "PartnerManagementPosition", "PartnerManagementPosition (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListPartnerManagementIndustry(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2008L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListPartnerManagementIndustry(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/partner-management-industry/list", null, null, "PartnerManagementIndustry", "PartnerManagementIndustry (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/partner-management-industry/list", line, error.toString(), "PartnerManagementIndustry", "PartnerManagementIndustry (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListClassPartnerManagement(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2009L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            System.out.println("User "+userId);
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListClassPartnerManagement(filter,userId);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/class-partner-management/list", null, null, "ClassPartnerManagement", "ClassPartnerManagement (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/class-partner-management/list", line, error.toString(), "ClassPartnerManagement", "ClassPartnerManagement (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
     public ResponseMessage<BaseResult> getListOrganizationGroup(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
         LocalTime startDuration = LocalTime.now();
         Long line = 2005L;
@@ -200,6 +360,29 @@ public class DropdownServiceImpl implements DropdownService {
         } catch (Exception error) {
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/organization-group/list", line, error.toString(), "OrganizationGroup", "OrganizationGroup (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListLeadGroup(LeadGroupDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2006L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListLeadGroup(filter, userId);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/lead-group/list", null, null, "LeadGroup", "LeadGroup (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/lead-group/list", line, error.toString(), "LeadGroup", "LeadGroup (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
     }
@@ -352,6 +535,28 @@ public class DropdownServiceImpl implements DropdownService {
     }
 
     @Override
+    public ResponseMessage<BaseResult> getListActivityCardQuotation(QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 2011L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<QuotationDropdownResponse> responses = dropdownMapper.getListActivityCardQuotation(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/dropdown/list-activity-card-quotation", null, null, "Activity Card", "Activity Card (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/dropdown/list-activity-card-quotation", line, error.toString(), "Activity Card", "Activity Card (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
     public ResponseMessage<BaseResult> getListTransferOrder(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
         LocalTime startDuration = LocalTime.now();
         Long line = 3002L;
@@ -480,6 +685,140 @@ public class DropdownServiceImpl implements DropdownService {
         } catch (Exception error) {
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/key-negotiation-issue/list", line, error.toString(), "KeyNegotiationIssue", "KeyNegotiationIssue (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListOpportunityStage(OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 3008L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListOpportunityStage(filter, userId);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-stage/list", null, null, "OpportunityStage", "OpportunityStage (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-stage/list", line, error.toString(), "OpportunityStage", "OpportunityStage (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListOpportunityStageProbability(OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 3008L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListOpportunityStageProbability(filter, userId);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-stage/list", null, null, "OpportunityStage", "OpportunityStage (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-stage/list", line, error.toString(), "OpportunityStage", "OpportunityStage (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListOpportunitySource(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 3009L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListOpportunitySource(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-source/list", null, null, "OpportunitySource", "OpportunitySource (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-source/list", line, error.toString(), "OpportunitySource", "OpportunitySource (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListOpportunityActivity(OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 3010L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListOpportunityActivity(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-activity/list", null, null, "OpportunityActivity", "OpportunityActivity (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/opportunity-activity/list", line, error.toString(), "OpportunityActivity", "OpportunityActivity (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListSupportTicketActivity(SupportStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 3011L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListSupportTicketActivity(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/support-ticket-activity/list", null, null, "SupportTicketActivity", "SupportTicketActivity (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/support-ticket-activity/list", line, error.toString(), "SupportTicketActivity", "SupportTicketActivity (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListSupportTicketBaseOn(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 3012L;
+        try {
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<DropdownResponse> responses = dropdownMapper.getListSupportTicketBaseOn(filter);
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/support-ticket-base-on/list", null, null, "SupportTicketBaseOn", "SupportTicketBaseOn (view)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", responses, pagination, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/support-ticket-base-on/list", line, error.toString(), "SupportTicketBaseOn", "SupportTicketBaseOn (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
     }
@@ -1022,6 +1361,11 @@ public class DropdownServiceImpl implements DropdownService {
             activityLogService.insert("/quotation-status/list", line, error.toString(), "Quotation Status", "Quotation Status (view)", "View", 2, "Error", startDuration, endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListDivision(QuotationDivisionDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        return getListQuotationDivision(filter, httpServletRequest);
     }
 
     @Override

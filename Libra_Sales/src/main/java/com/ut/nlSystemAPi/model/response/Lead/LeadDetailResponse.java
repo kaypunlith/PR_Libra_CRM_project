@@ -14,6 +14,9 @@ public class LeadDetailResponse {
     @ApiModelProperty(position = 2)
     private String name;
 
+    @ApiModelProperty(position = 2)
+    private String code;
+
     @ApiModelProperty(position = 3)
     private String title;
 

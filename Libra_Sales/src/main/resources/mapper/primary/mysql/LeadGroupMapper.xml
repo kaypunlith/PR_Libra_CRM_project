@@ -4,6 +4,7 @@
 
     <sql id="BASE_COLUMN_LIST">
         cgroups.id AS id,
+        cgroups.name AS name,
         cgroups.created AS created,
         CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
         cgroups.modified AS modified,
@@ -161,7 +162,8 @@
     <select id="getLead" resultMap="LeadGroupDetailResponse">
         SELECT
             customer_id AS id,
-            (SELECT lead_code FROM customers WHERE id = customer_id) AS name
+            (SELECT customer_code FROM customers WHERE id = customer_id) AS code,
+            (SELECT CONCAT(customers.name_kh, ' (', customers.name, ')')  FROM customers WHERE id = customer_id) AS name
         FROM customer_cgroups
         WHERE cgroup_id = #{leadGroupId}
     </select>
