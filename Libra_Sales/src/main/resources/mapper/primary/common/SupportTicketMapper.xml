@@ -22,6 +22,7 @@
         <result property="assignedToName" column="assignedToName"/>
         <result property="contactId" column="contactId"/>
         <result property="contactName" column="contactName"/>
+        <result property="employeeGroupName" column="employeeGroupName"/>
         <result property="created" column="created"/>
         <result property="createdBy" column="createdBy"/>
         <result property="modified" column="modified"/>

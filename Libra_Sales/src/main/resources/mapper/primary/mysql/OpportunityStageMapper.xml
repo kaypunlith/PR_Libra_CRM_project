@@ -34,7 +34,7 @@
         ORDER BY
         <choose>
             <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>cos.name ASC</otherwise>
+            <otherwise>cos.id DESC</otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}

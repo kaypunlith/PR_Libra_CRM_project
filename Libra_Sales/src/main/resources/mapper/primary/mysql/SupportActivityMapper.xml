@@ -28,11 +28,17 @@
             FROM crm_support_tasks
             WHERE crm_support_activity_id = csa.id
             AND is_active = 1
-        ) AS taskName
+        ) AS taskName,
+        csa.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        csa.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
     </sql>
 
     <sql id="BASE_FROM">
         FROM crm_support_activities AS csa
+        LEFT JOIN users AS creator ON creator.id = csa.created_by
+        LEFT JOIN users AS modifier ON modifier.id = csa.modified_by
     </sql>
 
     <sql id="BASE_WHERE">
@@ -49,7 +55,7 @@
         ORDER BY
         <choose>
             <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>csa.name ASC</otherwise>
+            <otherwise>csa.id DESC</otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
@@ -69,13 +75,13 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="activity.id">
-        INSERT INTO crm_support_activities(name, is_active)
-        VALUES (#{activity.name},#{activity.isActive})
+        INSERT INTO crm_support_activities(name,created,created_by, is_active)
+        VALUES (#{activity.name}, NOW(), #{activity.createdBy}, #{activity.isActive})
     </insert>
 
     <update id="update">
         UPDATE crm_support_activities
-        SET name = #{activity.name}
+        SET name = #{activity.name}, modified = NOW(), modified_by = #{activity.modifiedBy}
         WHERE id = #{activity.id}
         AND is_active = 1
     </update>

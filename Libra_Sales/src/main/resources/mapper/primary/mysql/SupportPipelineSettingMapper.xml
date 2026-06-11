@@ -19,9 +19,9 @@
                 WHERE crm_support_pipeline_setting_id = cps.id
             )
         ) AS employeeGroupName,
-        GROUP_CONCAT(cos.name SEPARATOR ', ') AS stageName,
-        GROUP_CONCAT(CONCAT(FORMAT(cpss.percent, 0), '%') SEPARATOR ', ') AS percentage,
-        GROUP_CONCAT(cpss.ordering SEPARATOR ', ') AS ordering,
+        GROUP_CONCAT(cos.name ORDER BY cpss.ordering DESC SEPARATOR ', ') AS stageName,
+        GROUP_CONCAT(CONCAT(FORMAT(cpss.percent, 0), '%') ORDER BY cpss.ordering DESC SEPARATOR ', ') AS percentage,
+        GROUP_CONCAT(cpss.ordering ORDER BY cpss.ordering DESC SEPARATOR ', ') AS ordering,
         cps.created AS created,
         CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
         cps.modified AS modified,
@@ -61,7 +61,7 @@
         ORDER BY
         <choose>
             <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>cps.id DESC</otherwise>
+            <otherwise>MAX(cpss.ordering) DESC</otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}

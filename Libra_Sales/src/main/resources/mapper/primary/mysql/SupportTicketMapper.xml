@@ -22,6 +22,15 @@
         CONCAT(assigned.first_name, ' ', assigned.last_name) AS assignedToName,
         cs.customer_contact_id AS contactId,
         customer_contacts.contact_name AS contactName,
+        (
+            SELECT GROUP_CONCAT(egroups.name SEPARATOR ', ')
+            FROM egroups
+            WHERE egroups.id IN (
+                SELECT egroup_id
+                FROM crm_support_egroups
+                WHERE crm_support_id = cs.id
+            )
+        ) AS employeeGroupName,
         cs.created AS created,
         CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
         cs.modified AS modified,
@@ -110,11 +119,24 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="support.id">
         INSERT INTO crm_supports (
-            case_title, summary, priority_id, customer_id, customer_contact_id,
-            assigned_to, created, created_by, is_active
+            case_title, summary,
+            priority_id,
+            customer_id,
+            customer_contact_id,
+            assigned_to,
+            created,
+            created_by,
+            is_active
         ) VALUES (
-            #{support.caseTitle}, #{support.summary}, #{support.priorityId}, #{support.customerId}, #{support.customerContactId},
-            #{support.assignedTo}, NOW(), #{support.createdBy}, #{support.isActive}
+            #{support.caseTitle},
+            #{support.summary},
+            #{support.priorityId},
+            #{support.customerId},
+            #{support.customerContactId},
+            #{support.assignedTo},
+             NOW(),
+             #{support.createdBy},
+             #{support.isActive}
         )
     </insert>
 

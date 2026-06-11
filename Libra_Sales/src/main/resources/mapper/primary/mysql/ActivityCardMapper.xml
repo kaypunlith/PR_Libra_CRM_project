@@ -118,7 +118,7 @@
         crm_activities_cards.issue_date AS date,
         crm_activities_cards.type AS typeId,
         CASE
-            WHEN crm_activities_cards.type = 0 THEN 'Issue'
+            WHEN crm_activities_cards.type = 0 THEN 'Normal'
             WHEN crm_activities_cards.type = 1 THEN 'Win'
             WHEN crm_activities_cards.type = 2 THEN 'Loss'
             ELSE ''
@@ -224,7 +224,7 @@
                 WHERE user_companies.user_id = #{userId}
             )
         )
-        AND crm_activities_cards.id = #{id}
+        AND customers.id = #{id}
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="activityCard.id">

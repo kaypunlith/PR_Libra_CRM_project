@@ -620,7 +620,7 @@
         coa.id AS id,
         coa.name AS name
         FROM crm_opportunity_activities AS coa
-        LEFT JOIN crm_opportunity_stag_activities AS cosa getListSupportTicketBaseOnON cosa.crm_opportunity_activity_id = coa.id
+        LEFT JOIN crm_opportunity_stag_activities AS cosa ON cosa.crm_opportunity_activity_id = coa.id
         WHERE coa.is_active = 1
         <if test="filter.searchText != null">
             AND coa.name LIKE CONCAT("%", #{filter.searchText}, "%")

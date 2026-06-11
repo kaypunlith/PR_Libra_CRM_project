@@ -45,11 +45,13 @@ public class SupportTicketResponse {
     @ApiModelProperty(position = 19)
     private String contactName;
     @ApiModelProperty(position = 20)
-    private String created;
+    private String employeeGroupName;
     @ApiModelProperty(position = 21)
-    private String createdBy;
+    private String created;
     @ApiModelProperty(position = 22)
-    private String modified;
+    private String createdBy;
     @ApiModelProperty(position = 23)
+    private String modified;
+    @ApiModelProperty(position = 24)
     private String modifiedBy;
 }
