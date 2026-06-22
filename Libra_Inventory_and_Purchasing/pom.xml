@@ -11,7 +11,7 @@
     <!--! QA -->
     <name>libraSystemInventoryAndPurchasingAPi</name>
     <artifactId>libraSystemInventoryAndPurchasingAPi</artifactId>
-    <version>v1.0</version>
+    <version>v1.01</version>
 
     <!--! Production -->
     <!--    <name>libraSystemInventoryAndPurchasingAPi</name>-->

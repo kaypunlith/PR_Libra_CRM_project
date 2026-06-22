@@ -54,12 +54,26 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="stage.id">
-        INSERT INTO crm_opportunity_stags(name, is_apply, created, created_by, is_active)
-        VALUES (#{stage.name}, #{stage.applyWith}, NOW(), #{stage.createdBy}, #{stage.isActive})
+        INSERT INTO crm_opportunity_stags
+        (
+            name,
+            created,
+            created_by,
+            is_apply,
+            is_active
+        )
+        VALUES
+            (
+                #{stage.name},
+                NOW(),
+                #{stage.createdBy},
+                #{stage.applyWith},
+                #{stage.isActive}
+            )
     </insert>
 
     <update id="update">
-        UPDATE crm_opportunity_stags SET name = #{stage.name}, is_apply = #{stage.applyWith}, modified = NOW(), modified_by = #{stage.modifiedBy}
+        UPDATE crm_opportunity_stags SET name = #{stage.name}, modified = NOW(), modified_by = #{stage.modifiedBy}, is_apply = #{stage.applyWith}
         WHERE id = #{stage.id} AND is_active = 1
     </update>
 

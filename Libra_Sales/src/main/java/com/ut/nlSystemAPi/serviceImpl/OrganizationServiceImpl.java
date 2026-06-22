@@ -10,7 +10,6 @@ import com.ut.nlSystemAPi.model.base.Pagination;
 import com.ut.nlSystemAPi.model.base.ResponseMessage;
 import com.ut.nlSystemAPi.model.entity.Organization.Organization;
 import com.ut.nlSystemAPi.model.MessageService;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.model.entity.Organization.OrganizationActivityCard;
 import com.ut.nlSystemAPi.model.entity.Organization.OrganizationDivision;
 import com.ut.nlSystemAPi.model.filter.OrganizationActivityCardFilter;
@@ -69,9 +68,6 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Autowired
     private HelperMapper helperMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     public ResponseMessage<BaseResult> getList(OrganizationFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
         LocalTime startDuration = LocalTime.now();
@@ -172,8 +168,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                     response.setCustomerTerminate(organizationMapper.getCustomerTerminates(id));
                     response.setCustomerSurvey(organizationMapper.getCustomerSurveys(id));
                     response.setDivisionInformation(organizationMapper.getDivisionInformation(id));
-                    response.setFreedomCustomers(mapFreedomCustomersToOrganizationDetails(freedomMapper.getCustomerLocationGroupCustomers(id)));
-                    applyFreedomBranchModuleCodes(response);
                     if (response.getDivisionInformation() != null) {
                         for (OrganizationDetailResponse division : response.getDivisionInformation()) {
                             division.setNegotiations(organizationMapper.getDivisionInformationDetail(division.getId()));
@@ -213,9 +207,13 @@ public class OrganizationServiceImpl implements OrganizationService {
             Long limitNumberInvoice = request.getLimitNumberInvoice() != null ? request.getLimitNumberInvoice() : 0L;
 
             // Check Data
+            String customerCode = generateCode.generateCustomerCode();
+
             Organization organization = new Organization();
             organization.setPhoto(request.getPhoto());
-            organization.setOrganizationCode(request.getOrganizationCode());
+            organization.setOrganizationCode(customerCode);
+
+            organization.setSourceId(request.getSourceId());
             organization.setBusinessTypeId(request.getBusinessTypeId());
             organization.setBusinessActivityId(request.getBusinessActivityId());
             organization.setCustomerType(customerType);
@@ -334,9 +332,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                 }
 
                 if (isFreedom == 1) {
-                    upsertFreedomWarehouseAndLocation(organization);
-                    createFreedomTables(organization.getId(), true);
-                    syncFreedomCustomerLocationGroups(organization.getId(), request.getFreedomCustomers());
                 }
 
                 /*System Activity*/
@@ -382,6 +377,7 @@ public class OrganizationServiceImpl implements OrganizationService {
             organization.setOrganizationCode(request.getOrganizationCode());
             organization.setBusinessTypeId(request.getBusinessTypeId());
             organization.setBusinessActivityId(request.getBusinessActivityId());
+            organization.setSourceId(request.getSourceId());
             organization.setCustomerType(request.getCustomerType());
             organization.setIsFreedom(isFreedom);
             organization.setFreedomType(request.getFreedomType());
@@ -420,56 +416,46 @@ public class OrganizationServiceImpl implements OrganizationService {
 
             if (result) {
                 if (syncFreedom) {
-                    freedomMapper.updateCustomer(toFreedomCustomerMap(organization));
                 }
                 if (isFreedom != null && isFreedom == 1) {
-                    upsertFreedomWarehouseAndLocation(organization);
                 } else if (existingIsFreedom != null && existingIsFreedom == 1) {
-                    deleteFreedomWarehouseAndLocation(organization.getId(), userId);
                 }
 
                 if (isFreedom != null && isFreedom == 1 && request.getFreedomCustomers() != null){
-                    syncFreedomCustomerLocationGroups(organization.getId(), request.getFreedomCustomers());
                 }
 
                 if (request.getCompanies() != null) {
                     if (syncFreedom) {
-                        freedomMapper.deleteCustomerCompanies(request.getId());
                     }
                     organizationMapper.deleteCustomerCompanies(request.getId());
                     for (Long companyId : request.getCompanies()) {
                         organization.setCompanyId(companyId);
                         organizationMapper.insertCustomerCompanies(organization);
                         if (syncFreedom) {
-                            freedomMapper.insertCustomerCompanies(toFreedomOrgRelationMap(organization));
                         }
                     }
                 }
 
                 if (request.getOrganizationGroups() != null) {
                     if (syncFreedom) {
-                        freedomMapper.deleteCustomerCgroups(request.getId());
                     }
                     organizationMapper.deleteCustomerCgroups(request.getId());
                     for (Long groupId : request.getOrganizationGroups()) {
                         organization.setOrganizationGroupId(groupId);
                         organizationMapper.insertCustomerCgroups(organization);
                         if (syncFreedom) {
-                            freedomMapper.insertCustomerCgroups(toFreedomOrgRelationMap(organization));
                         }
                     }
                 }
 
                 if (request.getOrganizationContacts() != null) {
                     if (syncFreedom) {
-                        freedomMapper.deleteCustomerContacts(request.getId());
                     }
                     organizationMapper.deleteCustomerContacts(request.getId());
                     for (Long contactId : request.getOrganizationContacts()) {
                         organization.setOrganizationContactId(contactId);
                         organizationMapper.insertCustomerContact(organization);
                         if (syncFreedom) {
-                            freedomMapper.insertCustomerContact(toFreedomOrgRelationMap(organization));
                         }
                     }
                 }
@@ -480,7 +466,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                         organization.setCustomerContractUrl(contract.getUrl());
                         organizationMapper.insertCustomerContracts(organization);
                         if (syncFreedom) {
-                            freedomMapper.insertCustomerContracts(toFreedomOrgRelationMap(organization));
                         }
                     }
                 }
@@ -491,7 +476,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                         organization.setCustomerTerminateUrl(terminate.getUrl());
                         organizationMapper.insertCustomerTerminates(organization);
                         if (syncFreedom) {
-                            freedomMapper.insertCustomerTerminates(toFreedomOrgRelationMap(organization));
                         }
                     }
                 }
@@ -502,15 +486,12 @@ public class OrganizationServiceImpl implements OrganizationService {
                         organization.setCustomerSurveyUrl(survey.getUrl());
                         organizationMapper.insertCustomerSurveys(organization);
                         if (syncFreedom) {
-                            freedomMapper.insertCustomerSurveys(toFreedomOrgRelationMap(organization));
                         }
                     }
                 }
 
                 if (request.getDivisionInformation() != null) {
                     if (syncFreedom) {
-                        freedomMapper.deleteDivisionInformationDetail(request.getId());
-                        freedomMapper.deleteDivisionInformation(request.getId());
                     }
                     organizationMapper.deleteDivisionInformationDetail(request.getId());
                     organizationMapper.deleteDivisionInformation(request.getId());
@@ -521,7 +502,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                         division.setMakingProcess(divisionInfo.getMakingProcess());
                         organizationMapper.insertDivisionInformation(division);
                         if (syncFreedom) {
-                            freedomMapper.insertDivisionInformation(toFreedomDivisionMap(division));
                         }
 
                         if (divisionInfo.getNegotiations() != null) {
@@ -529,7 +509,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                                 division.setNegotiationId(negotiationId);
                                 organizationMapper.insertDivisionInformationDetail(division);
                                 if (syncFreedom) {
-                                    freedomMapper.insertDivisionInformationDetail(toFreedomDivisionMap(division));
                                 }
                             }
                         }
@@ -569,10 +548,8 @@ public class OrganizationServiceImpl implements OrganizationService {
             Boolean result = organizationMapper.delete(id, userId);
             if (result) {
                 if (syncFreedomCustomer) {
-                    freedomMapper.deleteCustomer(id, userId);
                 }
                 if (syncFreedomBranch) {
-                    deleteFreedomWarehouseAndLocation(id, userId);
                 }
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
@@ -585,40 +562,6 @@ public class OrganizationServiceImpl implements OrganizationService {
             /*System Activity*/
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/organization/delete/{id}", line, error.toString(), "Customer", "Customer (Delete)", "Delete", 2, "Error", startDuration, endDuration, httpServletRequest);
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
-        }
-    }
-
-    @Override
-    public ResponseMessage<BaseResult> convertToFreedom(Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        LocalTime startDuration = LocalTime.now();
-        Long line = 1033L;
-        try {
-            Long userId = userService.getUserAuth().getId();
-            if (permissionMapper.checkPermission(userId, "Customer (Add)") == 0) {
-                return ResponseMessageUtils.makeResponseByPermission(true, messageService.message("No Permission access.", false));
-            }
-
-            List<OrganizationResponse> existing = organizationMapper.getOne(id, userId);
-            if (existing == null || existing.isEmpty()) {
-                return ResponseMessageUtils.makeResponse(true, messageService.message("Data Not Found", false));
-            }
-
-            Organization organization = toOrganizationEntityForFreedom(existing.get(0), userId);
-            Map<String, Object> freedomCustomer = toFreedomCustomerMap(organization);
-            freedomMapper.insertCustomer(freedomCustomer);
-            upsertFreedomWarehouseAndLocation(organization);
-            createFreedomTables(organization.getId(), true);
-            syncFreedomCustomerRelationsFromPrimary(organization);
-
-            organizationMapper.markCustomerSyncedToFreedom(id, userId);
-
-            LocalTime endDuration = LocalTime.now();
-            activityLogService.insert("/organization/convert-to-freedom/{id}", null, null, "Customer", "Customer (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
-        } catch (Exception error) {
-            LocalTime endDuration = LocalTime.now();
-            activityLogService.insert("/organization/convert-to-freedom/{id}", line, error.toString(), "Customer", "Customer (Edit)", "Edit", 2, "Error", startDuration, endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
     }
@@ -688,345 +631,6 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
     }
 
-    private Organization toOrganizationEntityForFreedom(OrganizationResponse response, Long userId) {
-        Organization organization = new Organization();
-        organization.setId(response.getId());
-        organization.setPhoto(response.getPhoto());
-        organization.setOrganizationCode(response.getOrganizationCode());
-        organization.setBusinessTypeId(response.getBusinessTypeId());
-        organization.setBusinessActivityId(response.getBusinessActivityId());
-        organization.setCustomerType(response.getCustomerType() != null ? response.getCustomerType() : 1);
-        organization.setIsFreedom(1);
-        organization.setName(response.getOrganizationName());
-        organization.setNameKh(response.getOrganizationNameKh());
-        organization.setShopName(response.getShopName());
-        organization.setLats(response.getLats());
-        organization.setLongs(response.getLongs());
-        organization.setCountryId(response.getCountryId());
-        organization.setHouseNo(response.getHouseNo());
-        organization.setStreetId(response.getStreetId());
-        organization.setProvinceId(response.getProvinceId());
-        organization.setDistrictId(response.getDistrictId());
-        organization.setCommuneId(response.getCommuneId());
-        organization.setVillageId(response.getVillageId());
-        organization.setAddress(response.getAddress());
-        organization.setTelephone(response.getTelephone());
-        organization.setMobile(response.getMobile());
-        organization.setAlternateMobile(response.getAlternateMobile());
-        organization.setEmail(response.getEmail());
-        organization.setFax(response.getFax());
-        organization.setVat(response.getVat());
-        organization.setPaymentTermId(response.getPaymentTermId());
-        organization.setPriceTypeId(response.getPriceTypeId());
-        organization.setPaymentMonthly(response.getPaymentMonthly());
-        organization.setLimitCredit(response.getLimitCredit() != null ? response.getLimitCredit() : 0D);
-        organization.setLimitNumberInvoice(response.getLimitNumberInvoice() != null ? response.getLimitNumberInvoice() : 0L);
-        organization.setPeriodFrom(response.getPeriodFrom());
-        organization.setPeriodTo(response.getPeriodTo());
-        organization.setRecurrence(response.getRecurrence() != null ? response.getRecurrence() : 0);
-        organization.setDisplayOnInvoice(response.getDisplayOnInvoice() != null ? response.getDisplayOnInvoice() : 0);
-        organization.setSettingInvoiceTax(response.getSettingInvoiceTax() != null ? response.getSettingInvoiceTax() : 1);
-        organization.setCreatedBy(userId);
-        organization.setModifiedBy(userId);
-        return organization;
-    }
-
-    private void createFreedomTables(Long customerId, boolean syncFreedom) {
-        if (!syncFreedom) {
-            return;
-        }
-
-        String id = String.valueOf(customerId);
-
-        if (freedomMapper.checkTableExists(id + "_group_totals") == 0) {
-            freedomMapper.createGroupTotals(customerId);
-        }
-
-        if (freedomMapper.checkTableExists(id + "_group_total_details") == 0) {
-            freedomMapper.createGroupTotalDetails(customerId);
-        }
-
-        if (freedomMapper.checkTableExists(id + "_inventories") == 0) {
-            freedomMapper.createInventories(customerId);
-        }
-
-        if (freedomMapper.checkTableExists(id + "_inventory_totals") == 0) {
-            freedomMapper.createInventoryTotals(customerId);
-        }
-
-        if (freedomMapper.checkTableExists(id + "_inventory_total_details") == 0) {
-            freedomMapper.createInventoryTotalDetails(customerId);
-        }
-    }
-
-    private void upsertFreedomWarehouseAndLocation(Organization organization) {
-        if (organization == null || organization.getId() == null) {
-            return;
-        }
-        freedomMapper.upsertCustomerWarehouse(toFreedomWarehouseMap(organization));
-        freedomMapper.upsertCustomerLocation(toFreedomLocationMap(organization));
-        freedomMapper.upsertCustomerBranch(toFreedomBranchMap(organization));
-    }
-
-    private void deleteFreedomWarehouseAndLocation(Long organizationId, Long userId) {
-        if (organizationId == null) {
-            return;
-        }
-        freedomMapper.deleteCustomerLocationGroups(organizationId);
-        freedomMapper.deleteCustomerLocation(organizationId, userId);
-        freedomMapper.deleteCustomerWarehouse(organizationId, userId);
-        freedomMapper.deleteCustomerBranch(organizationId, userId);
-    }
-
-    private void syncFreedomCustomerLocationGroups(Long locationGroupId, List<Long> customers) {
-        if (locationGroupId == null) {
-            return;
-        }
-        freedomMapper.deleteCustomerLocationGroups(locationGroupId);
-        if (customers == null || customers.isEmpty()) {
-            return;
-        }
-
-        for (Long customerId : customers) {
-            if (customerId == null) {
-                continue;
-            }
-            freedomMapper.insertCustomerLocationGroup(toFreedomCustomerLocationGroupMap(customerId, locationGroupId));
-        }
-    }
-
-    private void syncFreedomCustomerRelationsFromPrimary(Organization organization) {
-        if (organization == null || organization.getId() == null) {
-            return;
-        }
-
-        Long organizationId = organization.getId();
-        Organization relation = new Organization();
-        relation.setId(organizationId);
-
-        freedomMapper.deleteCustomerCompanies(organizationId);
-        List<OrganizationDetailResponse> companies = organizationMapper.getCustomerCompanies(organizationId);
-        if (companies != null) {
-            for (OrganizationDetailResponse company : companies) {
-                if (company.getId() == null) {
-                    continue;
-                }
-                relation.setCompanyId(company.getId());
-                freedomMapper.insertCustomerCompanies(toFreedomOrgRelationMap(relation));
-            }
-        }
-
-        freedomMapper.deleteCustomerCgroups(organizationId);
-        List<OrganizationDetailResponse> cgroups = organizationMapper.getCustomerCgroups(organizationId);
-        if (cgroups != null) {
-            for (OrganizationDetailResponse cgroup : cgroups) {
-                if (cgroup.getId() == null) {
-                    continue;
-                }
-                relation.setOrganizationGroupId(cgroup.getId());
-                freedomMapper.insertCustomerCgroups(toFreedomOrgRelationMap(relation));
-            }
-        }
-
-        freedomMapper.deleteCustomerContacts(organizationId);
-        List<OrganizationDetailResponse> contacts = organizationMapper.getCustomerContact(organizationId);
-        if (contacts != null) {
-            for (OrganizationDetailResponse contact : contacts) {
-                if (contact.getId() == null) {
-                    continue;
-                }
-                relation.setOrganizationContactId(contact.getId());
-                freedomMapper.insertCustomerContact(toFreedomOrgRelationMap(relation));
-            }
-        }
-
-        freedomMapper.deleteCustomerContracts(organizationId);
-        List<OrganizationDetailResponse> contracts = organizationMapper.getCustomerContracts(organizationId);
-        if (contracts != null) {
-            for (OrganizationDetailResponse contract : contracts) {
-                relation.setCustomerContract(contract.getName());
-                relation.setCustomerContractUrl(contract.getUrl());
-                freedomMapper.insertCustomerContracts(toFreedomOrgRelationMap(relation));
-            }
-        }
-
-        freedomMapper.deleteCustomerTerminates(organizationId);
-        List<OrganizationDetailResponse> terminates = organizationMapper.getCustomerTerminates(organizationId);
-        if (terminates != null) {
-            for (OrganizationDetailResponse terminate : terminates) {
-                relation.setCustomerTerminate(terminate.getName());
-                relation.setCustomerTerminateUrl(terminate.getUrl());
-                freedomMapper.insertCustomerTerminates(toFreedomOrgRelationMap(relation));
-            }
-        }
-
-        freedomMapper.deleteCustomerSurveys(organizationId);
-        List<OrganizationDetailResponse> surveys = organizationMapper.getCustomerSurveys(organizationId);
-        if (surveys != null) {
-            for (OrganizationDetailResponse survey : surveys) {
-                relation.setCustomerSurvey(survey.getName());
-                relation.setCustomerSurveyUrl(survey.getUrl());
-                freedomMapper.insertCustomerSurveys(toFreedomOrgRelationMap(relation));
-            }
-        }
-
-        freedomMapper.deleteDivisionInformationDetail(organizationId);
-        freedomMapper.deleteDivisionInformation(organizationId);
-        List<OrganizationDetailResponse> divisions = organizationMapper.getDivisionInformation(organizationId);
-        if (divisions != null) {
-            for (OrganizationDetailResponse divisionData : divisions) {
-                OrganizationDivision division = new OrganizationDivision();
-                division.setId(divisionData.getId());
-                division.setOrganizationId(organizationId);
-                division.setTitle(divisionData.getTitle());
-                division.setMakingProcess(divisionData.getMakingProcess());
-                freedomMapper.insertDivisionInformation(toFreedomDivisionMap(division));
-
-                List<OrganizationDetailResponse> negotiations = organizationMapper.getDivisionInformationDetail(divisionData.getId());
-                if (negotiations != null) {
-                    for (OrganizationDetailResponse negotiation : negotiations) {
-                        if (negotiation.getId() == null) {
-                            continue;
-                        }
-                        division.setNegotiationId(negotiation.getId());
-                        freedomMapper.insertDivisionInformationDetail(toFreedomDivisionMap(division));
-                    }
-                }
-            }
-        }
-    }
-
-    private Map<String, Object> toFreedomCustomerMap(Organization organization) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", organization.getId());
-        map.put("photo", organization.getPhoto());
-        map.put("organizationCode", organization.getOrganizationCode());
-        map.put("sysCode", organization.getOrganizationCode());
-        map.put("leadCode", null);
-        map.put("businessTypeId", organization.getBusinessTypeId());
-        map.put("businessActivityId", organization.getBusinessActivityId());
-        map.put("customerType", organization.getCustomerType());
-        map.put("isFreedom", organization.getIsFreedom());
-        map.put("freedomType", organization.getFreedomType());
-        map.put("name", organization.getName());
-        map.put("nameKh", organization.getNameKh());
-        map.put("sex", null);
-        map.put("countryId", organization.getCountryId());
-        map.put("houseNo", organization.getHouseNo());
-        map.put("streetId", organization.getStreetId());
-        map.put("provinceId", organization.getProvinceId());
-        map.put("districtId", organization.getDistrictId());
-        map.put("communeId", organization.getCommuneId());
-        map.put("villageId", organization.getVillageId());
-        map.put("address", organization.getAddress());
-        map.put("lats", organization.getLats());
-        map.put("longs", organization.getLongs());
-        map.put("zoneId", null);
-        map.put("marketId", null);
-        map.put("priceTypeId", organization.getPriceTypeId());
-        map.put("inactivePeriod", null);
-        map.put("telephone", organization.getTelephone());
-        map.put("mobile", organization.getMobile());
-        map.put("alternateMobile", organization.getAlternateMobile());
-        map.put("email", organization.getEmail());
-        map.put("fax", organization.getFax());
-        map.put("vat", organization.getVat());
-        map.put("paymentTermId", organization.getPaymentTermId());
-        map.put("paymentMonthly", organization.getPaymentMonthly());
-        map.put("limitCredit", organization.getLimitCredit());
-        map.put("limitNumberInvoice", organization.getLimitNumberInvoice());
-        map.put("periodFrom", organization.getPeriodFrom());
-        map.put("periodTo", organization.getPeriodTo());
-        map.put("recurrence", organization.getRecurrence());
-        map.put("displayOnInvoice", organization.getDisplayOnInvoice());
-        map.put("settingInvoiceTax", organization.getSettingInvoiceTax());
-        map.put("note", null);
-        map.put("createdBy", organization.getCreatedBy());
-        map.put("modifiedBy", organization.getModifiedBy());
-        return map;
-    }
-
-    private Map<String, Object> toFreedomWarehouseMap(Organization organization) {
-        Map<String, Object> map = new HashMap<>();
-        Long userId = organization.getCreatedBy() != null ? organization.getCreatedBy() : organization.getModifiedBy();
-        map.put("id", organization.getId());
-        map.put("name", getFreedomLocationName(organization));
-        map.put("shopName", organization.getShopName());
-        map.put("stockLevelId", null);
-        map.put("description", null);
-        map.put("createdBy", userId);
-        return map;
-    }
-
-    private Map<String, Object> toFreedomLocationMap(Organization organization) {
-        Map<String, Object> map = new HashMap<>();
-        Long userId = organization.getCreatedBy() != null ? organization.getCreatedBy() : organization.getModifiedBy();
-        map.put("id", organization.getId());
-        map.put("name", getFreedomLocationName(organization));
-        map.put("locationGroupId", organization.getId());
-        map.put("isForSale", 0);
-        map.put("createdBy", userId);
-        map.put("modifiedBy", organization.getModifiedBy());
-        return map;
-    }
-
-    private Map<String, Object> toFreedomBranchMap(Organization organization) {
-        Map<String, Object> map = new HashMap<>();
-        Long userId = organization.getCreatedBy() != null ? organization.getCreatedBy() : organization.getModifiedBy();
-        map.put("id", organization.getId());
-        map.put("companyId", organization.getCompanyId());
-        map.put("branchTypeId", 1L);
-        map.put("code", organization.getCode() != null ? organization.getCode() : organization.getOrganizationCode());
-        map.put("abbr", organization.getAbbr());
-        map.put("name", getFreedomLocationName(organization));
-        map.put("nameKh", organization.getNameKh());
-        map.put("photoUrl", organization.getPhotoUrl() != null ? organization.getPhotoUrl() : organization.getPhoto());
-        map.put("photoName", organization.getPhotoName());
-        map.put("telephone", organization.getTelephone());
-        map.put("fax", organization.getFax());
-        map.put("email", organization.getEmail());
-        map.put("startWorkHour", organization.getStartWorkHour());
-        map.put("endWorkHour", organization.getEndWorkHour());
-        map.put("countryId", organization.getCountryId());
-        map.put("lats", organization.getLats());
-        map.put("longs", organization.getLongs());
-        map.put("address", resolveFreedomBranchAddress(organization));
-        map.put("addressKh", organization.getAddressKh());
-        map.put("adjCode", organization.getAdjCode());
-        map.put("productPriceListCode", organization.getProductPriceListCode());
-        map.put("priceRequestNoCode", organization.getPriceRequestNoCode());
-        map.put("requestStockCode", organization.getRequestStockCode());
-        map.put("transferCode", organization.getTransferCode());
-        map.put("transferReceiveCode", organization.getTransferReceiveCode());
-        map.put("purchaseOrderCode", organization.getPurchaseOrderCode());
-        map.put("purchaseOrderReceiptCode", organization.getPurchaseOrderReceiptCode());
-        map.put("saleOrderCode", organization.getSaleOrderCode());
-        map.put("expenseRequestCode", organization.getExpenseRequestCode());
-        map.put("quotationCode", organization.getQuotationCode());
-        map.put("invoiceCode", organization.getInvoiceCode());
-        map.put("posCode", organization.getPosCode());
-        map.put("invoiceReceiptCode", organization.getInvoiceReceiptCode());
-        map.put("dnCode", organization.getDnCode());
-        map.put("creditMemoCode", organization.getCreditMemoCode());
-        map.put("creditReceiptCode", organization.getCreditReceiptCode());
-        map.put("purchaseBillCode", organization.getPurchaseBillCode());
-        map.put("purchaseBillReceiptCode", organization.getPurchaseBillReceiptCode());
-        map.put("billReturnCode", organization.getBillReturnCode());
-        map.put("billReceiptCode", organization.getBillReceiptCode());
-        map.put("bomCode", organization.getBomCode());
-        map.put("goodReceiptNoteCode", organization.getGoodReceiptNoteCode());
-        map.put("landedCostCode", organization.getLandedCostCode());
-        map.put("journalEntryCode", organization.getJournalEntryCode());
-        map.put("receivePaymentCode", organization.getReceivePaymentCode());
-        map.put("receivePaymentOrgCode", organization.getReceivePaymentOrgCode());
-        map.put("receivePaymentEmpCode", organization.getReceivePaymentEmpCode());
-        map.put("payBillCode", organization.getPayBillCode());
-        map.put("payJournalCode", organization.getPayJournalCode());
-        map.put("createdBy", userId);
-        map.put("modifiedBy", organization.getModifiedBy());
-        return map;
-    }
-
     private void applyFreedomBranchRequest(Organization organization, OrganizationRequest request) {
         organization.setBranchTypeId(1L);
         organization.setCode(request.getCode());
@@ -1068,147 +672,4 @@ public class OrganizationServiceImpl implements OrganizationService {
         organization.setPayJournalCode(request.getPaybillsJournalCode());
     }
 
-    private String getFreedomLocationName(Organization organization) {
-        if (organization.getName() != null && !organization.getName().trim().isEmpty()) {
-            return organization.getName().trim();
-        }
-        return String.valueOf(organization.getId());
-    }
-
-    private String resolveFreedomBranchAddress(Organization organization) {
-        if (organization == null) {
-            return null;
-        }
-        if (!isBlank(organization.getAddress())) {
-            return organization.getAddress().trim();
-        }
-
-        Map<String, Object> addressParts = organizationMapper.getLocationAddressParts(
-                organization.getStreetId(),
-                organization.getProvinceId(),
-                organization.getDistrictId(),
-                organization.getCommuneId(),
-                organization.getVillageId()
-        );
-
-        StringJoiner joiner = new StringJoiner(", ");
-        appendAddressPart(joiner, organization.getHouseNo());
-        appendAddressPart(joiner, getStringValue(addressParts, "streetName"));
-        appendAddressPart(joiner, getStringValue(addressParts, "provinceName"));
-        appendAddressPart(joiner, getStringValue(addressParts, "districtName"));
-        appendAddressPart(joiner, getStringValue(addressParts, "communeName"));
-        appendAddressPart(joiner, getStringValue(addressParts, "villageName"));
-
-        String resolvedAddress = joiner.toString();
-        return resolvedAddress.isEmpty() ? null : resolvedAddress;
-    }
-
-    private void applyFreedomBranchModuleCodes(OrganizationResponse response) {
-        if (response == null || response.getId() == null) {
-            return;
-        }
-
-        Map<String, Object> branchCodes = freedomMapper.getCustomerBranchModuleCodes(response.getId());
-        if (branchCodes == null || branchCodes.isEmpty()) {
-            return;
-        }
-
-        response.setAdjCode(getStringValue(branchCodes, "adjCode"));
-        response.setProductPriceListCode(getStringValue(branchCodes, "productPriceListCode"));
-        response.setPriceRequestNoCode(getStringValue(branchCodes, "priceRequestNoCode"));
-        response.setRequestStockCode(getStringValue(branchCodes, "requestStockCode"));
-        response.setTransferCode(getStringValue(branchCodes, "transferCode"));
-        response.setTransferReceiveCode(getStringValue(branchCodes, "transferReceiveCode"));
-        response.setPurchaseOrderCode(getStringValue(branchCodes, "purchaseOrderCode"));
-        response.setPurchaseOrderReceiptCode(getStringValue(branchCodes, "purchaseOrderReceiptCode"));
-        response.setSaleOrderCode(getStringValue(branchCodes, "saleOrderCode"));
-        response.setExpenseRequestCode(getStringValue(branchCodes, "expenseRequestCode"));
-        response.setQuotationCode(getStringValue(branchCodes, "quotationCode"));
-        response.setInvoiceCode(getStringValue(branchCodes, "invoiceCode"));
-        response.setPosCode(getStringValue(branchCodes, "posCode"));
-        response.setInvoiceReceiptCode(getStringValue(branchCodes, "invoiceReceiptCode"));
-        response.setDnCode(getStringValue(branchCodes, "dnCode"));
-        response.setCreditMemoCode(getStringValue(branchCodes, "creditMemoCode"));
-        response.setCreditReceiptCode(getStringValue(branchCodes, "creditReceiptCode"));
-        response.setPurchaseBillCode(getStringValue(branchCodes, "purchaseBillCode"));
-        response.setPurchaseBillReceiptCode(getStringValue(branchCodes, "purchaseBillReceiptCode"));
-        response.setBillReturnCode(getStringValue(branchCodes, "billReturnCode"));
-        response.setBillReceiptCode(getStringValue(branchCodes, "billReceiptCode"));
-        response.setBomCode(getStringValue(branchCodes, "bomCode"));
-        response.setGoodReceiptNoteCode(getStringValue(branchCodes, "goodReceiptNoteCode"));
-        response.setLandedCostCode(getStringValue(branchCodes, "landedCostCode"));
-        response.setJournalEntryCode(getStringValue(branchCodes, "journalEntryCode"));
-        response.setReceivePaymentCode(getStringValue(branchCodes, "receivePaymentCode"));
-        response.setReceivePaymentOrgCode(getStringValue(branchCodes, "receivePaymentOrgCode"));
-        response.setReceivePaymentEmpCode(getStringValue(branchCodes, "receivePaymentEmpCode"));
-        response.setPaybillsCode(getStringValue(branchCodes, "paybillsCode"));
-        response.setPaybillsJournalCode(getStringValue(branchCodes, "paybillsJournalCode"));
-    }
-
-    private String getStringValue(Map<String, Object> values, String key) {
-        if (values == null) {
-            return null;
-        }
-        Object value = values.get(key);
-        return value != null ? String.valueOf(value) : null;
-    }
-
-    private void appendAddressPart(StringJoiner joiner, String value) {
-        if (!isBlank(value)) {
-            joiner.add(value.trim());
-        }
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
-    }
-
-    private Map<String, Object> toFreedomCustomerLocationGroupMap(Long customerId, Long locationGroupId) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("customerId", customerId);
-        map.put("locationGroupId", locationGroupId);
-        return map;
-    }
-
-    private List<OrganizationDetailResponse> mapFreedomCustomersToOrganizationDetails(List<VendorDropdownResponse> freedomCustomers) {
-        List<OrganizationDetailResponse> details = new ArrayList<>();
-        if (freedomCustomers == null) {
-            return details;
-        }
-        for (VendorDropdownResponse customer : freedomCustomers) {
-            if (customer == null || customer.getId() == null) {
-                continue;
-            }
-            OrganizationDetailResponse detail = new OrganizationDetailResponse();
-            detail.setId(customer.getId());
-            detail.setName(customer.getName());
-            details.add(detail);
-        }
-        return details;
-    }
-
-    private Map<String, Object> toFreedomOrgRelationMap(Organization organization) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", organization.getId());
-        map.put("companyId", organization.getCompanyId());
-        map.put("organizationGroupId", organization.getOrganizationGroupId());
-        map.put("organizationContactId", organization.getOrganizationContactId());
-        map.put("customerContract", organization.getCustomerContract());
-        map.put("customerContractUrl", organization.getCustomerContractUrl());
-        map.put("customerTerminate", organization.getCustomerTerminate());
-        map.put("customerTerminateUrl", organization.getCustomerTerminateUrl());
-        map.put("customerSurvey", organization.getCustomerSurvey());
-        map.put("customerSurveyUrl", organization.getCustomerSurveyUrl());
-        return map;
-    }
-
-    private Map<String, Object> toFreedomDivisionMap(OrganizationDivision division) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", division.getId());
-        map.put("organizationId", division.getOrganizationId());
-        map.put("title", division.getTitle());
-        map.put("makingProcess", division.getMakingProcess());
-        map.put("negotiationId", division.getNegotiationId());
-        return map;
-    }
 }

@@ -16,15 +16,11 @@ public interface DropdownService {
 
     ResponseMessage<BaseResult> getListGroupApi(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
     
-    ResponseMessage<BaseResult> getListGroupApiFreedom(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
-
     ResponseMessage<BaseResult> getListUser(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListProvince(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListModuleType(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
-    
-    ResponseMessage<BaseResult> getListModuleTypeFreedom(ModuleTypeFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
     
     ResponseMessage<BaseResult> getListCompany(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 

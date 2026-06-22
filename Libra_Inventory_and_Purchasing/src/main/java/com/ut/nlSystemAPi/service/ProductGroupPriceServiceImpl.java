@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.mapper.primary.ProductGroupPriceMapper;
 import com.ut.nlSystemAPi.model.*;
@@ -30,9 +29,6 @@ import java.util.Map;
 public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
     @Autowired
     private ProductGroupPriceMapper productGroupPriceMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -121,7 +117,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
 //           Check Duplicate Data
              if(productGroupPriceMapper.checkDuplicateData(productGroupPriceRequest) > 0){
                  productGroupPriceMapper.log(productGroupPriceRequest.getPgroupId(), userId);
-                 freedomMapper.logPgroupPriceSetting(productGroupPriceRequest.getPgroupId(), userId);
              }
 
              // Check Data
@@ -136,7 +131,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
              Boolean result = productGroupPriceMapper.insert(productGroupPrice);
 
             if (result) {
-                freedomMapper.insertPgroupPriceSetting(toFreedomPgroupPriceSettingMap(productGroupPrice));
 
                 List<PgroupPriceRequest> pgroupPriceRequests = productGroupPriceRequest.getPgroupPriceRequests();
                 if (pgroupPriceRequests != null && !pgroupPriceRequests.isEmpty()) {
@@ -159,7 +153,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                         }
                         pgroupPriceInformation.setCreateBy(userId);
                         productGroupPriceMapper.insertPgroupPriceInformation(pgroupPriceInformation);
-                        freedomMapper.insertPgroupPrice(toFreedomPgroupPriceMap(pgroupPriceInformation));
 
                         if (productGroupPriceRequest.getApplyToAllProduct() == 0) {
                             List<Long> productIds = productGroupPriceMapper.getProductIdsByPgroupId(
@@ -178,7 +171,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
 
                                     // Delete old product price
                                     productGroupPriceMapper.deleteProductPrice(productIds.get(j), productGroupPriceRequest.getPriceTypeId());
-                                    freedomMapper.deleteProductPriceByType(productIds.get(j), productGroupPriceRequest.getPriceTypeId());
 
                                     // Get main UOM
                                     Long mainUomId = productGroupPriceMapper.getMainUom(productIds.get(j));
@@ -199,7 +191,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                                     productPriceHistory.setSetType(productGroupPriceRequest.getSetType());
                                     productPriceHistory.setCreatedBy(userId);
                                     productGroupPriceMapper.insertProductPriceHistory(productPriceHistory);
-                                    freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(productPriceHistory));
 
                                     // Insert price for main UOM
                                     ProductPrice productPrice = new ProductPrice();
@@ -216,7 +207,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                                     productPrice.setSetType(productGroupPriceRequest.getSetType());
                                     productPrice.setCreatedBy(userId);
                                     productGroupPriceMapper.insertProductPrice(productPrice);
-                                    freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
 
                                     // Handle other UOMs
                                     List<Long> otherUoms = productGroupPriceMapper.getOtherUoms(mainUomId);
@@ -248,12 +238,10 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                                             otherUomHistory.setSetType(productGroupPriceRequest.getSetType());
                                             otherUomHistory.setCreatedBy(userId);
                                             productGroupPriceMapper.insertProductPriceHistory(otherUomHistory);
-                                            freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(otherUomHistory));
 
                                             // Insert price for other UOM
                                             productPrice.setUomId(otherUoms.get(l));
                                             productGroupPriceMapper.insertProductPrice(productPrice);
-                                            freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
                                         }
                                     }
                                 }
@@ -298,9 +286,7 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
             Boolean result = productGroupPriceMapper.update(productGroupPrice);
 
             if (result) {
-                freedomMapper.updatePgroupPriceSetting(toFreedomPgroupPriceSettingMap(productGroupPrice));
                 productGroupPriceMapper.deletePgroupPriceInformation(productGroupPriceUpdateRequest.getId(), userId);
-                freedomMapper.archivePgroupPriceBySetting(productGroupPriceUpdateRequest.getId(), userId);
                 List<PgroupPriceRequest> pgroupPriceRequests = productGroupPriceUpdateRequest.getPgroupPriceRequests();
                 if (pgroupPriceRequests != null && !pgroupPriceRequests.isEmpty()) {
                     for(int i=0; i<pgroupPriceRequests.size(); i++){
@@ -323,7 +309,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                         pgroupPriceInformation.setCreateBy(userId);
 
                         productGroupPriceMapper.insertPgroupPriceInformation(pgroupPriceInformation);
-                        freedomMapper.insertPgroupPrice(toFreedomPgroupPriceMap(pgroupPriceInformation));
 
                         if (productGroupPriceUpdateRequest.getApplyToAllProduct() == 0) {
                             List<Long> productIds = productGroupPriceMapper.getProductIdsByPgroupId(
@@ -342,7 +327,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
 
                                     // Delete old product price
                                     productGroupPriceMapper.deleteProductPrice(productIds.get(j), productGroupPriceUpdateRequest.getPriceTypeId());
-                                    freedomMapper.deleteProductPriceByType(productIds.get(j), productGroupPriceUpdateRequest.getPriceTypeId());
 
                                     // Get main UOM
                                     Long mainUomId = productGroupPriceMapper.getMainUom(productIds.get(j));
@@ -363,7 +347,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                                     productPriceHistory.setSetType(productGroupPriceUpdateRequest.getSetType());
                                     productPriceHistory.setCreatedBy(userId);
                                     productGroupPriceMapper.insertProductPriceHistory(productPriceHistory);
-                                    freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(productPriceHistory));
 
                                     // Insert price for main UOM
                                     ProductPrice productPrice = new ProductPrice();
@@ -380,7 +363,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                                     productPrice.setSetType(productGroupPriceUpdateRequest.getSetType());
                                     productPrice.setCreatedBy(userId);
                                     productGroupPriceMapper.insertProductPrice(productPrice);
-                                    freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
 
                                     // Handle other UOMs
                                     List<Long> otherUoms = productGroupPriceMapper.getOtherUoms(mainUomId);
@@ -412,12 +394,10 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
                                             otherUomHistory.setSetType(productGroupPriceUpdateRequest.getSetType());
                                             otherUomHistory.setCreatedBy(userId);
                                             productGroupPriceMapper.insertProductPriceHistory(otherUomHistory);
-                                            freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(otherUomHistory));
 
                                             // Insert price for other UOM
                                             productPrice.setUomId(otherUoms.get(l));
                                             productGroupPriceMapper.insertProductPrice(productPrice);
-                                            freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
                                         }
                                     }
                                 }
@@ -452,7 +432,6 @@ public class ProductGroupPriceServiceImpl implements ProductGroupPriceService {
 
             Boolean result = productGroupPriceMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deletePgroupPriceSetting(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product-group-price-setting/delete/{id}",null,null,"Product Group Price Setting","Product Group Price Setting (Delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);

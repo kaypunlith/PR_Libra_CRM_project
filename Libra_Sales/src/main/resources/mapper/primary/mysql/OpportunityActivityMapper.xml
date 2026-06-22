@@ -54,7 +54,7 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="activity.id">
-        INSERT INTO crm_opportunity_activities(name,created,    , is_active)
+        INSERT INTO crm_opportunity_activities(name,created,created_by, is_active)
         VALUES (#{activity.name}, NOW(), #{activity.createdBy}, #{activity.isActive})
     </insert>
 

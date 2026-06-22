@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.ModuleMapper;
 import com.ut.nlSystemAPi.mapper.primary.ModuleTypeMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
@@ -35,9 +34,6 @@ public class ZoneServiceImpl implements ZoneService {
 
     @Autowired
     private ZoneMapper zoneMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -137,7 +133,6 @@ public class ZoneServiceImpl implements ZoneService {
             Boolean result = zoneMapper.insert(zone);
 
             if (result) {
-                freedomMapper.insertCustomerZone(toFreedomCustomerZoneMap(zone));
                 if (request.getPaths() != null && !request.getPaths().isEmpty()) {
                     ZoneDetail detail = new ZoneDetail();
                     for (int i = 0; i < request.getPaths().size(); i++) {
@@ -145,7 +140,6 @@ public class ZoneServiceImpl implements ZoneService {
                         detail.setLats(request.getPaths().get(i).getLats());
                         detail.setLongs(request.getPaths().get(i).getLongs());
                         zoneMapper.insertDetail(detail);
-                        freedomMapper.insertCustomerZoneDetail(toFreedomCustomerZoneDetailMap(detail));
                     }
                 }
 
@@ -182,17 +176,14 @@ public class ZoneServiceImpl implements ZoneService {
             Boolean result = zoneMapper.update(zone);
 
             if (result) {
-                freedomMapper.updateCustomerZone(toFreedomCustomerZoneMap(zone));
                 if (request.getPaths() != null && !request.getPaths().isEmpty()) {
                     ZoneDetail detail = new ZoneDetail();
                     zoneMapper.deleteDetails(zone.getId());
-                    freedomMapper.deleteCustomerZoneDetails(zone.getId());
                     for (int i = 0; i < request.getPaths().size(); i++) {
                         detail.setCustomerZoneId(zone.getId());
                         detail.setLats(request.getPaths().get(i).getLats());
                         detail.setLongs(request.getPaths().get(i).getLongs());
                         zoneMapper.insertDetail(detail);
-                        freedomMapper.insertCustomerZoneDetail(toFreedomCustomerZoneDetailMap(detail));
                     }
                 }
 
@@ -221,9 +212,7 @@ public class ZoneServiceImpl implements ZoneService {
 
             Boolean result = zoneMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteCustomerZone(id, userId);
                 zoneMapper.deleteDetails(id);
-                freedomMapper.deleteCustomerZoneDetails(id);
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/zone/delete/{id}", null, null, "Customer Zone", "Customer Zone (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));

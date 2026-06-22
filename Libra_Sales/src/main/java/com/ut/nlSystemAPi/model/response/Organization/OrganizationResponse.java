@@ -20,6 +20,12 @@ public class OrganizationResponse {
     @ApiModelProperty(position = 4)
     private String organizationName;
 
+    @ApiModelProperty(position = 5)
+    private Long sourceId;
+
+    @ApiModelProperty(position = 5)
+    private Long sourceName;
+
     @ApiModelProperty(position = 4)
     private String organizationNameKh;
 

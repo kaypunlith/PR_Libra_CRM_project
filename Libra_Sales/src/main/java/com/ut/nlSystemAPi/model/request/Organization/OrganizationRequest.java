@@ -16,6 +16,9 @@ public class OrganizationRequest {
     private String photo;
 
     @ApiModelProperty(position = 2)
+    private Long sourceId;
+
+    @ApiModelProperty(position = 2, hidden = true)
     private String organizationCode;
 
     @ApiModelProperty(position = 3)

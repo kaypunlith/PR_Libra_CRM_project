@@ -24,4 +24,8 @@ public class LeadFilter extends Filter {
 
     @ApiModelProperty(position = 15)
     private String dateTo;
+
+    @ApiModelProperty(position = 15)
+    private Long sourceId;
+
 }

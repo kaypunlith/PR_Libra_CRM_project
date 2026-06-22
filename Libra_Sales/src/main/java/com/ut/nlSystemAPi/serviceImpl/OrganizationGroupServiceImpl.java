@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.BaseResult;
 import com.ut.nlSystemAPi.model.base.Filter;
@@ -31,9 +30,6 @@ public class OrganizationGroupServiceImpl implements OrganizationGroupService {
 
     @Autowired
     private OrganizationGroupMapper organizationGroupMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -143,32 +139,27 @@ public class OrganizationGroupServiceImpl implements OrganizationGroupService {
             Boolean result = organizationGroupMapper.insert(organizationGroup);
 
             if (result) {
-                freedomMapper.insertCustomerGroup(toFreedomCustomerGroupMap(organizationGroup));
                 if (request.getCompany() != null) {
                     for (Long company : request.getCompany()) {
                         organizationGroupMapper.insertCompany(company, organizationGroup.getId());
-                        freedomMapper.insertCgroupCompany(toFreedomCgroupCompanyMap(company, organizationGroup.getId()));
                     }
                 }
 
                 if (request.getEmployeeGroup() != null) {
                     for (Long employeeGroup : request.getEmployeeGroup()) {
                         organizationGroupMapper.insertEmployeeGroup(employeeGroup, organizationGroup.getId());
-                        freedomMapper.insertCgroupEgroup(toFreedomCgroupEgroupMap(employeeGroup, organizationGroup.getId()));
                     }
                 }
 
                 if (request.getPriceType() != null) {
                     for (Long priceType : request.getPriceType()) {
                         organizationGroupMapper.insertPriceType(priceType, organizationGroup.getId());
-                        freedomMapper.insertCgroupPriceType(toFreedomCgroupPriceTypeMap(priceType, organizationGroup.getId()));
                     }
                 }
 
                 if (request.getOrganization() != null) {
                     for (Long organization : request.getOrganization()) {
                         organizationGroupMapper.insertOrganization(organization, organizationGroup.getId());
-                        freedomMapper.insertCustomerCgroup(toFreedomCustomerCgroupMap(organization, organizationGroup.getId()));
                     }
                 }
                 /*System Activity*/
@@ -209,40 +200,31 @@ public class OrganizationGroupServiceImpl implements OrganizationGroupService {
             Boolean result = organizationGroupMapper.update(organizationGroup);
 
             if (result) {
-                freedomMapper.updateCustomerGroup(toFreedomCustomerGroupMap(organizationGroup));
                 if (request.getCompany() != null) {
                     organizationGroupMapper.deleteCompany(organizationGroup.getId());
-                    freedomMapper.deleteCgroupCompanies(organizationGroup.getId());
                     for (Long company : request.getCompany()) {
                         organizationGroupMapper.insertCompany(company, organizationGroup.getId());
-                        freedomMapper.insertCgroupCompany(toFreedomCgroupCompanyMap(company, organizationGroup.getId()));
                     }
                 }
 
                 if (request.getEmployeeGroup() != null) {
                     organizationGroupMapper.deleteEmployeeGroup(organizationGroup.getId());
-                    freedomMapper.deleteCgroupEgroups(organizationGroup.getId());
                     for (Long employeeGroup : request.getEmployeeGroup()) {
                         organizationGroupMapper.insertEmployeeGroup(employeeGroup, organizationGroup.getId());
-                        freedomMapper.insertCgroupEgroup(toFreedomCgroupEgroupMap(employeeGroup, organizationGroup.getId()));
                     }
                 }
 
                 if (request.getPriceType() != null) {
                     organizationGroupMapper.deletePriceType(organizationGroup.getId());
-                    freedomMapper.deleteCgroupPriceTypes(organizationGroup.getId());
                     for (Long priceType : request.getPriceType()) {
                         organizationGroupMapper.insertPriceType(priceType, organizationGroup.getId());
-                        freedomMapper.insertCgroupPriceType(toFreedomCgroupPriceTypeMap(priceType, organizationGroup.getId()));
                     }
                 }
 
                 if (request.getOrganization() != null) {
                     organizationGroupMapper.deleteOrganization(organizationGroup.getId());
-                    freedomMapper.deleteCustomerCgroupsByCgroup(organizationGroup.getId());
                     for (Long organization : request.getOrganization()) {
                         organizationGroupMapper.insertOrganization(organization, organizationGroup.getId());
-                        freedomMapper.insertCustomerCgroup(toFreedomCustomerCgroupMap(organization, organizationGroup.getId()));
                     }
                 }
                 /*System Activity*/
@@ -273,7 +255,6 @@ public class OrganizationGroupServiceImpl implements OrganizationGroupService {
             Boolean result = organizationGroupMapper.delete(id, userId);
 
             if (result) {
-                freedomMapper.deleteCustomerGroup(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/organization-group/delete/{id}", null, null, "Customer Group", "Customer Group (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);

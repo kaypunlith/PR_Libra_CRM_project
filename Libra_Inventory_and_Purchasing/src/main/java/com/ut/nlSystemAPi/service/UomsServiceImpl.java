@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.*;
 import com.ut.nlSystemAPi.model.base.BaseResult;
@@ -26,9 +25,6 @@ import java.util.Map;
 public class UomsServiceImpl implements UomsService {
     @Autowired
     private UomsMapper uomsMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private UserService userService;
@@ -119,7 +115,6 @@ public class UomsServiceImpl implements UomsService {
             Boolean result = uomsMapper.insert(uoms);
 
             if (result) {
-                freedomMapper.insertUom(toFreedomUomMap(uoms));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/uoms/add", null, null, "Uoms", "Uoms (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -159,7 +154,6 @@ public class UomsServiceImpl implements UomsService {
             Boolean result = uomsMapper.update(uoms);
 
             if (result) {
-                freedomMapper.updateUom(toFreedomUomMap(uoms));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/uoms/update", null, null, "Uoms", "Uoms (Update)", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -188,7 +182,6 @@ public class UomsServiceImpl implements UomsService {
 
             Boolean result = uomsMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteUom(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/uoms/delete/{id}",null,null,"Uoms","Uoms (Delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);

@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.MarketMapper;
 import com.ut.nlSystemAPi.mapper.primary.ModuleMapper;
 import com.ut.nlSystemAPi.mapper.primary.ModuleTypeMapper;
@@ -34,9 +33,6 @@ public class MarketServiceImpl implements MarketService {
 
     @Autowired
     private MarketMapper marketMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -124,7 +120,6 @@ public class MarketServiceImpl implements MarketService {
             Boolean result = marketMapper.insert(market);
 
             if (result) {
-                freedomMapper.insertCustomerMarket(toFreedomCustomerMarketMap(market));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/market/add", null, null, "Customer Market", "Customer Market (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
@@ -156,7 +151,6 @@ public class MarketServiceImpl implements MarketService {
             Boolean result = marketMapper.update(market);
 
             if (result) {
-                freedomMapper.updateCustomerMarket(toFreedomCustomerMarketMap(market));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/market/update", null, null, "Customer Market", "Customer Market (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
@@ -182,7 +176,6 @@ public class MarketServiceImpl implements MarketService {
 
             Boolean result = marketMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteCustomerMarket(id, userId);
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/market/delete/{id}", null, null, "Customer Market", "Customer Market (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));

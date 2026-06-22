@@ -8,6 +8,8 @@
         <result property="leadCode" column="leadCode"/>
         <result property="leadName" column="leadName"/>
         <result property="leadNameKh" column="leadNameKh"/>
+        <result property="sourceId" column="sourceId"/>
+        <result property="sourceName" column="sourceName"/>
         <result property="telephone" column="telephone"/>
         <result property="mobile" column="mobile"/>
         <result property="alternateMobile" column="alternateMobile"/>

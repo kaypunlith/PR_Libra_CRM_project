@@ -22,6 +22,10 @@ public class Lead extends BaseModel {
     @ApiModelProperty(position = 5)
     private Long leadGroupId;
 
+
+    @ApiModelProperty(position = 5)
+    private Long sourceId;
+
     @ApiModelProperty(position = 6)
     private String name;
 

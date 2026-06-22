@@ -24,4 +24,7 @@ public class OpportunitiesFilter extends Filter {
 
     @ApiModelProperty(position = 15)
     private String dateTo;
+
+    @ApiModelProperty(position = 16)
+    private Long stageId;
 }

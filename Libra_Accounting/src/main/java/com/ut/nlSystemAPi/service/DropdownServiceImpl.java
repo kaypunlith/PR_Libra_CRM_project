@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.DropdownMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.model.MessageService;
@@ -29,9 +28,6 @@ public class DropdownServiceImpl implements DropdownService{
 
     @Autowired
     private DropdownMapper dropdownMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -92,31 +88,6 @@ public class DropdownServiceImpl implements DropdownService{
             /*System Activity*/
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/group-api/list",line, error.toString(),"Group Api","Group Api (View)","View",2,"Error",startDuration,endDuration, httpServletRequest);
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
-        }
-    }
-
-    @Override
-    public ResponseMessage<BaseResult> getListGroupApiFreedom(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        LocalTime startDuration = LocalTime.now();
-        Long line = 1033L;
-        try {
-            Pagination pagination = new Pagination();
-            pagination.setPage(filter.getPage());
-            pagination.setRowsPerPage(filter.getRowsPerPage());
-
-            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
-
-            List<GroupApiDropdownResponse> dropdownResponses = freedomMapper.getListFreedomGroupApi(filter);
-
-            /*System Activity*/
-            LocalTime endDuration = LocalTime.now();
-            activityLogService.insert("/dropdown/group-api-freedom/list",null,null,"Group Api","Group Api Freedom (View)","View",1,"Success",startDuration,endDuration, httpServletRequest);
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", dropdownResponses, pagination, true));
-        } catch (Exception error) {
-            /*System Activity*/
-            LocalTime endDuration = LocalTime.now();
-            activityLogService.insert("/dropdown/group-api-freedom/list",line, error.toString(),"Group Api","Group Api Freedom (View)","View",2,"Error",startDuration,endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
     }
@@ -395,37 +366,6 @@ public class DropdownServiceImpl implements DropdownService{
             /*System Activity*/
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/module-type/list",line, error.toString(),"Module Type","Module Group (view)","View",2,"Error",startDuration,endDuration, httpServletRequest);
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
-        }
-    }
-
-    @Override
-    public ResponseMessage<BaseResult> getListModuleTypeFreedom(ModuleTypeFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        LocalTime startDuration = LocalTime.now();
-        Long line = 1033L;
-        try {
-            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
-
-            List<ModuleType> moduleTypeList = freedomMapper.getRoleFreedomModuleTypes(filter);
-            if (moduleTypeList != null) {
-                for (ModuleType moduleType : moduleTypeList) {
-                    Long moduleTypeId = moduleType.getId();
-                    if (filter.getRoleId() == null || filter.getRoleId() == 0) {
-                        moduleType.setModuleList(freedomMapper.getRoleFreedomModuleByModuleTypeId(moduleTypeId));
-                    } else {
-                        moduleType.setModuleList(freedomMapper.getRoleFreedomModuleByRoleId(moduleTypeId, filter.getRoleId()));
-                    }
-                }
-            }
-
-            /*System Activity*/
-            LocalTime endDuration = LocalTime.now();
-            activityLogService.insert("/module-type-freedom/list",null,null,"Module Type","Module Type Freedom (view)","View",1,"Success",startDuration,endDuration, httpServletRequest);
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", moduleTypeList, true));
-        } catch (Exception error) {
-            /*System Activity*/
-            LocalTime endDuration = LocalTime.now();
-            activityLogService.insert("/module-type-freedom/list",line, error.toString(),"Module Type","Module Type Freedom (view)","View",2,"Error",startDuration,endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
     }

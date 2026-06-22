@@ -41,6 +41,8 @@ public interface DropdownMapper {
 
     List<DropdownResponse> getListClassPartnerManagement(@Param("filter") Filter filter,@Param("userId") Long userId);
 
+    List<DropdownResponse> getListSupportTicketPipLine(@Param("filter") Filter filter,@Param("userId") Long userId);
+
     List<DropdownResponse> getListOrganizationGroup(@Param("filter") Filter filter);
 
     List<DropdownResponse> getListLeadGroup(@Param("filter") LeadGroupDropdownFilter filter, @Param("userId") Long userId);
@@ -61,6 +63,10 @@ public interface DropdownMapper {
 
     List<QuotationDropdownResponse> getListQuotation(@Param("filter") QuotationDropdownFilter filter);
 
+    List<QuotationDropdownResponse> getListOpportunityQuotation(@Param("filter") QuotationDropdownFilter filter, @Param("userId") Long userId);
+
+    List<QuotationDropdownResponse> getListOpportunitySaleOrder(@Param("filter") QuotationDropdownFilter filter, @Param("userId") Long userId);
+
     List<QuotationDropdownResponse> getListActivityCardQuotation(@Param("filter") QuotationDropdownFilter filter);
 
     List<DropdownResponse> getListTransferOrder(@Param("filter") Filter filter);
@@ -80,6 +86,8 @@ public interface DropdownMapper {
     List<DropdownResponse> getListOpportunityStageProbability(@Param("filter") OpportunityStageDropdownFilter filter, @Param("userId") Long userId);
 
     List<DropdownResponse> getListOpportunitySource(@Param("filter") Filter filter);
+
+    List<DropdownResponse> getListSource(@Param("filter") Filter filter);
 
     List<DropdownResponse> getListOpportunityActivity(@Param("filter") OpportunityStageDropdownFilter filter);
 

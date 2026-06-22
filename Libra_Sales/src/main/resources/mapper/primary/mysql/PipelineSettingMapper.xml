@@ -45,9 +45,14 @@
         GROUP BY cps.id
         ORDER BY
         <choose>
-            <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>cps.id DESC</otherwise>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                cps.id DESC
+            </otherwise>
         </choose>
+
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
         </if>

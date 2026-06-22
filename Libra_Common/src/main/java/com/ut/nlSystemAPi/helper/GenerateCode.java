@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Year;
+import java.time.YearMonth;
 
 @Component
 public class GenerateCode {
@@ -42,5 +43,35 @@ public class GenerateCode {
 
   public String generateAutoCode(String table, String field, int len, String charPrefix, boolean useYear, String status) {
     return generateAutoCode(codeCountMapper, table, field, len, charPrefix, useYear, status);
+  }
+
+  public String generateMonthlyAutoCode(CodeCountMapper mapper, String table, String field, int len, String charPrefix, String status) {
+    YearMonth now = YearMonth.now();
+    String datePrefix = charPrefix + String.format("%02d%02d", now.getYear() % 100, now.getMonthValue());
+    String condition = status != null && !status.isEmpty() ? " AND " + status : "";
+
+    String pattern = datePrefix + "-%";
+    long count = mapper.countRecords(table, field, pattern, condition);
+
+    long nextNumber = count + 1;
+    String numberPart = String.format("%0" + len + "d", nextNumber);
+
+    return datePrefix + "-" + numberPart;
+  }
+
+  public String generateMonthlyAutoCode(String table, String field, int len, String charPrefix, String status) {
+    return generateMonthlyAutoCode(codeCountMapper, table, field, len, charPrefix, status);
+  }
+
+  public String generateCustomerContactCode() {
+    return generateMonthlyAutoCode("customer_contacts", "code", 3, "LPSA", null);
+  }
+
+  public String generateLead() {
+    return generateMonthlyAutoCode("customers", "lead_code", 3, "CLNP", "customer_type = 2 AND is_active = 3");
+  }
+
+  public String generateCustomerCode() {
+    return generateMonthlyAutoCode("customers", "customer_code", 3, "LPSA", null);
   }
 }

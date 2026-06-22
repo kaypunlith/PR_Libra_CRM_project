@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.FreedomTypeMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.model.MessageService;
@@ -32,9 +31,6 @@ public class FreedomTypeServiceImpl implements FreedomTypeService {
 
     @Autowired
     private FreedomTypeMapper freedomTypeMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -116,7 +112,6 @@ public class FreedomTypeServiceImpl implements FreedomTypeService {
             Boolean result = freedomTypeMapper.insert(freedomType);
 
             if (result) {
-                freedomMapper.insertFreedomType(toFreedomFreedomTypeMap(freedomType));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/freedom-type/add", null, null, "Freedom Type", "Freedom Type (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
@@ -148,7 +143,6 @@ public class FreedomTypeServiceImpl implements FreedomTypeService {
             Boolean result = freedomTypeMapper.update(freedomType);
 
             if (result) {
-                freedomMapper.updateFreedomType(toFreedomFreedomTypeMap(freedomType));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/freedom-type/update", null, null, "Freedom Type", "Freedom Type (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
@@ -174,7 +168,6 @@ public class FreedomTypeServiceImpl implements FreedomTypeService {
 
             Boolean result = freedomTypeMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteFreedomType(id, userId);
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/freedom-type/delete/{id}", null, null, "Freedom Type", "Freedom Type (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));

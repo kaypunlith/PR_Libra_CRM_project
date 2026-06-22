@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.mapper.primary.ProductGroupMapper;
 import com.ut.nlSystemAPi.model.*;
@@ -28,9 +27,6 @@ import java.util.Map;
 public class ProductGroupServiceImpl implements ProductGroupService {
     @Autowired
     private ProductGroupMapper productGroupMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -143,13 +139,11 @@ public class ProductGroupServiceImpl implements ProductGroupService {
             productGroup.setIsActive(1);
             Boolean result = productGroupMapper.insert(productGroup);
             if (result) {
-                freedomMapper.insertProductGroup(toFreedomProductGroupMap(productGroup));
 
                 PgroupCompany pgroupCompany = new PgroupCompany();
                 pgroupCompany.setPgroupId(productGroup.getId());
                 pgroupCompany.setCompanyId(productGroupRequest.getCompanyId());
                 productGroupMapper.insertPgroupCompany(pgroupCompany);
-                freedomMapper.insertPgroupCompany(toFreedomPgroupCompanyMap(pgroupCompany));
 
                 if (productGroupRequest.getUsers() != null && !productGroupRequest.getUsers().isEmpty()) {
                     List<Long> users = productGroupRequest.getUsers();
@@ -158,7 +152,6 @@ public class ProductGroupServiceImpl implements ProductGroupService {
                         userPgroup.setUserId(users.get(i));
                         userPgroup.setPgroupId(productGroup.getId());
                         productGroupMapper.insertUserPgroup(userPgroup);
-                        freedomMapper.insertUserPgroup(toFreedomUserPgroupMap(userPgroup));
                     }
                 }
 
@@ -170,7 +163,6 @@ public class ProductGroupServiceImpl implements ProductGroupService {
                         pgroupChartAccount.setAccountTypeId(productGroupRequest.getIcsRequests().get(i).getChartAccountType()); //nested list
                         pgroupChartAccount.setChartAccountId(productGroupRequest.getIcsRequests().get(i).getChartAccountId());
                         productGroupMapper.insertICSAccount(pgroupChartAccount);
-                        freedomMapper.insertPgroupAccount(toFreedomPgroupAccountMap(pgroupChartAccount));
                     }
                 }
 
@@ -181,7 +173,6 @@ public class ProductGroupServiceImpl implements ProductGroupService {
                         productPgroup.setPgroupId(productGroup.getId());
                         productPgroup.setProductId(products.get(i));
                         productGroupMapper.insertProductPgroup(productPgroup);
-                        freedomMapper.insertProductPgroup(toFreedomProductPgroupMap(productPgroup));
                     }
                 }
 
@@ -221,26 +212,21 @@ public class ProductGroupServiceImpl implements ProductGroupService {
             LocalTime endDuration = LocalTime.now();
 
             if (result) {
-                freedomMapper.updateProductGroup(toFreedomProductGroupMap(productGroup));
 
                 productGroupMapper.deletePgroupCompany(productGroupUpdateRequest.getId());
-                freedomMapper.deletePgroupCompany(productGroupUpdateRequest.getId());
                 PgroupCompany pgroupCompany = new PgroupCompany();
                 pgroupCompany.setPgroupId(productGroup.getId());
                 pgroupCompany.setCompanyId(productGroupUpdateRequest.getCompanyId());
                 productGroupMapper.insertPgroupCompany(pgroupCompany);
-                freedomMapper.insertPgroupCompany(toFreedomPgroupCompanyMap(pgroupCompany));
 
                 if (productGroupUpdateRequest.getUsers() != null && !productGroupUpdateRequest.getUsers().isEmpty()) {
                     List<Long> users = productGroupUpdateRequest.getUsers();
                     productGroupMapper.deleteUserPgroup(productGroupUpdateRequest.getId());
-                    freedomMapper.deleteUserPgroup(productGroupUpdateRequest.getId());
                     for (int i = 0; i< users.size(); i++) {
                         UserPgroup userPgroup = new UserPgroup();
                         userPgroup.setUserId(users.get(i));
                         userPgroup.setPgroupId(productGroup.getId());
                         productGroupMapper.insertUserPgroup(userPgroup);
-                        freedomMapper.insertUserPgroup(toFreedomUserPgroupMap(userPgroup));
                     }
 
                 }
@@ -248,27 +234,23 @@ public class ProductGroupServiceImpl implements ProductGroupService {
                 if (productGroupUpdateRequest.getIcsRequests() != null && !productGroupUpdateRequest.getIcsRequests().isEmpty()) {
                     List<ICSRequest> icsRequests = productGroupUpdateRequest.getIcsRequests();
                     productGroupMapper.deleteICSAccount(productGroupUpdateRequest.getId());
-                    freedomMapper.deletePgroupAccount(productGroupUpdateRequest.getId());
                     for (int i = 0; i< icsRequests.size(); i++) {
                         PgroupChartAcount pgroupChartAccount = new PgroupChartAcount();
                         pgroupChartAccount.setPgroupId(productGroup.getId());
                         pgroupChartAccount.setAccountTypeId(productGroupUpdateRequest.getIcsRequests().get(i).getChartAccountType());
                         pgroupChartAccount.setChartAccountId(productGroupUpdateRequest.getIcsRequests().get(i).getChartAccountId());
                         productGroupMapper.insertICSAccount(pgroupChartAccount);
-                        freedomMapper.insertPgroupAccount(toFreedomPgroupAccountMap(pgroupChartAccount));
                     }
                 }
 
                 if (productGroupUpdateRequest.getProducts() != null && !productGroupUpdateRequest.getProducts().isEmpty()){
                     List<Long> products = productGroupUpdateRequest.getProducts();
                     productGroupMapper.deleteProductPgroup(productGroupUpdateRequest.getId());
-                    freedomMapper.deleteProductPgroupByPgroup(productGroupUpdateRequest.getId());
                     for (int i = 0; i< products.size(); i++) {
                         ProductPgroup productPgroup = new ProductPgroup();
                         productPgroup.setPgroupId(productGroup.getId());
                         productPgroup.setProductId(products.get(i));
                         productGroupMapper.insertProductPgroup(productPgroup);
-                        freedomMapper.insertProductPgroup(toFreedomProductPgroupMap(productPgroup));
                     }
                 }
 
@@ -323,7 +305,6 @@ public class ProductGroupServiceImpl implements ProductGroupService {
 
             Boolean result = productGroupMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteProductGroup(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product-group/delete/{id}",null,null,"Product Group","Product Group (Delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);

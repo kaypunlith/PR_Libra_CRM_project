@@ -2,7 +2,6 @@ package com.ut.nlSystemAPi.service;
 
 import ch.qos.logback.core.joran.spi.ElementPath;
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.UomConversionMapper;
 import com.ut.nlSystemAPi.model.MessageService;
 import com.ut.nlSystemAPi.model.OtherUomConversion;
@@ -34,9 +33,6 @@ import java.util.Map;
 public class UomConversionServiceImpl implements UomConversionService {
     @Autowired
     private UomConversionMapper uomConversionMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private UserService userService;
@@ -138,7 +134,6 @@ public class UomConversionServiceImpl implements UomConversionService {
             uomConversion.setIsActive(1);
             Boolean result = uomConversionMapper.insert(uomConversion);
             if (result) {
-                freedomMapper.insertUomConversion(toFreedomUomConversionMap(uomConversion));
                 List<UomConversionList> uomConversionLists = uomConversionRequest.getOtherUoms();
                 if (!uomConversionLists.isEmpty()) {
                     for (UomConversionList uomConversionList : uomConversionLists) {
@@ -150,7 +145,6 @@ public class UomConversionServiceImpl implements UomConversionService {
                         otherUomConversion.setIsSmallUom(0L);
                         otherUomConversion.setIsActive(1);
                         uomConversionMapper.insertOther(otherUomConversion);
-                        freedomMapper.insertUomConversion(toFreedomOtherUomConversionMap(otherUomConversion));
                     }
                 }
                 LocalTime endDuration = LocalTime.now();
@@ -181,11 +175,9 @@ public class UomConversionServiceImpl implements UomConversionService {
              uomConversion.setModifiedBy(userId);
              Boolean result = uomConversionMapper.update(uomConversion);
             if (result) {
-                freedomMapper.updateUomConversion(toFreedomUomConversionMap(uomConversion));
                 List<UomConversionList> uomConversionLists = uomConversionUpdateRequest.getOtherUoms();
                 if (!uomConversionLists.isEmpty()) {
                     uomConversionMapper.deleteOther(uomConversionUpdateRequest.getId(), userId);
-                    freedomMapper.archiveOtherUomConversions(uomConversionUpdateRequest.getId(), userId);
                     for (UomConversionList uomConversionList : uomConversionLists) {
                         OtherUomConversion otherUomConversion = new OtherUomConversion(); // Create new model for insert into table
                         otherUomConversion.setMainUom(uomConversion.getMainUom());
@@ -195,7 +187,6 @@ public class UomConversionServiceImpl implements UomConversionService {
                         otherUomConversion.setIsSmallUom(0L);
                         otherUomConversion.setIsActive(1);
                         uomConversionMapper.insertOther(otherUomConversion);
-                        freedomMapper.insertUomConversion(toFreedomOtherUomConversionMap(otherUomConversion));
                     }
                 }
                 LocalTime endDuration = LocalTime.now();
@@ -225,9 +216,7 @@ public class UomConversionServiceImpl implements UomConversionService {
 
             Boolean result = uomConversionMapper.delete(id, userId);
             if (result) {
-                freedomMapper.archiveUomConversion(id, userId);
                 uomConversionMapper.deleteOther(id, userId);
-                freedomMapper.archiveOtherUomConversions(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/uom conversion/delete/{id}",null,null,"uom conversion","uom conversion (Delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);

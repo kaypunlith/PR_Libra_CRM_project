@@ -29,4 +29,42 @@
         <result property="modifiedBy" column="modifiedBy"/>
     </resultMap>
 
+    <resultMap id="SupportTicketAddMoreDetailResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketAddMoreDetailResponse">
+        <id property="id" column="id"/>
+        <result property="pipelineId" column="pipelineId"/>
+        <result property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="probability" column="probability"/>
+        <result property="ordering" column="ordering"/>
+        <result property="skippable" column="skippable"/>
+        <result property="description" column="description"/>
+    </resultMap>
+
+    <resultMap id="SupportTicketAddMoreStageResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketAddMoreStageResponse">
+        <result property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="percent" column="percent"/>
+        <result property="ordering" column="ordering"/>
+    </resultMap>
+
+    <resultMap id="SupportTicketAddMoreItemResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketAddMoreItemResponse">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="activityId" column="activityId"/>
+        <result property="activityName" column="activityName"/>
+        <result property="selected" column="selected"/>
+    </resultMap>
+
+    <resultMap id="SupportTicketLogResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketLogResponse">
+        <id property="id" column="id"/>
+        <result property="type" column="type"/>
+        <result property="status" column="status"/>
+        <result property="statusName" column="statusName"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="borderColor" column="borderColor"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+    </resultMap>
+
 </mapper>

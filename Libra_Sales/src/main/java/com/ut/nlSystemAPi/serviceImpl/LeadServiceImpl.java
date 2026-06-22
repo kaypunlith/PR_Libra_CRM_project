@@ -119,7 +119,7 @@ public class LeadServiceImpl implements LeadService {
             }
 
             Lead lead = toLead(request);
-            lead.setLeadCode(generateCode.generateAutoCode("customers", "lead_code", 5, "L", true, "customer_type = 2 AND is_active = 3"));
+            lead.setLeadCode(generateCode.generateLead());
             lead.setCreatedBy(userId);
             lead.setIsActive(3);
 
@@ -370,6 +370,7 @@ public class LeadServiceImpl implements LeadService {
         lead.setPhoto(request.getPhoto());
         lead.setName(request.getName());
         lead.setNameKh(request.getNameKh());
+        lead.setSourceId(request.getSourceId());
         lead.setLats(request.getLats());
         lead.setLongs(request.getLongs());
         lead.setTelephone(request.getTelephone());

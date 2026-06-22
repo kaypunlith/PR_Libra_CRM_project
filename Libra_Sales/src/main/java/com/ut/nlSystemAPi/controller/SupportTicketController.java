@@ -5,6 +5,7 @@ import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
 import com.ut.nlSystemAPi.model.base.BaseResult;
 import com.ut.nlSystemAPi.model.base.ResponseMessage;
 import com.ut.nlSystemAPi.model.filter.SupportTicketFilter;
+import com.ut.nlSystemAPi.model.request.SupportTicket.SupportTicketAddMoreRequest;
 import com.ut.nlSystemAPi.model.request.SupportTicket.SupportTicketRequest;
 import com.ut.nlSystemAPi.model.request.SupportTicket.SupportTicketUpdateRequest;
 import com.ut.nlSystemAPi.service.SupportTicketService;
@@ -63,6 +64,24 @@ public class SupportTicketController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return service.update(request, bindingResult, httpServletRequest);
+    }
+
+    @PostMapping({"/list-add-more/{id}"})
+    @ApiOperation(value = "List support ticket add more data by id", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listAddMore(@PathVariable("id") Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return service.getAddMore(id, httpServletRequest);
+    }
+
+    @PostMapping(value = "/add-more/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Save support ticket stage activity, task, description, and stage action", notes = "action: SAVE, NEXT, BACK, SKIP", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> addMore(@PathVariable("id") Long id, @RequestBody SupportTicketAddMoreRequest request, BindingResult bindingResult, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return service.addMore(id, request, bindingResult, httpServletRequest);
     }
 
     @PostMapping("/delete/{id}")

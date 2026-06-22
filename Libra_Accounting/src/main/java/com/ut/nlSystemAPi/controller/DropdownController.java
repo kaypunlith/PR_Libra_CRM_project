@@ -47,16 +47,6 @@ public class DropdownController {
         return dropdownService.getListGroupApi(filter, httpServletRequest);
     }
 
-    @PostMapping("/group-api-freedom/list")
-    @ApiOperation(value = "List group api from freedom db by filter", notes = "List group api from freedom db by filter", authorizations = {@Authorization(value = "Bearer")})
-    public ResponseMessage<BaseResult> listGroupApiFreedom(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        // Check Header Token
-        if (UserAuthSession.getUserAuth() == null) {
-            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
-        }
-        return dropdownService.getListGroupApiFreedom(filter, httpServletRequest);
-    }
-
     @PostMapping("/user/list")
     @ApiOperation(value = "List user by filter", notes = "List user by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listUser(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {

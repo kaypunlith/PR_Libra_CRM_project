@@ -142,6 +142,15 @@ public class DropdownController {
         return dropdownService.getListClassPartnerManagement(filter, httpServletRequest);
     }
 
+    @PostMapping("/list-support-ticket-pipeline")
+    @ApiOperation(value = "List class partner management by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSupportTicketPipline(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSupportTicketPipLine(filter, httpServletRequest);
+    }
+
     @PostMapping("/list-organization-group")
     @ApiOperation(value = "List organization group by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listOrganizationGroup(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -212,6 +221,24 @@ public class DropdownController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return dropdownService.getListQuotation(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-opportunity-quotation"})
+    @ApiOperation(value = "List opportunity quotation dropdown by filter", notes = "Used by opportunity add more. Filters: searchText, companyId, organizationId", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> getListOpportunityQuotation(@RequestBody QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunityQuotation(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-opportunity-sale-order"})
+    @ApiOperation(value = "List opportunity sale order dropdown by filter", notes = "Used by opportunity add more. Filters: searchText, companyId, organizationId", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> getListOpportunitySaleOrder(@RequestBody QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunitySaleOrder(filter, httpServletRequest);
     }
 
     @PostMapping({"a", "/list-quotation-activity-card"})
@@ -302,6 +329,15 @@ public class DropdownController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return dropdownService.getListOpportunitySource(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-source")
+    @ApiOperation(value = "List source by filter", notes = "List crm_opportunity_sources where type = 6", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSource(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSource(filter, httpServletRequest);
     }
 
     @PostMapping("/list-opportunity-activity")
@@ -555,18 +591,6 @@ public class DropdownController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return dropdownService.getListQuotationStatusReason(filter, httpServletRequest);
-    }
-
-    @PostMapping("/list-freedom-customer")
-    @ApiOperation(value = "List Freedom customer by filter")
-    public ResponseMessage<BaseResult> listFreedomCustomer(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        return dropdownService.getListFreedomCustomer(filter, httpServletRequest);
-    }
-
-    @PostMapping("/list-freedom-warehouse")
-    @ApiOperation(value = "List Freedom warehouse by filter")
-    public ResponseMessage<BaseResult> listFreedomWarehouse(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        return dropdownService.getListFreedomWarehouse(filter, httpServletRequest);
     }
 
     @PostMapping("/list-years")

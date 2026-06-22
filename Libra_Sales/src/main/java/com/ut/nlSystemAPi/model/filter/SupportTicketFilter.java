@@ -27,4 +27,7 @@ public class SupportTicketFilter extends Filter {
 
     @ApiModelProperty(position = 16)
     private String dateTo;
+
+    @ApiModelProperty(position = 17)
+    private Long stageId;
 }

@@ -48,6 +48,12 @@ public class OpportunityResponse {
     @ApiModelProperty(position = 14)
     private String organizationName;
 
+    @ApiModelProperty(position = 13)
+    private Long LeadId;
+
+    @ApiModelProperty(position = 14)
+    private String leadName;
+
     @ApiModelProperty(position = 15)
     private Long responsibilityId;
 

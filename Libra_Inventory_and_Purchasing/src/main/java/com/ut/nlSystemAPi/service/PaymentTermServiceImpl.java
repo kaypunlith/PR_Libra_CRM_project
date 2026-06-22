@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.PaymentTermMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.model.*;
@@ -27,9 +26,6 @@ import java.util.Map;
 public class PaymentTermServiceImpl implements PaymentTermService {
     @Autowired
     private PaymentTermMapper paymentTermMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -124,7 +120,6 @@ public class PaymentTermServiceImpl implements PaymentTermService {
             Boolean result = paymentTermMapper.insert(paymentTerm);
 
             if (result) {
-                freedomMapper.insertPaymentTerm(toFreedomPaymentTermMap(paymentTerm));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/payment-term/add", null, null, "Payment Terms", "Payment Terms (add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -164,7 +159,6 @@ public class PaymentTermServiceImpl implements PaymentTermService {
             Boolean result = paymentTermMapper.update(paymentTerm);
 
             if (result) {
-                freedomMapper.updatePaymentTerm(toFreedomPaymentTermMap(paymentTerm));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/payment-term/update", null, null, "Payment Terms", "Payment Terms (edit)", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
@@ -191,7 +185,6 @@ public class PaymentTermServiceImpl implements PaymentTermService {
               }
             Boolean result = paymentTermMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deletePaymentTerm(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/payment-term/delete/{id}",null,null,"Payment Terms","Payment Terms (delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);

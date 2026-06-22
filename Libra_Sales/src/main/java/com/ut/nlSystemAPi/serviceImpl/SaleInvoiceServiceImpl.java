@@ -5,7 +5,6 @@ import com.ut.nlSystemAPi.helper.Inventory;
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
 import com.ut.nlSystemAPi.helper.Telegram.CheckNull;
 import com.ut.nlSystemAPi.helper.TelegramUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.*;
 import com.ut.nlSystemAPi.model.GeneralLedger;
@@ -79,9 +78,6 @@ public class SaleInvoiceServiceImpl implements SaleInvoiceService {
 
     @Autowired
     private TelegramUtils telegramUtils;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private OrganizationMapper organizationMapper;

@@ -22,4 +22,7 @@ public class OrganizationFilter extends Filter {
     @ApiModelProperty(position = 14)
     private Integer havingBalance;
 
+    @ApiModelProperty(position = 14)
+    private Integer sourceId;
+
 }

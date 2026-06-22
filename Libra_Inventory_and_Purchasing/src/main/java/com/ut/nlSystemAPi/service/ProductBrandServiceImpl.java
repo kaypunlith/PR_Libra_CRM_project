@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.ProductBrandMapper;
 import com.ut.nlSystemAPi.model.MessageService;
 import com.ut.nlSystemAPi.model.ProductBrand;
@@ -28,9 +27,6 @@ public class ProductBrandServiceImpl implements ProductBrandService {
 
     @Autowired
     private ProductBrandMapper productBrandMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private UserService userService;
@@ -111,7 +107,6 @@ public class ProductBrandServiceImpl implements ProductBrandService {
             Boolean result = productBrandMapper.insert(productBrand);
 
             if (result) {
-                freedomMapper.insertProductBrand(toFreedomProductBrandMap(productBrand));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product-brand/add", null, null, "Product Brand", "Product Brand (Add)",
                         "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -146,7 +141,6 @@ public class ProductBrandServiceImpl implements ProductBrandService {
             Boolean result = productBrandMapper.update(productBrand);
 
             if (result) {
-                freedomMapper.updateProductBrand(toFreedomProductBrandMap(productBrand));
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product-brand/update", null, null, "Product Brand",
                         "Product Brand (Update)", "Update", 1, "Success", startDuration, endDuration,
@@ -173,7 +167,6 @@ public class ProductBrandServiceImpl implements ProductBrandService {
 
             Boolean result = productBrandMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteProductBrand(id, userId);
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product-brand/delete/{id}", null, null, "Product Brand",
                         "Product Brand (Delete)", "Delete", 1, "Success", startDuration, endDuration,

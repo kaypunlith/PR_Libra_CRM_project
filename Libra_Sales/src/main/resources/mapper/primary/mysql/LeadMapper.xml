@@ -9,6 +9,8 @@
         customers.name AS leadName,
         customers.name_kh AS leadNameKh,
         customers.main_number AS telephone,
+        so.id AS sourceId,
+        so.name AS sourceName,
         customers.mobile_number AS mobile,
         customers.other_number AS alternateMobile,
         customers.email AS email,
@@ -54,6 +56,7 @@
     <sql id="BASE_FROM">
         FROM customers
         LEFT JOIN customer_types ON customer_types.id = customers.customer_type_id
+        LEFT JOIN crm_opportunity_sources AS so ON so.id = customers.source_id AND so.is_active = 1
         LEFT JOIN customer_activities ON customer_activities.id = customers.customer_activity_id
         LEFT JOIN countries ON countries.id = customers.country_id
         LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
@@ -79,6 +82,9 @@
         </if>
         <if test="filter.viewByUser == 1">
             AND customers.created_by = #{userId}
+        </if>
+        <if test="filter.sourceId != null">
+            AND customers.source_id = #{filter.sourceId}
         </if>
         <if test="filter.createdBy != null and filter.viewByUser != 1">
             AND customers.created_by = #{filter.createdBy}
@@ -159,6 +165,7 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="lead.id">
         INSERT INTO customers (
+            source_id,
             photo,
             customer_code,
             lead_code,
@@ -176,6 +183,7 @@
             created,
             created_by
         ) VALUES (
+            #{lead.sourceId},
             #{lead.photo},
             #{lead.leadCode},
             #{lead.leadCode},
@@ -197,6 +205,7 @@
 
     <update id="update">
         UPDATE customers SET
+        <if test="lead.sourceId != null">source_id = #{lead.sourceId},</if>
         <if test="lead.photo != null">photo = #{lead.photo},</if>
         <if test="lead.name != null">name = #{lead.name},</if>
         <if test="lead.nameKh != null">name_kh = #{lead.nameKh},</if>

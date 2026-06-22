@@ -22,6 +22,10 @@ public class OpportunityRequest {
     private Long sourceId;
 
     @ApiModelProperty(position = 6)
+    private Long leadId;
+
+
+    @ApiModelProperty(position = 6)
     private Long organizationId;
 
     @ApiModelProperty(position = 7)

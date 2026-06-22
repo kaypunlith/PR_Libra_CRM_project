@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.service;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.*;
 import com.ut.nlSystemAPi.model.base.BaseResult;
@@ -29,9 +28,6 @@ public class ProductServiceImpl implements ProductService {
 
     @Autowired
     private ProductMapper productMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -235,7 +231,6 @@ public class ProductServiceImpl implements ProductService {
             product.setCreatedBy(userId);
             Boolean result = productMapper.insert(product);
             if (result) {
-                freedomMapper.insertProduct(toFreedomProductMap(product));
                 syncProductImages(product.getId(), productRequest.getPhotos());
 
                 if (productRequest.getProductGroupId() != null) {
@@ -243,7 +238,6 @@ public class ProductServiceImpl implements ProductService {
                     productPgroup.setProductId(product.getId());
                     productPgroup.setPgroupId(productRequest.getProductGroupId());
                     productMapper.insertProductPgroup(productPgroup);
-                    freedomMapper.insertProductPgroup(toFreedomProductPgroupMap(productPgroup));
 
 //                  Check If The Product Group Price Already Exist
                     List<ProductGroupPriceSettingResponse> checkGroupPrice = productMapper.getProductGroupPrice(product.getUnitCost(), product.getProductGroupId());
@@ -261,7 +255,6 @@ public class ProductServiceImpl implements ProductService {
                             productPrice.setSetType(checkGroupPrice.get(i).getSetType());
                             productPrice.setCreatedBy(userId);
                             productMapper.addPrice(productPrice);
-                            freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
 
                             ProductPriceHistory productPriceHistory = new ProductPriceHistory();
                             productPriceHistory.setProductId(product.getId());
@@ -274,7 +267,6 @@ public class ProductServiceImpl implements ProductService {
                             productPrice.setSetType(checkGroupPrice.get(i).getSetType());
                             productPriceHistory.setCreatedBy(userId);
                             productMapper.addPriceHistory(productPriceHistory);
-                            freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(productPriceHistory));
                         }
                     }
                 }
@@ -287,7 +279,6 @@ public class ProductServiceImpl implements ProductService {
                         productChartAccount.setAccountType(productRequest.getIcs().get(i).getAccountType());
                         productChartAccount.setChartAccountId(productRequest.getIcs().get(i).getChartAccountId());
                         productMapper.insertICSAccount(productChartAccount);
-                        freedomMapper.insertICSAccount(toFreedomProductChartAccountMap(productChartAccount));
                     }
                 }
 
@@ -298,7 +289,6 @@ public class ProductServiceImpl implements ProductService {
                         productCategory.setProductId(product.getId());
                         productCategory.setCategoryId(categories.get(i));
                         productMapper.insertProductCategory(productCategory);
-                        freedomMapper.insertProductCategory(toFreedomProductCategoryMap(productCategory));
                     }
                 }
 
@@ -310,7 +300,6 @@ public class ProductServiceImpl implements ProductService {
                         productSku.setCode(productRequest.getUomCode().get(i).getCode());
                         productSku.setUomId(productRequest.getUomCode().get(i).getUomId());
                         productMapper.insertProductSku(productSku);
-                        freedomMapper.insertProductSku(toFreedomProductSkuMap(productSku));
                     }
                 }
 
@@ -322,7 +311,6 @@ public class ProductServiceImpl implements ProductService {
                         productSku.setCode(productRequest.getBatchCodeInformation().get(i).getCode());
                         productSku.setUomId(product.getPriceUomId());
                         productMapper.insertProductSku(productSku);
-                        freedomMapper.insertProductSku(toFreedomProductSkuMap(productSku));
                     }
                 }
 
@@ -336,7 +324,6 @@ public class ProductServiceImpl implements ProductService {
                         productPacket.setQtyUomId(productRequest.getProductPackage().get(i).getUomId());
                         productPacket.setConversion(productRequest.getProductPackage().get(i).getConversion());
                         productMapper.insertProductPacket(productPacket);
-                        freedomMapper.insertProductPacket(toFreedomProductPacketMap(productPacket));
                     }
                 }
 
@@ -349,13 +336,11 @@ public class ProductServiceImpl implements ProductService {
                         productStockLevel.setQty(stockLevelRequest.getQty());
                         productStockLevel.setCreatedBy(userId);
                         productMapper.insertProductStockLevel(productStockLevel);
-                        freedomMapper.insertProductStockLevel(toFreedomProductStockLevelMap(productStockLevel));
                     }
                 }
 
                 if (productRequest.getProductPrices() != null && !productRequest.getProductPrices().isEmpty()) {
                     productMapper.deletePrice(product.getId());
-                    freedomMapper.deletePrice(product.getId());
                     for (ProductPriceRequest priceRequest : productRequest.getProductPrices()) {
                         if (priceRequest.getDetails() != null && !priceRequest.getDetails().isEmpty()) {
                             for (ProductPriceDetailRequest detail : priceRequest.getDetails()) {
@@ -370,7 +355,6 @@ public class ProductServiceImpl implements ProductService {
                                 productPrice.setSetType(priceRequest.getSetType());
                                 productPrice.setCreatedBy(userId);
                                 productMapper.addPrice(productPrice);
-                                freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
 
                                 ProductPriceHistory productPriceHistory = new ProductPriceHistory();
                                 productPriceHistory.setProductId(product.getId());
@@ -382,7 +366,6 @@ public class ProductServiceImpl implements ProductService {
                                 productPriceHistory.setSetType(priceRequest.getSetType());
                                 productPriceHistory.setCreatedBy(userId);
                                 productMapper.addPriceHistory(productPriceHistory);
-                                freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(productPriceHistory));
                             }
                         }
                     }
@@ -459,21 +442,17 @@ public class ProductServiceImpl implements ProductService {
             Boolean result = productMapper.update(product);
 
             if (result) {
-                freedomMapper.updateProduct(toFreedomProductMap(product));
                 syncProductImages(product.getId(), productUpdateRequest.getPhotos());
                 if (productUpdateRequest.getProductGroupId() != null) {
                     productMapper.deleteProductPgroup(product.getId());
-                    freedomMapper.deleteProductPgroup(product.getId());
                     ProductPgroup productPgroup = new ProductPgroup();
                     productPgroup.setProductId(product.getId());
                     productPgroup.setPgroupId(productUpdateRequest.getProductGroupId());
                     productMapper.insertProductPgroup(productPgroup);
-                    freedomMapper.insertProductPgroup(toFreedomProductPgroupMap(productPgroup));
                 }
 
                 if (productUpdateRequest.getIcs() != null && !productUpdateRequest.getIcs().isEmpty()) {
                     productMapper.deleteICSAccount(product.getId());
-                    freedomMapper.deleteICSAccount(product.getId());
                     List<ProductICSRequest> productIcsRequests = productUpdateRequest.getIcs();
                     for (int i = 0; i < productIcsRequests.size(); i++) {
                         ProductChartAccount productChartAccount = new ProductChartAccount();
@@ -481,26 +460,22 @@ public class ProductServiceImpl implements ProductService {
                         productChartAccount.setAccountType(productUpdateRequest.getIcs().get(i).getAccountType());
                         productChartAccount.setChartAccountId(productUpdateRequest.getIcs().get(i).getChartAccountId());
                         productMapper.insertICSAccount(productChartAccount);
-                        freedomMapper.insertICSAccount(toFreedomProductChartAccountMap(productChartAccount));
                     }
                 }
 
                 if (productUpdateRequest.getCategories() != null && !productUpdateRequest.getCategories().isEmpty()) {
                     productMapper.deleteProductCategory(product.getId());
-                    freedomMapper.deleteProductCategory(product.getId());
                     List<Long> categories = productUpdateRequest.getCategories();
                     for (int i = 0; i < categories.size(); i++) {
                         ProductCategory productCategory = new ProductCategory();
                         productCategory.setProductId(product.getId());
                         productCategory.setCategoryId(categories.get(i));
                         productMapper.insertProductCategory(productCategory);
-                        freedomMapper.insertProductCategory(toFreedomProductCategoryMap(productCategory));
                     }
                 }
 
                 if (productUpdateRequest.getUomCode() != null && !productUpdateRequest.getUomCode().isEmpty()) {
                     productMapper.deleteProductSku(product.getId());
-                    freedomMapper.deleteProductSku(product.getId());
                     List<UomCodeRequest> uomCodeRequests = productUpdateRequest.getUomCode();
                     for (int i = 0; i < uomCodeRequests.size(); i++) {
                         ProductSku productSku = new ProductSku();
@@ -508,13 +483,11 @@ public class ProductServiceImpl implements ProductService {
                         productSku.setCode(productUpdateRequest.getUomCode().get(i).getCode());
                         productSku.setUomId(productUpdateRequest.getUomCode().get(i).getUomId());
                         productMapper.insertProductSku(productSku);
-                        freedomMapper.insertProductSku(toFreedomProductSkuMap(productSku));
                     }
                 }
 
                 if (productUpdateRequest.getBatchCodeInformation() != null && !productUpdateRequest.getBatchCodeInformation().isEmpty()) {
                     productMapper.deleteProductSku(product.getId());
-                    freedomMapper.deleteProductSku(product.getId());
                     List<ProductSkuRequest> productSkuRequests = productUpdateRequest.getBatchCodeInformation();
                     for (int i = 0; i < productSkuRequests.size(); i++) {
                         ProductSku productSku = new ProductSku();
@@ -522,13 +495,11 @@ public class ProductServiceImpl implements ProductService {
                         productSku.setCode(productUpdateRequest.getBatchCodeInformation().get(i).getCode());
                         productSku.setUomId(product.getPriceUomId());
                         productMapper.insertProductSku(productSku);
-                        freedomMapper.insertProductSku(toFreedomProductSkuMap(productSku));
                     }
                 }
 
                 if (productUpdateRequest.getProductPackage() != null && !productUpdateRequest.getProductPackage().isEmpty()) {
                     productMapper.deleteProductPacket(product.getId());
-                    freedomMapper.deleteProductPacket(product.getId());
                     List<ProductPacketRequest> productPacketRequests = productUpdateRequest.getProductPackage();
                     for (int i = 0; i < productPacketRequests.size(); i++) {
                         ProductPacket productPacket = new ProductPacket();
@@ -538,12 +509,10 @@ public class ProductServiceImpl implements ProductService {
                         productPacket.setQtyUomId(productUpdateRequest.getProductPackage().get(i).getUomId());
                         productPacket.setConversion(productUpdateRequest.getProductPackage().get(i).getConversion());
                         productMapper.insertProductPacket(productPacket);
-                        freedomMapper.insertProductPacket(toFreedomProductPacketMap(productPacket));
                     }
                 }
 
                 productMapper.archiveProductStockLevel(product.getId(), userId);
-                freedomMapper.archiveProductStockLevel(product.getId(), userId);
                 if (productUpdateRequest.getStockLevels() != null && !productUpdateRequest.getStockLevels().isEmpty()) {
                     List<ProductStockLevelRequest> stockLevelRequests = productUpdateRequest.getStockLevels();
                     for (ProductStockLevelRequest stockLevelRequest : stockLevelRequests) {
@@ -553,13 +522,11 @@ public class ProductServiceImpl implements ProductService {
                         productStockLevel.setQty(stockLevelRequest.getQty());
                         productStockLevel.setCreatedBy(userId);
                         productMapper.insertProductStockLevel(productStockLevel);
-                        freedomMapper.insertProductStockLevel(toFreedomProductStockLevelMap(productStockLevel));
                     }
                 }
 
                 if (productUpdateRequest.getProductPrices() != null && !productUpdateRequest.getProductPrices().isEmpty()) {
                     productMapper.deletePrice(product.getId());
-                    freedomMapper.deletePrice(product.getId());
                     for (ProductPriceRequest priceRequest : productUpdateRequest.getProductPrices()) {
                         if (priceRequest.getDetails() != null && !priceRequest.getDetails().isEmpty()) {
                             for (ProductPriceDetailRequest detail : priceRequest.getDetails()) {
@@ -574,7 +541,6 @@ public class ProductServiceImpl implements ProductService {
                                 productPrice.setSetType(priceRequest.getSetType());
                                 productPrice.setCreatedBy(userId);
                                 productMapper.addPrice(productPrice);
-                                freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
 
                                 ProductPriceHistory productPriceHistory = new ProductPriceHistory();
                                 productPriceHistory.setProductId(product.getId());
@@ -586,7 +552,6 @@ public class ProductServiceImpl implements ProductService {
                                 productPriceHistory.setSetType(priceRequest.getSetType());
                                 productPriceHistory.setCreatedBy(userId);
                                 productMapper.addPriceHistory(productPriceHistory);
-                                freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(productPriceHistory));
                             }
                         }
                     }
@@ -618,7 +583,6 @@ public class ProductServiceImpl implements ProductService {
 
             Boolean result = productMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteProduct(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product/delete/{id}", null, null, "Product", "Product (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -652,7 +616,6 @@ public class ProductServiceImpl implements ProductService {
                 Integer isActive = productActiveStatus.getIsActive() != null
                         ? productActiveStatus.getIsActive().intValue()
                         : null;
-                freedomMapper.updateProductActiveStatus(productActiveStatus.getId(), isActive, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product/delete/{id}", null, null, "Product", "Product (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -762,7 +725,6 @@ public class ProductServiceImpl implements ProductService {
 
                 if (!Boolean.TRUE.equals(deletedByProductMap.get(productId))) {
                     productMapper.deletePrice(productId);
-                    freedomMapper.deletePrice(productId);
                     deletedByProductMap.put(productId, true);
                 }
 
@@ -785,7 +747,6 @@ public class ProductServiceImpl implements ProductService {
                         productPrice.setSetType(productRequest.getSetType());
                         productPrice.setCreatedBy(userId);
                         productMapper.addPrice(productPrice);
-                        freedomMapper.addPrice(toFreedomProductPriceMap(productPrice));
 
                         ProductPriceHistory productPriceHistory = new ProductPriceHistory();
                         productPriceHistory.setProductId(productId);
@@ -797,7 +758,6 @@ public class ProductServiceImpl implements ProductService {
                         productPriceHistory.setSetType(productRequest.getSetType());
                         productPriceHistory.setCreatedBy(userId);
                         productMapper.addPriceHistory(productPriceHistory);
-                        freedomMapper.addPriceHistory(toFreedomProductPriceHistoryMap(productPriceHistory));
 
                         result = true;
                     }
@@ -836,7 +796,6 @@ public class ProductServiceImpl implements ProductService {
             Boolean result = productMapper.updateCost(product);
 
             if (result) {
-                freedomMapper.updateProductCost(toFreedomProductMap(product));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product/update", null, null, "Product", "Product (Update)", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -893,7 +852,6 @@ public class ProductServiceImpl implements ProductService {
                 Map<String, Object> freedomProduct = new HashMap<>();
                 freedomProduct.put("id", request.getId());
                 freedomProduct.put("isEndOfLife", request.getIsEndOfLife());
-                freedomMapper.updateProduct(freedomProduct);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/product/update", null, null, "Product", "Product (Update)", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);

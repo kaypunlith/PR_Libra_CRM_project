@@ -6,6 +6,7 @@
         customer_contacts.id AS id,
         customers.id AS organizationId,
         customers.name AS organizationName,
+        customer_contacts.code AS code,
         customer_contacts.photo AS photo,
         customer_contacts.sex AS gender,
         customer_contacts.contact_name AS contactName,
@@ -135,6 +136,7 @@
 
     <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.CustomerContact.CustomerContact" useGeneratedKeys="true" keyProperty="customerContact.id">
         INSERT INTO customer_contacts (
+            `code`,
             `photo`,
             `customer_id`,
             `contact_name`,
@@ -151,6 +153,7 @@
             `created`,
             `created_by`
         ) VALUES (
+                     #{customerContact.code},
                      #{customerContact.photo},
                      #{customerContact.organizationId},
                      #{customerContact.contactName},
