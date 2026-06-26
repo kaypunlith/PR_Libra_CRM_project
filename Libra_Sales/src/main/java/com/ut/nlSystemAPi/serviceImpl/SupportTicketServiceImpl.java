@@ -190,8 +190,8 @@ public class SupportTicketServiceImpl implements SupportTicketService {
             response.setPreviousStage(supportTicketMapper.getStageByOrdering(detail.getPipelineId(), detail.getOrdering() - 1));
             response.setNextStage(supportTicketMapper.getStageByOrdering(detail.getPipelineId(), detail.getOrdering() + 1));
             response.setSkipStages(supportTicketMapper.getSkipStages(detail.getPipelineId(), detail.getOrdering(), userId));
-            response.setActivities(supportTicketMapper.getAddMoreActivities(id, detail.getStageId(), userId));
-            response.setTasks(supportTicketMapper.getAddMoreTasks(id, detail.getStageId()));
+            response.setActivities(supportTicketMapper.getAddMoreActivities(id, detail.getPipelineId(), detail.getStageId(), userId));
+            response.setTasks(supportTicketMapper.getAddMoreTasks(id, detail.getPipelineId(), detail.getStageId()));
             response.setLogs(supportTicketMapper.getListLog(id));
 
             LocalTime endDuration = LocalTime.now();

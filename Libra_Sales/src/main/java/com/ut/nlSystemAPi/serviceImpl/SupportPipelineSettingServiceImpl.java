@@ -84,7 +84,7 @@ public class SupportPipelineSettingServiceImpl implements SupportPipelineSetting
             for (SupportPipelineSettingResponse response : responses) {
                 List<SupportPipelineSettingStageResponse> stages = supportPipelineSettingMapper.getStages(response.getId());
                 for (SupportPipelineSettingStageResponse stage : stages) {
-                    stage.setActivityIds(supportPipelineSettingMapper.getStageActivityIds(stage.getStageId()));
+                    stage.setActivityIds(supportPipelineSettingMapper.getStageActivityIds(response.getId(), stage.getStageId()));
                 }
                 response.setStages(stages);
             }
@@ -198,11 +198,11 @@ public class SupportPipelineSettingServiceImpl implements SupportPipelineSetting
             for (SupportPipelineSettingStageRequest stage : request.getStages()) {
                 supportPipelineSettingMapper.insertStage(pipelineId, stage.getStageId(), stage.getPercent(), stage.getOrdering(), stage.getSkippable());
                 if (replaceStageActivities) {
-                    supportPipelineSettingMapper.deleteStageActivity(stage.getStageId());
+                    supportPipelineSettingMapper.deleteStageActivity(pipelineId, stage.getStageId());
                 }
                 if (stage.getActivityIds() != null) {
                     for (Long activityId : stage.getActivityIds()) {
-                        supportPipelineSettingMapper.insertStageActivity(stage.getStageId(), activityId);
+                        supportPipelineSettingMapper.insertStageActivity(pipelineId, stage.getStageId(), activityId);
                         if (request.getEmployeeGroupIds() != null) {
                             for (Long employeeGroupId : request.getEmployeeGroupIds()) {
                                 supportPipelineSettingMapper.insertActivityEmployeeGroup(activityId, employeeGroupId);

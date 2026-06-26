@@ -98,8 +98,8 @@
     </insert>
 
     <insert id="insertStageActivity">
-        INSERT INTO crm_opportunity_stag_activities(crm_opportunity_stag_id, crm_opportunity_activity_id)
-        VALUES (#{stageId}, #{activityId})
+        INSERT INTO crm_opportunity_stag_activities(crm_pipeline_setting_id, crm_opportunity_stag_id, crm_opportunity_activity_id)
+        VALUES (#{pipelineId}, #{stageId}, #{activityId})
     </insert>
 
     <insert id="insertActivityEmployeeGroup">
@@ -116,7 +116,9 @@
     </delete>
 
     <delete id="deleteStageActivity">
-        DELETE FROM crm_opportunity_stag_activities WHERE crm_opportunity_stag_id = #{stageId}
+        DELETE FROM crm_opportunity_stag_activities
+        WHERE crm_pipeline_setting_id = #{pipelineId}
+        AND crm_opportunity_stag_id = #{stageId}
     </delete>
 
     <select id="getStages" resultMap="PipelineSettingStageResponse">
@@ -126,16 +128,20 @@
             cpss.percent AS percent,
             cpss.ordering AS ordering,
             cpss.is_skippable AS skippable
-        FROM crm_pipeline_setting_stags AS cpss
+            FROM crm_pipeline_setting_stags AS cpss
         INNER JOIN crm_opportunity_stags AS cos ON cos.id = cpss.crm_opportunity_stag_id
         WHERE cpss.crm_pipeline_setting_id = #{pipelineId}
         ORDER BY cpss.ordering ASC
     </select>
 
     <select id="getStageActivityIds" resultType="java.lang.Long">
-        SELECT crm_opportunity_activity_id
-        FROM crm_opportunity_stag_activities
-        WHERE crm_opportunity_stag_id = #{stageId}
+        SELECT coas.crm_opportunity_activity_id
+        FROM crm_opportunity_stag_activities AS coas
+        INNER JOIN crm_opportunity_activities AS coa ON coa.id = coas.crm_opportunity_activity_id
+        WHERE coas.crm_pipeline_setting_id = #{pipelineId}
+        AND coas.crm_opportunity_stag_id = #{stageId}
+        AND coa.is_active = 1
+        GROUP BY coas.crm_opportunity_activity_id
     </select>
 
 </mapper>

@@ -24,7 +24,7 @@ public class OrganizationResponse {
     private Long sourceId;
 
     @ApiModelProperty(position = 5)
-    private Long sourceName;
+    private String sourceName;
 
     @ApiModelProperty(position = 4)
     private String organizationNameKh;

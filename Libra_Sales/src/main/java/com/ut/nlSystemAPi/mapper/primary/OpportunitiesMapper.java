@@ -3,6 +3,7 @@ package com.ut.nlSystemAPi.mapper.primary;
 import com.ut.nlSystemAPi.model.entity.Opportunities.Opportunity;
 import com.ut.nlSystemAPi.model.entity.Opportunities.OpportunityDetail;
 import com.ut.nlSystemAPi.model.filter.OpportunitiesFilter;
+import com.ut.nlSystemAPi.model.response.Checklist.ChecklistItemResponse;
 import com.ut.nlSystemAPi.model.response.Opportunities.OpportunityAddMoreDetailResponse;
 import com.ut.nlSystemAPi.model.response.Opportunities.OpportunityLogResponse;
 import com.ut.nlSystemAPi.model.response.Opportunities.OpportunityReferenceResponse;
@@ -37,6 +38,10 @@ public interface OpportunitiesMapper {
     Boolean updateCode(@Param("id") Long id, @Param("code") String code);
 
     OpportunityAddMoreDetailResponse getActiveDetail(@Param("opportunityId") Long opportunityId);
+
+    List<ChecklistItemResponse> getChecklistActivities(@Param("opportunityId") Long opportunityId, @Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId, @Param("userId") Long userId);
+
+    List<ChecklistItemResponse> getChecklistTasks(@Param("opportunityId") Long opportunityId, @Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId);
 
     OpportunityStageMoveResponse getNextStage(@Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId);
 

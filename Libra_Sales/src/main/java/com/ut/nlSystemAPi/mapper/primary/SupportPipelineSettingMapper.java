@@ -28,7 +28,7 @@ public interface SupportPipelineSettingMapper {
 
     Boolean insertStage(@Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId, @Param("percent") Double percent, @Param("ordering") Integer ordering, @Param("skippable") Integer skippable);
 
-    Boolean insertStageActivity(@Param("stageId") Long stageId, @Param("activityId") Long activityId);
+    Boolean insertStageActivity(@Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId, @Param("activityId") Long activityId);
 
     Boolean insertActivityEmployeeGroup(@Param("activityId") Long activityId, @Param("employeeGroupId") Long employeeGroupId);
 
@@ -36,9 +36,9 @@ public interface SupportPipelineSettingMapper {
 
     Boolean deleteStage(@Param("pipelineId") Long pipelineId);
 
-    Boolean deleteStageActivity(@Param("stageId") Long stageId);
+    Boolean deleteStageActivity(@Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId);
 
     List<SupportPipelineSettingStageResponse> getStages(@Param("pipelineId") Long pipelineId);
 
-    List<Long> getStageActivityIds(@Param("stageId") Long stageId);
+    List<Long> getStageActivityIds(@Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId);
 }

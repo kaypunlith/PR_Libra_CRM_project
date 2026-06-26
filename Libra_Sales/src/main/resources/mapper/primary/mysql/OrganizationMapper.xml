@@ -8,7 +8,6 @@
         customer_code AS organizationCode,
         customers.name AS organizationName,
         customers.shop_name AS shopName,
-        customers.is_freedom AS isFreedom,
         customers.is_sync AS isSync,
         main_number AS telephone,
         so.id AS sourceId,
@@ -100,7 +99,7 @@
                 ${filter.orderBy}
             </when>
             <otherwise>
-                customers.customer_code ASC
+                customers.id DESC
             </otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
@@ -203,7 +202,6 @@
         so.name AS sourceName,
         customer_activities.name AS businessActivityName,
         customers.type AS customerType,
-        customers.is_freedom AS isFreedom,
         freedom_types.id AS freedomTypeId,
         freedom_types.name AS freedomTypeName,
         customers.`name` AS organizationName,
@@ -285,7 +283,6 @@
             customer_activity_id,
             source_id,
             type,
-            is_freedom,
             freedom_type_id,
             `name`,
             name_kh,
@@ -324,7 +321,6 @@
                      #{organization.businessActivityId},
                      #{organization.sourceId},
                      #{organization.customerType},
-                     #{organization.isFreedom},
                      #{organization.freedomType},
                      #{organization.name},
                      #{organization.nameKh},
@@ -369,7 +365,6 @@
         <if test="organization.sourceId != null">source_id = #{organization.sourceId},</if>
         <if test="organization.customerType != null">type = #{organization.customerType},</if>
         <if test="organization.freedomType != null">freedom_type_id = #{organization.freedomType},</if>
-        <if test="organization.isFreedom != null">is_freedom = #{organization.isFreedom},</if>
         <if test="organization.name != null">`name` = #{organization.name},</if>
         <if test="organization.nameKh != null">name_kh = #{organization.nameKh},</if>
         <if test="organization.shopName != null">shop_name = #{organization.shopName},</if>

@@ -119,8 +119,8 @@
     </insert>
 
     <insert id="insertStageActivity">
-        INSERT INTO crm_support_stag_activities(crm_support_stag_id, crm_support_activity_id)
-        VALUES (#{stageId}, #{activityId})
+        INSERT INTO crm_support_stag_activities(crm_support_pipeline_setting_id, crm_support_stag_id, crm_support_activity_id)
+        VALUES (#{pipelineId}, #{stageId}, #{activityId})
     </insert>
 
     <insert id="insertActivityEmployeeGroup">
@@ -140,7 +140,8 @@
 
     <delete id="deleteStageActivity">
         DELETE FROM crm_support_stag_activities
-        WHERE crm_support_stag_id = #{stageId}
+        WHERE crm_support_pipeline_setting_id = #{pipelineId}
+        AND crm_support_stag_id = #{stageId}
     </delete>
 
     <select id="getStages" resultMap="SupportPipelineSettingStageResponse">
@@ -153,13 +154,18 @@
         FROM crm_support_pipeline_setting_stags AS cpss
         INNER JOIN crm_support_stags AS cos ON cos.id = cpss.crm_support_stag_id
         WHERE cpss.crm_support_pipeline_setting_id = #{pipelineId}
+        AND cos.is_active = 1
         ORDER BY cpss.ordering ASC
     </select>
 
     <select id="getStageActivityIds" resultType="java.lang.Long">
-        SELECT crm_support_activity_id
-        FROM crm_support_stag_activities
-        WHERE crm_support_stag_id = #{stageId}
+        SELECT cssa.crm_support_activity_id
+        FROM crm_support_stag_activities AS cssa
+        INNER JOIN crm_support_activities AS csa ON csa.id = cssa.crm_support_activity_id
+        WHERE cssa.crm_support_pipeline_setting_id = #{pipelineId}
+        AND cssa.crm_support_stag_id = #{stageId}
+        AND csa.is_active = 1
+        GROUP BY cssa.crm_support_activity_id
     </select>
 
 </mapper>

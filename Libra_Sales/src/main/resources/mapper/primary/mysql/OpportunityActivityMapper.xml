@@ -15,7 +15,7 @@
     </sql>
 
     <sql id="BASE_FROM">
-        FROM crm_opportunity_activities AS coa
+            FROM crm_opportunity_activities AS coa
         LEFT JOIN users AS creator ON creator.id = coa.created_by
         LEFT JOIN users AS modifier ON modifier.id = coa.modified_by
     </sql>
@@ -54,8 +54,17 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="activity.id">
-        INSERT INTO crm_opportunity_activities(name,created,created_by, is_active)
-        VALUES (#{activity.name}, NOW(), #{activity.createdBy}, #{activity.isActive})
+        INSERT INTO crm_opportunity_activities (
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{activity.name},
+            NOW(),
+            #{activity.createdBy},
+            #{activity.isActive}
+        )
     </insert>
 
     <update id="update">

@@ -3,6 +3,7 @@ package com.ut.nlSystemAPi.mapper.primary;
 import com.ut.nlSystemAPi.model.entity.SupportTicket.SupportTicket;
 import com.ut.nlSystemAPi.model.entity.SupportTicket.SupportTicketDetail;
 import com.ut.nlSystemAPi.model.filter.SupportTicketFilter;
+import com.ut.nlSystemAPi.model.response.Checklist.ChecklistItemResponse;
 import com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketAddMoreDetailResponse;
 import com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketAddMoreItemResponse;
 import com.ut.nlSystemAPi.model.response.SupportTicket.SupportTicketAddMoreStageResponse;
@@ -52,9 +53,13 @@ public interface SupportTicketMapper {
 
     List<SupportTicketAddMoreStageResponse> getSkipStages(@Param("pipelineId") Long pipelineId, @Param("ordering") Long ordering, @Param("userId") Long userId);
 
-    List<SupportTicketAddMoreItemResponse> getAddMoreActivities(@Param("supportId") Long supportId, @Param("stageId") Long stageId, @Param("userId") Long userId);
+    List<SupportTicketAddMoreItemResponse> getAddMoreActivities(@Param("supportId") Long supportId, @Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId, @Param("userId") Long userId);
 
-    List<SupportTicketAddMoreItemResponse> getAddMoreTasks(@Param("supportId") Long supportId, @Param("stageId") Long stageId);
+    List<SupportTicketAddMoreItemResponse> getAddMoreTasks(@Param("supportId") Long supportId, @Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId);
+
+    List<ChecklistItemResponse> getChecklistActivities(@Param("supportId") Long supportId, @Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId, @Param("userId") Long userId);
+
+    List<ChecklistItemResponse> getChecklistTasks(@Param("supportId") Long supportId, @Param("pipelineId") Long pipelineId, @Param("stageId") Long stageId);
 
     List<SupportTicketLogResponse> getListLog(@Param("supportId") Long supportId);
 
