@@ -1,7 +1,7 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
+import com.ut.nlSystemAPi.helper.GenerateCode;
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.BaseResult;
 
@@ -17,6 +17,7 @@ import com.ut.nlSystemAPi.service.ActivityLogService;
 import com.ut.nlSystemAPi.service.UserService;
 import com.ut.nlSystemAPi.service.CustomerContactService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.BindingResult;
 
@@ -34,9 +35,6 @@ public class CustomerContactServiceImpl implements CustomerContactService {
     private CustomerContactMapper customerContactMapper;
 
     @Autowired
-    private FreedomMapper freedomMapper;
-
-    @Autowired
     private PermissionMapper permissionMapper;
 
     @Autowired
@@ -44,6 +42,9 @@ public class CustomerContactServiceImpl implements CustomerContactService {
 
     @Autowired
     private ModuleMapper moduleMapper;
+
+    @Autowired
+    private GenerateCode generateCode;
 
     @Autowired
     private UserService userService;
@@ -72,7 +73,7 @@ public class CustomerContactServiceImpl implements CustomerContactService {
             pagination.setTotal(customerContactMapper.countList(filter, employeeId, userId));
             filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
 
-            List<CustomerContactResponse> responses = customerContactMapper.getList(filter, employeeId, userId);
+            List<CustomerContactResponse> responses = customerContactMapper.getList(filter, userId);
 
             /*System Activity*/
             LocalTime endDuration = LocalTime.now();
@@ -128,6 +129,7 @@ public class CustomerContactServiceImpl implements CustomerContactService {
                 return ResponseMessageUtils.makeResponseByPermission(true, messageService.message("No Permission access.", false));
             }
 
+
 //            // Check Duplicate
 //            if (customerContactMapper.checkDuplicate(request.g(), null) > 0) {
 //                return ResponseMessageUtils.makeResponse(true, messageService.message("Duplicate Name", false));
@@ -137,9 +139,9 @@ public class CustomerContactServiceImpl implements CustomerContactService {
             CustomerContact customerContact = new CustomerContact();
 //            customerContact.setType(request.getType());
             customerContact.setOrganizationId(request.getOrganizationId());
+            customerContact.setCode(generateCode.generateNextCustomerCode("LPSA","code","customer_contacts",true));
             customerContact.setGender(request.getGender());
             customerContact.setPhoto(request.getPhoto());
-            customerContact.setGender(request.getGender());
             customerContact.setContactName(request.getContactName());
             customerContact.setContactTelephone(request.getContactTelephone());
             customerContact.setContactEmail(request.getContactEmail());
@@ -155,26 +157,22 @@ public class CustomerContactServiceImpl implements CustomerContactService {
             Boolean result = customerContactMapper.insert(customerContact);
 
             if (result) {
-                freedomMapper.insertCustomerContactData(toFreedomCustomerContactMap(customerContact));
 
                 if (request.getDescriptions() != null && !request.getDescriptions().isEmpty()) {
                     for (CustomerContactDescriptionRequest descriptionRequest : request.getDescriptions()) {
                         customerContactMapper.insertDescription(customerContact.getId(), descriptionRequest.getTypeId(), descriptionRequest.getDescription());
-                        freedomMapper.insertCustomerContactDescription(toFreedomCustomerContactDescriptionMap(customerContact.getId(), descriptionRequest));
                     }
                 }
 
                 if (request.getProgress() != null && !request.getProgress().isEmpty()) {
                     for (CustomerContactProgressRequest progressRequest : request.getProgress()) {
                         customerContactMapper.insertProgress(customerContact.getId(), progressRequest.getId(), progressRequest.getPercent());
-                        freedomMapper.insertCustomerContactProgress(toFreedomCustomerContactProgressMap(customerContact.getId(), progressRequest));
                     }
                 }
 
                 if (request.getListDetailIds() != null) {
                     for (Long listDetailId : request.getListDetailIds()) {
                         customerContactMapper.insertContactList(customerContact.getId(), listDetailId);
-                        freedomMapper.insertCustomerContactList(toFreedomCustomerContactListMap(customerContact.getId(), listDetailId));
                     }
                 }
                 /*System Activity*/
@@ -226,36 +224,28 @@ public class CustomerContactServiceImpl implements CustomerContactService {
             customerContact.setNote(request.getNote());
             customerContact.setDob(request.getDob());
             customerContact.setModifiedBy(userId);
-            System.out.println(customerContact.getCharacterId());
             Boolean result = customerContactMapper.update(customerContact);
 
             if (result) {
-                freedomMapper.updateCustomerContactData(toFreedomCustomerContactMap(customerContact));
 
                 customerContactMapper.deleteDescription(customerContact.getId());
-                freedomMapper.deleteCustomerContactDescriptions(customerContact.getId());
                 if (request.getDescriptions() != null && !request.getDescriptions().isEmpty()) {
                     for (CustomerContactDescriptionRequest descriptionRequest : request.getDescriptions()) {
                         customerContactMapper.insertDescription(customerContact.getId(), descriptionRequest.getTypeId(), descriptionRequest.getDescription());
-                        freedomMapper.insertCustomerContactDescription(toFreedomCustomerContactDescriptionMap(customerContact.getId(), descriptionRequest));
                     }
                 }
 
                 customerContactMapper.deleteProgress(customerContact.getId());
-                freedomMapper.deleteCustomerContactProgress(customerContact.getId());
                 if (request.getProgress() != null && !request.getProgress().isEmpty()) {
                     for (CustomerContactProgressRequest progressRequest : request.getProgress()) {
                         customerContactMapper.insertProgress(customerContact.getId(), progressRequest.getId(), progressRequest.getPercent());
-                        freedomMapper.insertCustomerContactProgress(toFreedomCustomerContactProgressMap(customerContact.getId(), progressRequest));
                     }
                 }
 
                 customerContactMapper.deleteContactList(customerContact.getId());
-                freedomMapper.deleteCustomerContactLists(customerContact.getId());
                 if (request.getListDetailIds() != null) {
                     for (Long listDetailId : request.getListDetailIds()) {
                         customerContactMapper.insertContactList(customerContact.getId(), listDetailId);
-                        freedomMapper.insertCustomerContactList(toFreedomCustomerContactListMap(customerContact.getId(), listDetailId));
                     }
                 }
 
@@ -286,7 +276,6 @@ public class CustomerContactServiceImpl implements CustomerContactService {
 
             Boolean result = customerContactMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteCustomerContactData(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/customer-contact/delete/{id}", null, null, "Customer Contact", "Customer Contact (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -316,7 +305,6 @@ public class CustomerContactServiceImpl implements CustomerContactService {
             Boolean result = customerContactMapper.insertNps(request.getId(), request.getRating(), userId);
 
             if (result) {
-                freedomMapper.insertCustomerContactNps(toFreedomCustomerContactNpsMap(request.getId(), request.getRating(), userId));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/customer-contact/update", null, null, "Customer Contact", "Customer Contact (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -346,7 +334,6 @@ public class CustomerContactServiceImpl implements CustomerContactService {
             Boolean result = customerContactMapper.apply(id);
 
             if (result) {
-                freedomMapper.applyCustomerContact(id);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/customer-contact/update", null, null, "Customer Contact", "Customer Contact (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -362,55 +349,4 @@ public class CustomerContactServiceImpl implements CustomerContactService {
         }
     }
 
-    private Map<String, Object> toFreedomCustomerContactMap(CustomerContact customerContact) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", customerContact.getId());
-        map.put("organizationId", customerContact.getOrganizationId());
-        map.put("gender", customerContact.getGender());
-        map.put("photo", customerContact.getPhoto());
-        map.put("contactName", customerContact.getContactName());
-        map.put("contactTelephone", customerContact.getContactTelephone());
-        map.put("contactEmail", customerContact.getContactEmail());
-        map.put("position", customerContact.getPosition());
-        map.put("familyId", customerContact.getFamilyId());
-        map.put("age", customerContact.getAge());
-        map.put("locationId", customerContact.getLocationId());
-        map.put("characterId", customerContact.getCharacterId());
-        map.put("note", customerContact.getNote());
-        map.put("dob", customerContact.getDob());
-        map.put("createdBy", customerContact.getCreatedBy());
-        map.put("modifiedBy", customerContact.getModifiedBy());
-        return map;
-    }
-
-    private Map<String, Object> toFreedomCustomerContactDescriptionMap(Long customerContactId, CustomerContactDescriptionRequest request) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("customerContactId", customerContactId);
-        map.put("typeId", request.getTypeId());
-        map.put("description", request.getDescription());
-        return map;
-    }
-
-    private Map<String, Object> toFreedomCustomerContactProgressMap(Long customerContactId, CustomerContactProgressRequest request) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("customerContactId", customerContactId);
-        map.put("id", request.getId());
-        map.put("percent", request.getPercent());
-        return map;
-    }
-
-    private Map<String, Object> toFreedomCustomerContactListMap(Long customerContactId, Long listDetailId) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("customerContactId", customerContactId);
-        map.put("id", listDetailId);
-        return map;
-    }
-
-    private Map<String, Object> toFreedomCustomerContactNpsMap(Long customerContactId, Long score, Long userId) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("customerContactId", customerContactId);
-        map.put("score", score);
-        map.put("userId", userId);
-        return map;
-    }
 }

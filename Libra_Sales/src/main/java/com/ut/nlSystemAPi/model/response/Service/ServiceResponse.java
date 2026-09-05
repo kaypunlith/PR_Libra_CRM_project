@@ -3,6 +3,8 @@ package com.ut.nlSystemAPi.model.response.Service;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ServiceResponse {
 
@@ -26,6 +28,12 @@ public class ServiceResponse {
 
     @ApiModelProperty(position = 7)
     private String sectionName;
+
+    @ApiModelProperty(position = 6)
+    private Long serviceShiftId;
+
+    @ApiModelProperty(position = 7)
+    private String serviceShiftName;
 
     @ApiModelProperty(position = 8)
     private Long uomId;
@@ -56,4 +64,10 @@ public class ServiceResponse {
 
     @ApiModelProperty(position = 16)
     private String modifiedBy;
+
+    @ApiModelProperty(position = 16)
+    private List<ServiceShiftResponse> serviceShiftResponses;
+
+
+
 }

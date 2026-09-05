@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.PriceTypeMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.model.base.BaseResult;
@@ -33,9 +32,6 @@ public class PriceTypeServiceImpl implements PriceTypeService {
 
     @Autowired
     private PriceTypeMapper priceTypeMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -152,16 +148,12 @@ public class PriceTypeServiceImpl implements PriceTypeService {
             Boolean result = priceTypeMapper.insert(priceType);
 
             if (result) {
-                freedomMapper.insertPriceType(toFreedomPriceTypeMap(priceType));
                 priceTypeMapper.insertPriceTypeCompany(priceType);
-                freedomMapper.insertPriceTypeCompany(toFreedomPriceTypeCompanyMap(priceType));
 
                 if (request.getApplyTo() != null){
                     priceTypeMapper.archivePriceTypePos(request.getCompanyId());
-                    freedomMapper.archivePriceTypePos(request.getCompanyId());
                     if (request.getApplyTo() == 1) {
                         priceTypeMapper.insertPriceTypePos(priceType, userId);
-                        freedomMapper.insertPriceTypePos(toFreedomPriceTypePosMap(priceType, userId));
                     }
                 }
                 /*System Activity*/
@@ -205,20 +197,15 @@ public class PriceTypeServiceImpl implements PriceTypeService {
             Boolean result = priceTypeMapper.update(priceType);
 
             if (result) {
-                freedomMapper.updatePriceType(toFreedomPriceTypeMap(priceType));
 
                 priceTypeMapper.deletePriceTypeCompany(request.getId());
-                freedomMapper.deletePriceTypeCompany(request.getId());
 
                 priceTypeMapper.insertPriceTypeCompany(priceType);
-                freedomMapper.insertPriceTypeCompany(toFreedomPriceTypeCompanyMap(priceType));
 
                 if (request.getApplyTo() != null){
                     priceTypeMapper.archivePriceTypePos(request.getCompanyId());
-                    freedomMapper.archivePriceTypePos(request.getCompanyId());
                     if (request.getApplyTo() == 1) {
                         priceTypeMapper.insertPriceTypePos(priceType, userId);
-                        freedomMapper.insertPriceTypePos(toFreedomPriceTypePosMap(priceType, userId));
                     }
                 }
 
@@ -250,7 +237,6 @@ public class PriceTypeServiceImpl implements PriceTypeService {
             Boolean result = priceTypeMapper.delete(id, userId);
 
             if (result) {
-                freedomMapper.deletePriceType(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/price-type/delete/{id}",null,null,"Price Type","Price Type (delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);
@@ -280,7 +266,6 @@ public class PriceTypeServiceImpl implements PriceTypeService {
             priceType.setOrdering(request.getOrdering());
             Boolean result = priceTypeMapper.ordering(priceType);
             if (result) {
-                freedomMapper.orderingPriceType(priceType.getId(), priceType.getOrdering());
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/price-type/ordering", null, null, "Price Type", "Price Type (edit)", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));

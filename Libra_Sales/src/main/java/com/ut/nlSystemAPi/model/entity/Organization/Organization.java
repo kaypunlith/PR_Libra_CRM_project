@@ -14,6 +14,9 @@ public class Organization extends BaseModel {
     private String photo;
 
     @ApiModelProperty(position = 2)
+    private Long sourceId;
+
+    @ApiModelProperty(position = 2)
     private String organizationCode;
 
     @ApiModelProperty(position = 2)

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.CrmCategoryMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cc.id AS id,
+        cc.name AS name,
+        cc.photo AS photo,
+        cc.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cc.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_categories AS cc
+        LEFT JOIN users AS creator ON creator.id = cc.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cc.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cc.is_active = 1
+        <if test="filter.searchText != null">
+            AND (
+                cc.id LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR cc.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="CrmCategoryResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>cc.name ASC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(cc.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="CrmCategoryResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE cc.is_active = 1
+        AND cc.id = #{id}
+    </select>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM crm_categories
+        WHERE is_active = 1
+        AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="category.id">
+        INSERT INTO crm_categories (
+            name,
+            photo,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{category.name},
+            #{category.photo},
+            NOW(),
+            #{category.createdBy},
+            #{category.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE crm_categories
+        SET
+            <if test="category.name != null">name = #{category.name},</if>
+            <if test="category.photo != null">photo = #{category.photo},</if>
+            modified = NOW(),
+            modified_by = #{category.modifiedBy}
+        WHERE id = #{category.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_categories
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+</mapper>

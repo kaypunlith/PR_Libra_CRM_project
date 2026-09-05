@@ -12,6 +12,7 @@ import com.ut.nlSystemAPi.model.filter.ServiceFilter;
 import com.ut.nlSystemAPi.model.request.Service.ServiceRequest;
 import com.ut.nlSystemAPi.model.request.Service.ServiceUpdateRequest;
 import com.ut.nlSystemAPi.model.response.Service.ServiceResponse;
+import com.ut.nlSystemAPi.model.response.Service.ServiceShiftResponse;
 import com.ut.nlSystemAPi.service.ActivityLogService;
 import com.ut.nlSystemAPi.service.UserService;
 import com.ut.nlSystemAPi.service.ServiceService;
@@ -86,8 +87,13 @@ public class ServiceServiceImpl implements ServiceService {
             if (permissionMapper.checkPermission(userId, "Service (View)") == 0) {
                 return ResponseMessageUtils.makeResponseByPermission(true, messageService.message("No Permission access.", false));
             }
-
             List<ServiceResponse> responses = serviceMapper.getOne(id);
+            if(!responses.isEmpty()) {
+              for(int i=0;i<responses.size();i++) {
+                  List<ServiceShiftResponse> serviceShiftResponses = serviceMapper.getServiceShift(responses.get(i).getId());
+                  responses.get(i).setServiceShiftResponses(serviceShiftResponses);
+              }
+            }
 
             /*System Activity*/
             LocalTime endDuration = LocalTime.now();
@@ -131,6 +137,11 @@ public class ServiceServiceImpl implements ServiceService {
             Boolean result = serviceMapper.insert(service);
 
             if (result) {
+                if(request.getServiceShiftId().size() > 0){
+                    for(int i=0;i<request.getServiceShiftId().size();i++){
+                        serviceMapper.insertServiceShift(service.getId(),request.getServiceShiftId().get(i));
+                    }
+                }
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/service/add", null, null, "Service", "Service (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -176,6 +187,12 @@ public class ServiceServiceImpl implements ServiceService {
             Boolean result = serviceMapper.update(service);
 
             if (result) {
+                serviceMapper.deleteServiceShift(service.getId());
+                if(request.getServiceShiftId().size() > 0){
+                    for(int i=0;i<request.getServiceShiftId().size();i++){
+                        serviceMapper.insertServiceShift(service.getId(),request.getServiceShiftId().get(i));
+                    }
+                }
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/service/update", null, null, "Service", "Service (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);

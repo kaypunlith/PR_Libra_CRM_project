@@ -16,7 +16,10 @@
         co.crm_opportunity_source_id AS sourceId,
         crm_opportunity_sources.name AS sourceName,
         co.customer_id AS organizationId,
-        customers.name AS organizationName,
+        org.name AS organizationName,
+        co.lead_id AS leadId,
+        leadCustomer.name AS leadName,
+        IFNULL(org.address, leadCustomer.address) AS address,
         co.responsibility_id AS responsibilityId,
         CONCAT(responsibility.first_name, ' ', responsibility.last_name) AS responsibilityName,
         co.division_id AS divisionId,
@@ -31,7 +34,14 @@
         co.created AS created,
         CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
         co.modified AS modified,
-        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy,
+        EXISTS(SELECT 1 FROM crm_opportunity_documents WHERE crm_opportunity_id = co.id AND is_active = 1) AS isUploaded,
+        IF(EXISTS(
+            SELECT 1 FROM customer_history_print_tracking chpt 
+            WHERE chpt.reference_id = co.id AND chpt.type = 4
+        ), 'Ready', 'Not yet') AS printStatus,
+        IFNULL((SELECT chpt.print_count FROM customer_history_print_tracking chpt 
+                WHERE chpt.reference_id = co.id AND chpt.type = 4 LIMIT 1), 0) AS printCount
     </sql>
 
     <sql id="BASE_FROM">
@@ -40,7 +50,8 @@
         LEFT JOIN crm_pipeline_settings AS cps ON cps.id = cod.crm_pipeline_setting_id
         LEFT JOIN crm_opportunity_stags AS cos ON cos.id = cod.crm_opportunity_stag_id
         LEFT JOIN crm_opportunity_sources ON crm_opportunity_sources.id = co.crm_opportunity_source_id
-        LEFT JOIN customers ON customers.id = co.customer_id
+        LEFT JOIN customers AS org ON org.id = co.customer_id
+        LEFT JOIN customers AS leadCustomer ON leadCustomer.id = co.lead_id
         LEFT JOIN customer_contacts ON customer_contacts.id = co.customer_contact_id
         LEFT JOIN customer_lead_divisions ON customer_lead_divisions.id = co.division_id
         LEFT JOIN quotations ON quotations.id = co.quotation_id
@@ -65,6 +76,12 @@
         <if test="filter.createdBy != null">
             AND co.responsibility_id = #{filter.createdBy}
         </if>
+
+        <if test="filter.stageId != null">
+            AND cod.crm_opportunity_stag_id = #{filter.stageId}
+        </if>
+
+
         <if test="filter.organizationId != null">
             AND co.customer_id = #{filter.organizationId}
         </if>
@@ -78,7 +95,8 @@
             AND (
                 co.name LIKE CONCAT("%", #{filter.searchText}, "%")
                 OR co.code LIKE CONCAT("%", #{filter.searchText}, "%")
-                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR org.name LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR leadCustomer.name LIKE CONCAT("%", #{filter.searchText}, "%")
                 OR cos.name LIKE CONCAT("%", #{filter.searchText}, "%")
             )
         </if>
@@ -89,11 +107,45 @@
         <include refid="BASE_COLUMN_LIST"/>
         <include refid="BASE_FROM"/>
         <include refid="BASE_WHERE"/>
-        GROUP BY co.id
+        GROUP BY
+            co.id,
+            co.code,
+            co.name,
+            co.amount,
+            co.expected_date,
+            cod.crm_pipeline_setting_id,
+            cps.description,
+            cod.crm_opportunity_stag_id,
+            cos.name,
+            cod.probability,
+            co.crm_opportunity_source_id,
+            crm_opportunity_sources.name,
+            co.customer_id,
+            org.name,
+            co.lead_id,
+            leadCustomer.name,
+            co.responsibility_id,
+            responsibility.first_name,
+            responsibility.last_name,
+            co.division_id,
+            customer_lead_divisions.title,
+            co.customer_contact_id,
+            customer_contacts.contact_name,
+            co.quotation_id,
+            quotations.quotation_code,
+            co.sales_order_id,
+            orders.order_code,
+            co.description,
+            co.created,
+            creator.first_name,
+            creator.last_name,
+            co.modified,
+            modifier.first_name,
+            modifier.last_name
         ORDER BY
         <choose>
             <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>cod.crm_pipeline_setting_id ASC, cod.crm_opportunity_stag_id ASC, co.id DESC</otherwise>
+            <otherwise>cod.crm_pipeline_setting_id DESC, cod.crm_opportunity_stag_id DESC, co.id DESC</otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
@@ -105,6 +157,18 @@
         <include refid="BASE_FROM"/>
         <include refid="BASE_WHERE"/>
     </select>
+
+
+    <select id="getApplyCovertCustomerWithStage" resultType="java.lang.Long">
+      SELECT is_convert_customer FROM crm_opportunity_stags WHERE id = #{id}
+    </select>
+
+
+    <update id="updateLeadToCustomer">
+        UPDATE customers SET customer_type = 1,is_active = 1
+        WHERE id = #{leadId}
+    </update>
+
 
     <select id="getOne" resultMap="OpportunityResponse">
         SELECT
@@ -118,11 +182,11 @@
         INSERT INTO crm_opportunities (
             name, amount, expected_date, responsibility_id, crm_opportunity_source_id,
             division_id, customer_contact_id, quotation_id, sales_order_id, description,
-            customer_id, employee_id, vendor_id, created, created_by, is_active
+            customer_id,lead_id ,employee_id, vendor_id, created, created_by, is_active
         ) VALUES (
             #{opportunity.name}, #{opportunity.amount}, #{opportunity.expectedDate}, #{opportunity.responsibilityId}, #{opportunity.sourceId},
             #{opportunity.divisionId}, #{opportunity.customerContactId}, #{opportunity.quotationId}, #{opportunity.salesOrderId}, #{opportunity.description},
-            #{opportunity.customerId}, #{opportunity.employeeId}, #{opportunity.vendorId}, NOW(), #{opportunity.createdBy}, #{opportunity.isActive}
+            #{opportunity.customerId},#{opportunity.leadId}, #{opportunity.employeeId}, #{opportunity.vendorId}, NOW(), #{opportunity.createdBy}, #{opportunity.isActive}
         )
     </insert>
 
@@ -139,6 +203,7 @@
             sales_order_id = #{opportunity.salesOrderId},
             description = #{opportunity.description},
             customer_id = #{opportunity.customerId},
+            lead_id = #{opportunity.leadId},
             employee_id = #{opportunity.employeeId},
             vendor_id = #{opportunity.vendorId},
             modified = NOW(),
@@ -179,6 +244,395 @@
 
     <update id="updateCode">
         UPDATE crm_opportunities SET code = #{code} WHERE id = #{id}
+    </update>
+
+    <select id="getActiveDetail" resultMap="OpportunityAddMoreDetailResponse">
+        SELECT
+            cod.id AS id,
+            cod.crm_pipeline_setting_id AS pipelineId,
+            cod.crm_opportunity_stag_id AS stageId,
+            cos.name AS stageName,
+            cod.probability AS probability,
+            cod.description AS description
+        FROM crm_opportunity_details AS cod
+        LEFT JOIN crm_opportunity_stags AS cos ON cos.id = cod.crm_opportunity_stag_id
+        WHERE cod.crm_opportunity_id = #{opportunityId}
+        AND cod.is_active = 1
+        AND cod.is_convert = 0
+        ORDER BY cod.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="getChecklistActivities" resultType="com.ut.nlSystemAPi.model.response.Checklist.ChecklistItemResponse">
+        SELECT
+            coa.id AS id,
+            coa.name AS name,
+            CASE WHEN activeActivity.crm_opportunity_activity_id IS NULL THEN 0 ELSE 1 END AS selected
+        FROM crm_opportunity_activities AS coa
+        LEFT JOIN (
+            SELECT DISTINCT crm_opportunity_activity_id
+            FROM crm_opportunity_activity_details
+            WHERE crm_opportunity_id = #{opportunityId}
+            AND is_active = 1
+        ) AS activeActivity ON activeActivity.crm_opportunity_activity_id = coa.id
+        WHERE coa.is_active = 1
+        AND coa.id IN (
+            SELECT crm_opportunity_activity_id
+            FROM crm_opportunity_stag_activities
+            WHERE crm_pipeline_setting_id = #{pipelineId}
+            AND crm_opportunity_stag_id = #{stageId}
+        )
+        AND coa.id IN (
+            SELECT crm_opportunity_activity_id
+            FROM crm_opportunity_activity_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id
+                FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        ORDER BY coa.id ASC
+    </select>
+
+    <select id="getChecklistTasks" resultType="com.ut.nlSystemAPi.model.response.Checklist.ChecklistItemResponse">
+        SELECT
+            cot.id AS id,
+            cot.name AS name,
+            cot.crm_opportunity_activity_id AS activityId,
+            coa.name AS activityName,
+            CASE WHEN activeTask.crm_opportunity_task_id IS NULL THEN 0 ELSE 1 END AS selected
+        FROM crm_opportunity_tasks AS cot
+        INNER JOIN crm_opportunity_activities AS coa ON coa.id = cot.crm_opportunity_activity_id
+        LEFT JOIN (
+            SELECT DISTINCT crm_opportunity_task_id
+            FROM crm_opportunity_task_details
+            WHERE crm_opportunity_id = #{opportunityId}
+            AND is_active = 1
+        ) AS activeTask ON activeTask.crm_opportunity_task_id = cot.id
+        WHERE cot.is_active = 1
+        AND coa.id IN (
+            SELECT crm_opportunity_activity_id
+            FROM crm_opportunity_stag_activities
+            WHERE crm_pipeline_setting_id = #{pipelineId}
+            AND crm_opportunity_stag_id = #{stageId}
+        )
+        ORDER BY coa.id ASC, cot.crm_opportunity_activity_id ASC, cot.id ASC
+    </select>
+
+    <select id="getOpportunityChecklistData" resultType="java.lang.String">
+        SELECT checked_data
+        FROM opportunity_checklists
+        WHERE module_id = #{opportunityId}
+        AND stage_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <update id="updateOpportunityChecklist">
+        UPDATE opportunity_checklists
+        SET checked_data = #{checkedData},
+            updated_by = #{userId},
+            updated_at = NOW()
+        WHERE module_id = #{opportunityId}
+        AND stage_id = #{stageId}
+    </update>
+
+    <insert id="insertOpportunityChecklist">
+        INSERT INTO opportunity_checklists (
+            module_id,
+            stage_id,
+            checked_data,
+            updated_by,
+            updated_at
+        ) VALUES (
+            #{opportunityId},
+            #{stageId},
+            #{checkedData},
+            #{userId},
+            NOW()
+        )
+    </insert>
+
+    <select id="getNextStage" resultMap="OpportunityStageMoveResponse">
+        SELECT
+            nextStage.crm_opportunity_stag_id AS stageId,
+            cos.name AS stageName,
+            nextStage.percent AS percent
+        FROM crm_pipeline_setting_stags AS currentStage
+        INNER JOIN crm_pipeline_setting_stags AS nextStage ON nextStage.crm_pipeline_setting_id = currentStage.crm_pipeline_setting_id
+            AND nextStage.ordering = currentStage.ordering + 1
+        LEFT JOIN crm_opportunity_stags AS cos ON cos.id = nextStage.crm_opportunity_stag_id
+        WHERE currentStage.crm_pipeline_setting_id = #{pipelineId}
+        AND currentStage.crm_opportunity_stag_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <select id="getPreviousStage" resultMap="OpportunityStageMoveResponse">
+        SELECT
+            previousStage.crm_opportunity_stag_id AS stageId,
+            cos.name AS stageName,
+            previousStage.percent AS percent
+        FROM crm_pipeline_setting_stags AS currentStage
+        INNER JOIN crm_pipeline_setting_stags AS previousStage ON previousStage.crm_pipeline_setting_id = currentStage.crm_pipeline_setting_id
+            AND previousStage.ordering = currentStage.ordering - 1
+        LEFT JOIN crm_opportunity_stags AS cos ON cos.id = previousStage.crm_opportunity_stag_id
+        WHERE currentStage.crm_pipeline_setting_id = #{pipelineId}
+        AND currentStage.crm_opportunity_stag_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <select id="getStageInPipeline" resultMap="OpportunityStageMoveResponse">
+        SELECT
+            cpss.crm_opportunity_stag_id AS stageId,
+            cos.name AS stageName,
+            cpss.percent AS percent
+        FROM crm_pipeline_setting_stags AS cpss
+        LEFT JOIN crm_opportunity_stags AS cos ON cos.id = cpss.crm_opportunity_stag_id
+        WHERE cpss.crm_pipeline_setting_id = #{pipelineId}
+        AND cpss.crm_opportunity_stag_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <select id="getQuotationReference" resultMap="OpportunityReferenceResponse">
+        SELECT
+            id AS id,
+            quotation_code AS code,
+            customer_id AS customerId,
+            customer_contact_id AS customerContactId,
+            total_amount AS totalAmount,
+            discount AS discount,
+            total_vat AS totalVat
+        FROM quotations
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="getSalesOrderReference" resultMap="OpportunityReferenceResponse">
+        SELECT
+            id AS id,
+            order_code AS code,
+            customer_id AS customerId,
+            customer_contact_id AS customerContactId,
+            total_amount AS totalAmount,
+            discount AS discount,
+            total_vat AS totalVat
+        FROM orders
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <update id="updateOpportunityReference">
+        UPDATE crm_opportunities
+        SET
+        <if test="quotationId != null">
+            quotation_id = #{quotationId},
+        </if>
+        <if test="salesOrderId != null">
+            sales_order_id = #{salesOrderId},
+        </if>
+            customer_id = #{customerId},
+            customer_contact_id = #{customerContactId},
+            amount = #{amount},
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{opportunityId}
+        AND is_active = 1
+    </update>
+
+    <select id="getActiveActivityIds" resultType="java.lang.Long">
+        SELECT crm_opportunity_activity_id
+        FROM crm_opportunity_activity_details
+        WHERE crm_opportunity_id = #{opportunityId}
+        AND is_active = 1
+    </select>
+
+    <select id="getActiveTaskIds" resultType="java.lang.Long">
+        SELECT crm_opportunity_task_id
+        FROM crm_opportunity_task_details
+        WHERE crm_opportunity_id = #{opportunityId}
+        AND is_active = 1
+    </select>
+
+    <update id="archiveActivityDetails">
+        UPDATE crm_opportunity_activity_details
+        SET is_active = 2
+        WHERE crm_opportunity_id = #{opportunityId}
+        AND is_active = 1
+    </update>
+
+    <update id="archiveTaskDetails">
+        UPDATE crm_opportunity_task_details
+        SET is_active = 2
+        WHERE crm_opportunity_id = #{opportunityId}
+        AND is_active = 1
+    </update>
+
+    <insert id="insertActivityDetail">
+        INSERT INTO crm_opportunity_activity_details (
+            crm_opportunity_id,
+            crm_opportunity_stag_id,
+            crm_opportunity_activity_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{opportunityId},
+            #{stageId},
+            #{activityId},
+            NOW(),
+            #{userId},
+            1
+        )
+    </insert>
+
+    <insert id="insertTaskDetail">
+        INSERT INTO crm_opportunity_task_details (
+            crm_opportunity_id,
+            crm_opportunity_stag_id,
+            crm_opportunity_task_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{opportunityId},
+            #{stageId},
+            #{taskId},
+            NOW(),
+            #{userId},
+            1
+        )
+    </insert>
+
+    <select id="getActivityName" resultType="java.lang.String">
+        SELECT name
+        FROM crm_opportunity_activities
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="getTaskName" resultType="java.lang.String">
+        SELECT name
+        FROM crm_opportunity_tasks
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <update id="updateDetailDescription">
+        UPDATE crm_opportunity_details
+        SET description = #{description}
+        WHERE id = #{detailId}
+    </update>
+
+    <update id="convertOpportunityDetails">
+        UPDATE crm_opportunity_details
+        SET description = #{description},
+            is_convert = 1,
+            converted = NOW(),
+            converted_by = #{userId}
+        WHERE crm_opportunity_id = #{opportunityId}
+    </update>
+
+    <update id="skipOpportunityDetails">
+        UPDATE crm_opportunity_details
+        SET is_convert = 1,
+            converted = NOW(),
+            converted_by = #{userId},
+            is_skip = 1,
+            skipped = NOW(),
+            skipped_by = #{userId}
+        WHERE crm_opportunity_id = #{opportunityId}
+    </update>
+
+    <update id="deactivateDetail">
+        UPDATE crm_opportunity_details
+        SET is_active = 0
+        WHERE id = #{detailId}
+    </update>
+
+    <select id="getPreviousConvertedDetailId" resultType="java.lang.Long">
+        SELECT id
+        FROM crm_opportunity_details
+        WHERE crm_opportunity_id = #{opportunityId}
+        AND crm_opportunity_stag_id = #{stageId}
+        AND is_active = 1
+        AND is_convert = 1
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <update id="reopenDetail">
+        UPDATE crm_opportunity_details
+        SET is_convert = 0
+        WHERE id = #{detailId}
+    </update>
+
+    <insert id="insertLog">
+        INSERT INTO crm_opportunity_logs (
+            crm_opportunity_id,
+            type,
+            status,
+            description,
+            created,
+            created_by
+        ) VALUES (
+            #{opportunityId},
+            #{type},
+            #{status},
+            #{description},
+            NOW(),
+            #{userId}
+        )
+    </insert>
+
+    <select id="getListLog" resultMap="OpportunityLogResponse">
+        SELECT
+            logData.id AS id,
+            logData.type AS type,
+            logData.status AS status,
+            logData.statusName AS statusName,
+            CONCAT(IFNULL(logData.createdBy, ''), ': ', logData.statusName) AS title,
+            logData.description AS description,
+            logData.borderColor AS borderColor,
+            logData.created AS created,
+            logData.createdBy AS createdBy
+         FROM (
+            SELECT
+                col.id AS id,
+                col.type AS type,
+                col.status AS status,
+                CASE col.type
+                    WHEN 1 THEN CASE WHEN col.status = 1 THEN 'Created New' ELSE 'Update' END
+                    WHEN 2 THEN 'Created Activity New'
+                    WHEN 3 THEN 'Created Task New'
+                    WHEN 4 THEN 'Back Stage'
+                    WHEN 5 THEN 'Skip Stage'
+                    WHEN 6 THEN 'Save Stage'
+                    ELSE ''
+                END AS statusName,
+                col.description AS description,
+                CASE col.type
+                    WHEN 1 THEN 'border-left: 3px solid #5c88f7;'
+                    WHEN 2 THEN 'border-left: 3px solid #1df541;'
+                    WHEN 3 THEN 'border-left: 3px solid #f2ee0f;'
+                    WHEN 4 THEN 'border-left: 3px solid #fc0324;'
+                    WHEN 5 THEN 'border-left: 3px solid #ffa203;'
+                    WHEN 6 THEN 'border-left: 3px solid #5c88f7;'
+                    ELSE ''
+                END AS borderColor,
+                DATE_FORMAT(col.created, '%d/%m/%Y %H:%i:%s') AS created,
+                CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy
+            FROM crm_opportunity_logs AS col
+            LEFT JOIN users AS creator ON creator.id = col.created_by
+            WHERE col.crm_opportunity_id = #{opportunityId}
+        ) AS logData
+        ORDER BY logData.id DESC
+    </select>
+
+    <update id="touchOpportunity">
+        UPDATE crm_opportunities
+        SET modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{opportunityId}
+        AND is_active = 1
     </update>
 
 </mapper>

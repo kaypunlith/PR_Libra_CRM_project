@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportPipelineSettingMapper">
+
+    <resultMap id="SupportPipelineSettingResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportPipelineSettingResponse">
+        <id property="id" column="id"/>
+        <result property="typeId" column="typeId"/>
+        <result property="typeName" column="typeName"/>
+        <result property="description" column="description"/>
+        <result property="resolutionNumber" column="resolutionNumber"/>
+        <result property="baseOnId" column="baseOnId"/>
+        <result property="baseOnName" column="baseOnName"/>
+        <result property="employeeGroupName" column="employeeGroupName"/>
+        <result property="stageName" column="stageName"/>
+        <result property="percentage" column="percentage"/>
+        <result property="ordering" column="ordering"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
+        <result property="modified" column="modified"/>
+        <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <resultMap id="SupportPipelineSettingStageResponse" type="com.ut.nlSystemAPi.model.response.SupportTicket.SupportPipelineSettingStageResponse">
+        <id property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="percent" column="percent"/>
+        <result property="ordering" column="ordering"/>
+        <result property="skippable" column="skippable"/>
+    </resultMap>
+
+</mapper>

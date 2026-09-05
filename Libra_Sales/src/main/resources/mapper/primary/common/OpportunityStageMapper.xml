@@ -8,6 +8,7 @@
         <result property="stageName" column="stageName"/>
         <result property="applyWithId" column="applyWithId"/>
         <result property="applyWith" column="applyWith"/>
+        <result property="convertLead" column="convertLead"/>
         <result property="created" column="created"/>
         <result property="createdBy" column="createdBy"/>
         <result property="modified" column="modified"/>

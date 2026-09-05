@@ -198,4 +198,8 @@ public class EmployeeRequest {
 
     @ApiModelProperty(position = 52)
     private List<Long> salesReps;
+
+    @ApiModelProperty(position = 53)
+    private List<Long> employeeGroupId;
 }
+

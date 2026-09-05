@@ -15,4 +15,14 @@ public class OpportunityStage extends BaseModel {
 
     @ApiModelProperty(position = 3)
     private Integer applyWith;
+
+    @ApiModelProperty(position = 3)
+    private Long convertLead;
+
+    @ApiModelProperty(position = 4)
+    private Integer isUpload;
+
+    @ApiModelProperty(position = 5)
+    private Integer isPrint;
+
 }

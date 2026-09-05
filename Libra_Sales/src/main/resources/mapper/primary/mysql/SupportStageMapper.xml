@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportStageMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        css.id AS id,
+        (
+            SELECT GROUP_CONCAT(
+                (SELECT description FROM crm_support_pipeline_settings WHERE is_active = 1 AND id = crm_support_pipeline_setting_id)
+                SEPARATOR ', '
+            )
+            FROM crm_support_pipeline_setting_stags
+            WHERE crm_support_stag_id = css.id
+        ) AS pipelineSettingName,
+        css.name AS stageName,
+        css.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        css.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_support_stags AS css
+        LEFT JOIN users AS creator ON creator.id = css.created_by
+        LEFT JOIN users AS modifier ON modifier.id = css.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE css.is_active = 1
+        <if test="filter.searchText != null">
+            AND css.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="SupportStageResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>css.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(css.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="SupportStageResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE css.is_active = 1 AND css.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="stage.id">
+        INSERT INTO crm_support_stags(name, created, created_by, is_active)
+        VALUES (#{stage.name}, NOW(), #{stage.createdBy}, #{stage.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE crm_support_stags
+        SET name = #{stage.name},
+            modified = NOW(),
+            modified_by = #{stage.modifiedBy}
+        WHERE id = #{stage.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_support_stags
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM crm_support_stags
+        WHERE is_active = 1
+        AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+</mapper>

@@ -10,10 +10,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.Authorization;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.net.UnknownHostException;
@@ -33,6 +30,24 @@ public class OrganizationReportController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return organizationReportService.getListAccountReceivableAging(filter, httpServletRequest);
+    }
+
+    @PostMapping("/customer-history")
+    @ApiOperation(value = "List customer history by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> getListCustomerHistory(@RequestBody CustomerHistoryReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return organizationReportService.getListCustomerHistory(filter, httpServletRequest);
+    }
+
+    @PostMapping("/customer-history-print/{id}")
+    @ApiOperation(value = "Print customer history quotations", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> printCustomerHistoryQuotation(@PathVariable("id") Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return organizationReportService.printCustomerHistoryQuotation(id, httpServletRequest);
     }
 
     @PostMapping("/customer-balance")
@@ -105,5 +120,14 @@ public class OrganizationReportController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return organizationReportService.getListActivityCardTracking(filter, httpServletRequest);
+    }
+
+    @PostMapping("/update-memo-status")
+    @ApiOperation(value = "Update memo print status", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> updateMemoStatus(@RequestBody com.ut.nlSystemAPi.model.request.Organization.CustomerHistoryPrintRequest request, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return organizationReportService.updateMemoStatus(request, httpServletRequest);
     }
 }

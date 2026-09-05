@@ -82,16 +82,6 @@ public class OrganizationController {
         return organizationService.delete(id, httpServletRequest);
     }
 
-    @PostMapping("/convert-to-freedom/{id}")
-    @ApiOperation(value = "Convert customer to freedom", authorizations = {@Authorization(value = "Bearer")})
-    public ResponseMessage<BaseResult> convertToFreedom(@PathVariable("id") Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        // Check Header Token
-        if (UserAuthSession.getUserAuth() == null) {
-            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
-        }
-        return organizationService.convertToFreedom(id, httpServletRequest);
-    }
-
     @PostMapping(value = "/add-activity-card", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ApiOperation(value = "Add new organization", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> addActivityCard(@RequestBody OrganizationActivityCardRequest request, BindingResult bindingResult, HttpServletRequest httpServletRequest) throws UnknownHostException {

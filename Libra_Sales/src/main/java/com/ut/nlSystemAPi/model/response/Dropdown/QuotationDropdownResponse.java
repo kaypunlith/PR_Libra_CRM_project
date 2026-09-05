@@ -24,12 +24,24 @@ public class QuotationDropdownResponse {
     private String organizationName;
 
     @ApiModelProperty(position = 5)
-    private Long organizationContactId;
+    private Long companyId;
 
     @ApiModelProperty(position = 6)
-    private String organizationContactName;
+    private String organizationCode;
 
     @ApiModelProperty(position = 7)
+    private Long organizationContactId;
+
+    @ApiModelProperty(position = 8)
+    private String organizationContactName;
+
+    @ApiModelProperty(position = 9)
+    private Integer isApply;
+
+    @ApiModelProperty(position = 10)
+    private String label;
+
+    @ApiModelProperty(position = 11)
     private List<QuotationDropdownDetailResponse> details;
 
 }

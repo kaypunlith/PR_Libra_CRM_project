@@ -21,6 +21,9 @@ public class Service extends BaseModel {
     @ApiModelProperty(position = 5)
     private Long sectionId;
 
+    @ApiModelProperty(position = 5)
+    private Long serviceShiftId;
+
     @ApiModelProperty(position = 6)
     private Long uomId;
 

@@ -21,6 +21,15 @@ public class OpportunityStageResponse {
     @ApiModelProperty(position = 5)
     private String applyWith;
 
+
+    @ApiModelProperty(position = 5)
+    private Long convertLead;
+
+    @ApiModelProperty(position = 5)
+    private Integer isUpload;
+
+    @ApiModelProperty(position = 5)
+    private Integer isPrint;
     @ApiModelProperty(position = 6)
     private String created;
 

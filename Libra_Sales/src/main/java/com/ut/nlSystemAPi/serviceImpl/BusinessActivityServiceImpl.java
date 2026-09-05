@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.BaseResult;
 import com.ut.nlSystemAPi.model.base.Filter;
@@ -31,9 +30,6 @@ public class BusinessActivityServiceImpl implements BusinessActivityService {
 
     @Autowired
     private BusinessActivityMapper businessActivityMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -126,7 +122,6 @@ public class BusinessActivityServiceImpl implements BusinessActivityService {
             Boolean result = businessActivityMapper.insert(businessActivity);
 
             if (result) {
-                freedomMapper.insertBusinessActivity(toFreedomBusinessActivityMap(businessActivity));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/business-activity/add", null, null, "Customer Activity", "Customer Activity (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -161,7 +156,6 @@ public class BusinessActivityServiceImpl implements BusinessActivityService {
             Boolean result = businessActivityMapper.update(businessActivity);
 
             if (result) {
-                freedomMapper.updateBusinessActivity(toFreedomBusinessActivityMap(businessActivity));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/business-activity/update", null, null, "Customer Activity", "Customer Activity (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -189,7 +183,6 @@ public class BusinessActivityServiceImpl implements BusinessActivityService {
 
             Boolean result = businessActivityMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteBusinessActivity(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/business-activity/delete/{id}", null, null, "Customer Activity", "Customer Activity (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);

@@ -25,6 +25,11 @@ import com.ut.nlSystemAPi.model.response.Lead.LeadResponse;
 import com.ut.nlSystemAPi.service.ActivityLogService;
 import com.ut.nlSystemAPi.service.LeadService;
 import com.ut.nlSystemAPi.service.UserService;
+import com.ut.nlSystemAPi.mapper.primary.PipelineSettingMapper;
+import com.ut.nlSystemAPi.model.request.Opportunities.OpportunityRequest;
+import com.ut.nlSystemAPi.model.response.Opportunities.PipelineSettingResponse;
+import com.ut.nlSystemAPi.model.response.Opportunities.PipelineSettingStageResponse;
+import com.ut.nlSystemAPi.service.OpportunitiesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.BindingResult;
@@ -54,6 +59,12 @@ public class LeadServiceImpl implements LeadService {
 
     @Autowired
     private GenerateCode generateCode;
+
+    @Autowired
+    private PipelineSettingMapper pipelineSettingMapper;
+
+    @Autowired
+    private OpportunitiesService opportunitiesService;
 
     public ResponseMessage<BaseResult> getList(LeadFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
         LocalTime startDuration = LocalTime.now();
@@ -119,13 +130,34 @@ public class LeadServiceImpl implements LeadService {
             }
 
             Lead lead = toLead(request);
-            lead.setLeadCode(generateCode.generateAutoCode("customers", "lead_code", 5, "L", true, "customer_type = 2 AND is_active = 3"));
+            lead.setLeadCode(generateCode.generateNextCustomerCode("CLNP","lead_code","customers",false));
             lead.setCreatedBy(userId);
             lead.setIsActive(3);
 
             Boolean result = leadMapper.insert(lead);
             if (result) {
                 saveDetails(lead.getId(), request);
+                
+                LeadFilter filter = new LeadFilter();
+                List<PipelineSettingResponse> pipelines = pipelineSettingMapper.getList(filter, userId);
+                if (pipelines != null && !pipelines.isEmpty()) {
+                    Long pipelineId = pipelines.get(0).getId();
+                    List<PipelineSettingStageResponse> stages = pipelineSettingMapper.getStages(pipelineId);
+                    if (stages != null && !stages.isEmpty()) {
+                        PipelineSettingStageResponse firstStage = stages.get(0);
+                        
+                        OpportunityRequest oppReq = new OpportunityRequest();
+                        oppReq.setName(lead.getName());
+                        oppReq.setLeadId(lead.getId());
+                        oppReq.setPipelineId(pipelineId);
+                        oppReq.setStageId(firstStage.getStageId());
+                        oppReq.setProbability(firstStage.getPercent());
+                        oppReq.setExpectedDate(java.time.LocalDate.now().toString());
+                        
+                        opportunitiesService.insert(oppReq, bindingResult, httpServletRequest);
+                    }
+                }
+                
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/lead/add", null, null, "Lead", "Lead (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
@@ -370,6 +402,7 @@ public class LeadServiceImpl implements LeadService {
         lead.setPhoto(request.getPhoto());
         lead.setName(request.getName());
         lead.setNameKh(request.getNameKh());
+        lead.setSourceId(request.getSourceId());
         lead.setLats(request.getLats());
         lead.setLongs(request.getLongs());
         lead.setTelephone(request.getTelephone());

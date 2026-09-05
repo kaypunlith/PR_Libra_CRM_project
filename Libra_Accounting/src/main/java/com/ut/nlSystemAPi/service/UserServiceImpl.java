@@ -164,7 +164,7 @@ public class UserServiceImpl implements UserService {
             Boolean result = userMapper.insert(user);
             if (result) {
                 // check user role
-                if (user.getUserGroup().length > 0) {
+                if (user.getUserGroup() != null && user.getUserGroup().length > 0) {
                     insertSystemRoleUser(user.getUserGroup(), user.getId());
                 }
                 userMapper.insertUserCompany(user.getId(), DEFAULT_COMPANY_ID);
@@ -177,6 +177,7 @@ public class UserServiceImpl implements UserService {
                 return ResponseMessageUtils.makeResponse(true, messageService.message("Fail", false));
             }
         } catch (Exception error) {
+            System.out.println("error "+error);
             /*System Activity*/
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/user/add",line, error.toString(),"User","User (Add)","Add",2,"Error",startDuration,endDuration, httpServletRequest);
@@ -221,7 +222,7 @@ public class UserServiceImpl implements UserService {
             Boolean result = userMapper.update(user);
             if (result) {
                 // check user role
-                if (user.getUserGroup().length > 0) {
+                if (user.getUserGroup() != null && user.getUserGroup().length > 0) {
                     insertSystemRoleUser(user.getUserGroup(), user.getId());
                 }
                 userMapper.insertUserCompany(user.getId(), DEFAULT_COMPANY_ID);
@@ -292,8 +293,12 @@ public class UserServiceImpl implements UserService {
                 return ResponseMessageUtils.makeResponse(true, messageService.message("User Admin Cannot Deleted!", false));
             }
 
+            Long employeeId = userMapper.getEmployeeId(id);
             Boolean result = userMapper.delete(id);
             if (result) {
+                if (employeeId != null) {
+                    userMapper.deleteEmployee(employeeId, userId);
+                }
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/user/delete/{id}",null,null,"User","User (Delete)","Delete",1,"Success",startDuration,endDuration, httpServletRequest);

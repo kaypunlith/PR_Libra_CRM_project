@@ -11,6 +11,7 @@ import javax.servlet.http.HttpServletRequest;
 
 import com.ut.nlSystemAPi.helper.GenerateQRCode;
 import com.ut.nlSystemAPi.model.base.Pagination;
+import com.ut.nlSystemAPi.model.response.EmployeeGroupResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -76,6 +77,8 @@ public class EmployeesServiceImpl implements EmployeesService {
         for (EmployeesResponse employee : employees) {
             applyLocationGroups(employee);
             applySalesReps(employee);
+            System.out.println("empId "+employee.getId());
+            employee.setEmployeeGroupId(employeesMapper.getEmployeeGroup(employee.getId()));
         }
 
         return ResponseMessageUtils.makeResponse(true, messageService.message("Success",pagination, employees, true));
@@ -97,8 +100,12 @@ public class EmployeesServiceImpl implements EmployeesService {
             employee.setDeviceResponses(deviceResponses);
             applyLocationGroups(employee);
             applySalesReps(employee);
-            employee.setProfilePhoto(employeesMapper.getProfilePhoto(employee.getId()));
-            applyDocuments(employee);
+
+            Long userEmpId = employeesMapper.getUserIdByEmployeeId(employee.getId());
+
+            System.out.println("employee");
+
+            employee.setEmployeeGroupId(employeesMapper.getEmployeeGroup(userEmpId));
         }
         return ResponseMessageUtils.makeResponse(true, messageService.message("Success", employees, true));
     }
@@ -187,6 +194,7 @@ public class EmployeesServiceImpl implements EmployeesService {
         employee.setAmountDeposit(employeeRequest.getAmountDeposit());
         employee.setDeadlineDate(employeeRequest.getDeadlineDate());
         employee.setChatId(employeeRequest.getChatId());
+        employee.setIsActive(1);
         return employee;
     }
 
@@ -258,41 +266,9 @@ public class EmployeesServiceImpl implements EmployeesService {
             return ResponseMessageUtils.makeResponse(true, messageService.message("Duplicate employee", false));
         }
 
-        String username = GenerateStringsAndNumbers.generateRandomString(10);
-        List<User> existingUserList = userMapper.getOneByUsername(username);
-        while (existingUserList != null && !existingUserList.isEmpty()) {
-            username = GenerateStringsAndNumbers.generateRandomString(10);
-            existingUserList = userMapper.getOneByUsername(username);
-        }
-
         User user = new User();
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-        user.setUsername(username);
-        user.setPassword(passwordEncoder.encode("1234"));
-        user.setType(3L);
-        applyEmployeeRequestToUser(user, employeeRequest);
-        user.setCreatedBy(userId);
-        user.setIsActive(1);
-
-        Boolean userInsertResult = userMapper.insert(user);
-        if (!userInsertResult || user.getId() == null) {
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Fail", false));
-        }
-
-        User userSystem = new User();
-        userSystem.setUsername(employeeRequest.getUsername());
-        userSystem.setPassword(passwordEncoder.encode(employeeRequest.getPassword()));
-        userSystem.setType(0L);
-        applyEmployeeRequestToUser(userSystem, employeeRequest);
-        userSystem.setCreatedBy(userId);
-        userSystem.setIsActive(1);
-
-        Boolean userSystemInsertResult = userMapper.insert(userSystem);
-        if (!userSystemInsertResult || userSystem.getId() == null) {
-            return ResponseMessageUtils.makeResponse(true, messageService.message("Fail", false));
-        }
-
         Employee employee = mapToEmployee(employeeRequest);
+        employee.setUserId(userId);
         if (employee.getEmployeeSysCode() == null || employee.getEmployeeSysCode().isEmpty()) {
             employee.setEmployeeSysCode(GenerateStringsAndNumbers.generateRandomString(10));
         }
@@ -335,25 +311,37 @@ public class EmployeesServiceImpl implements EmployeesService {
         if (employee.getNumMonth() == null) {
             employee.setNumMonth(0);
         }
-        employee.setUsername(employeeRequest.getUsername().trim());
-        employee.setPassword(passwordEncoder.encode(employeeRequest.getPassword().trim()));
-        employee.setUserId(userSystem.getId());
-        employee.setUserHrId(user.getId());
-        employee.setIsActive(1);
-        employee.setCreatedBy(userId);
-
         Boolean result = employeesMapper.insert(employee);
-        if (result) {
+        User userSystem = new User();
+//        userSystem.setUsername(employeeRequest.getUsername());
+//        userSystem.setPassword(passwordEncoder.encode(employeeRequest.getPassword()));
+        userSystem.setEmployeeId(employee.getId());
+        userSystem.setType(0L);
+        applyEmployeeRequestToUser(userSystem, employeeRequest);
+        userSystem.setCreatedBy(userId);
+        userSystem.setIsActive(1);
 
+        Boolean userSystemInsertResult = userMapper.insert(userSystem);
+        System.out.println("user system sc"+userSystemInsertResult);
+        if (!userSystemInsertResult || userSystem.getId() == null) {
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Fail", false));
+        }
+
+        if (result) {
             userMapper.updateEmployeeId(employee.getId(), user.getId());
 
             if (employee.getPositionId() != null) {
                 employeesMapper.insertPositionHistory(employee.getId(), employee.getPositionId(), userId);
             }
 
-            if (employee.getDepartmentId() != null) {
-                employeesMapper.insertEmployeeEgroup(employee.getDepartmentId(), employee.getId());
-                employeesMapper.insertDepartmentHistory(employee.getId(), employee.getDepartmentId(), userId);
+
+            if (employeeRequest.getEmployeeGroupId() != null) {
+
+                Long userIdEmp = employeesMapper.getUserIdByEmployeeId(employee.getId());
+                for(int i=0;i<employeeRequest.getEmployeeGroupId().size();i++) {
+                  employeesMapper.insertEmployeeEgroup(employeeRequest.getEmployeeGroupId().get(i), userIdEmp);
+                  employeesMapper.insertDepartmentHistory(employee.getId(), employeeRequest.getEmployeeGroupId().get(i), userId);
+              }
             }
 
             if (employee.getEmployeeTypeId() != null) {
@@ -372,8 +360,6 @@ public class EmployeesServiceImpl implements EmployeesService {
 
             updateLocationGroups(employee.getId(), employeeRequest.getWarehouses());
 
-            updateEmployeeSalesReps(employee.getId(), employeeRequest.getSalesReps());
-
             return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
         }
         userMapper.delete(user.getId());
@@ -381,6 +367,7 @@ public class EmployeesServiceImpl implements EmployeesService {
     }
 
     public ResponseMessage<BaseResult> update(EmployeeUpdateRequest employeeRequest) {
+        System.out.println("EMPID "+employeeRequest.getId());
         Long userId = userService.getUserAuth().getId();
         if (permissionMapper.checkPermission(userId, "Employee (Edit)") == 0) {
             return ResponseMessageUtils.makeResponse(true, messageService.message("Authorization", false));
@@ -394,18 +381,38 @@ public class EmployeesServiceImpl implements EmployeesService {
         Employee employee = mapToEmployee(employeeRequest);
         employee.setModifiedBy(userId);
 
+
         Boolean result = employeesMapper.update(employee);
         if (result) {
+            Long userEmpId = employeesMapper.getUserIdByEmployeeId(employeeRequest.getId());
+            if (userEmpId != null) {
+                User userSystem = new User();
+                userSystem.setId(userEmpId);
+                applyEmployeeRequestToUser(userSystem, employeeRequest);
+                userSystem.setModifiedBy(userId);
+                userMapper.update(userSystem);
+            }
 
             if (employee.getPositionId() != null) {
                 employeesMapper.insertPositionHistory(employee.getId(), employee.getPositionId(), userId);
             }
 
-            if (employee.getDepartmentId() != null) {
-                employeesMapper.deleteEmployeeEgroup(employee.getId());
-                employeesMapper.insertEmployeeEgroup(employee.getDepartmentId(), employee.getId());
-                employeesMapper.insertDepartmentHistory(employee.getId(), employee.getDepartmentId(), userId);
+            if (employeeRequest.getEmployeeGroupId() != null) {
+
+//                Long userIdEmp = employeesMapper.getUserIdByEmployeeId(employeeRequest.getId());
+//                System.out.println("userEmp Id "+userIdEmp);
+                //remove old group
+                employeesMapper.deleteEmployeeEgroup(userEmpId);
+
+                for(int i=0;i<employeeRequest.getEmployeeGroupId().size();i++) {
+                    employeesMapper.insertEmployeeEgroup(employeeRequest.getEmployeeGroupId().get(i), userEmpId);
+                    employeesMapper.insertDepartmentHistory(employee.getId(), employeeRequest.getEmployeeGroupId().get(i), userId);
+                }
             }
+            if (employeeRequest.getDepartmentId() != null) {
+                employeesMapper.insertDepartmentHistory(employee.getId(), employeeRequest.getDepartmentId(), userId);
+            }
+
 
             updateWorkShifts(employee.getId(), employeeRequest, userId);
 
@@ -414,17 +421,6 @@ public class EmployeesServiceImpl implements EmployeesService {
             updateLocationGroups(employee.getId(), employeeRequest.getWarehouses());
 
             updateEmployeeSalesReps(employee.getId(), employeeRequest.getSalesReps());
-
-            Integer employeeStatusId = employee.getEmployeeStatusId();
-            if (employeeStatusId != null && (employeeStatusId == 2 || employeeStatusId == 4 || employeeStatusId == 5 || employeeStatusId == 6)) {
-                List<EmployeeConnectedDeviceResponse> deviceResponses = employeesMapper.getConnectedDevice(employee.getId());
-                if (deviceResponses != null && !deviceResponses.isEmpty()) {
-                    EmployeeTerminateSessionRequest employeeTerminateSessionRequest = new EmployeeTerminateSessionRequest();
-                    employeeTerminateSessionRequest.setUserName(deviceResponses.get(0).getUserName());
-                    employeeTerminateSessionRequest.setClientId(deviceResponses.get(0).getClientId());
-                    employeesMapper.terminateSession(employeeTerminateSessionRequest);
-                }
-            }
 
             return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
         }
@@ -437,8 +433,12 @@ public class EmployeesServiceImpl implements EmployeesService {
             return ResponseMessageUtils.makeResponse(true, messageService.message("Authorization", false));
         }
 
+        Long userEmpId = employeesMapper.getUserIdByEmployeeId(id);
         Boolean result = employeesMapper.delete(id, userId);
         if (result) {
+            if (userEmpId != null) {
+                userMapper.delete(userEmpId);
+            }
             return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
         }
         return ResponseMessageUtils.makeResponse(true, messageService.message("Fail", false));

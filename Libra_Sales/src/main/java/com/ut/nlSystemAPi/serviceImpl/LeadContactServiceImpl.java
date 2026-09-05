@@ -105,7 +105,7 @@ public class LeadContactServiceImpl implements LeadContactService {
             LeadContact leadContact = toLeadContact(request);
             leadContact.setContactName(formatContactName(request.getSalutation(), request.getContactName()));
             leadContact.setCreatedBy(userId);
-            leadContact.setIsActive(3);
+            leadContact.setIsActive(1);
             Boolean result = leadContactMapper.insert(leadContact);
             if (result) {
                 LocalTime endDuration = LocalTime.now();

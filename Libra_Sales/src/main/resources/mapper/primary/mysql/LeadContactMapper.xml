@@ -34,7 +34,7 @@
     </sql>
 
     <sql id="BASE_WHERE">
-        WHERE customer_contacts.is_active = 3
+        WHERE customer_contacts.is_active = 1
         AND customer_contacts.contact_type = 2
         AND (
             customer_contacts.customer_id IS NULL
@@ -45,7 +45,7 @@
         <if test="filter.searchText != null">
             AND (
                 customer_contacts.contact_name LIKE CONCAT("%", #{filter.searchText}, "%")
-                OR customer_contacts.contact_telephone LIKE CONCAT("%", #{filter.searchText}, "%")
+                OR customers.name LIKE CONCAT("%", #{filter.searchText}, "%")
                 OR customer_contacts.contact_email LIKE CONCAT("%", #{filter.searchText}, "%")
             )
         </if>
@@ -57,7 +57,7 @@
         </if>
     </sql>
 
-    <select id="getList" resultMap="LeadContactResponse">
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="LeadContactResponse">
         SELECT
         <include refid="BASE_COLUMN_LIST"/>
         <include refid="BASE_FROM"/>
@@ -69,7 +69,7 @@
                 ${filter.orderBy}
             </when>
             <otherwise>
-                customer_contacts.contact_name ASC
+                customer_contacts.id DESC
             </otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
@@ -87,7 +87,7 @@
         SELECT
         <include refid="BASE_COLUMN_LIST"/>
         <include refid="BASE_FROM"/>
-        WHERE customer_contacts.is_active = 3
+        WHERE customer_contacts.is_active = 1
         AND customer_contacts.contact_type = 2
         AND (
             customer_contacts.customer_id IS NULL
@@ -154,7 +154,7 @@
             pain_points = #{leadContact.painPoint},
             note = #{leadContact.note},
             contact_type = 2,
-            is_active = 3,
+            is_active = 1,
             modified = NOW(),
             modified_by = #{leadContact.modifiedBy}
         WHERE id = #{leadContact.id}
@@ -168,13 +168,13 @@
             modified_by = #{userId}
         WHERE id = #{id}
         AND contact_type = 2
-        AND is_active = 3
+        AND is_active = 1
     </update>
 
     <select id="checkDuplicate" resultType="java.lang.Long">
         SELECT COUNT(id)
         FROM customer_contacts
-        WHERE is_active = 3
+        WHERE is_active = 1
         AND contact_type = 2
         AND contact_name = #{contactName}
         <if test="id != null">

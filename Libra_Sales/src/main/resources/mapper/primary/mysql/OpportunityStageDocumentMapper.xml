@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OpportunityStageDocumentMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cosd.id AS id,
+        cosd.crm_opportunity_id  AS crmOpportunityId,
+        cosd.customer_id AS customerId,
+        cosd.image_name AS imageName,
+        cosd.image_url AS imageUrl,
+        cosd.start_date AS startDate,
+        cosd.end_date AS endDate,
+        cosd.address AS address,
+        cosd.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cosd.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_opportunity_documents AS cosd
+        LEFT JOIN users AS creator ON creator.id = cosd.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cosd.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cosd.is_active = 1
+    </sql>
+
+    <select id="getList" resultType="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityStageDocumentResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        <if test="crmOpportunityId != null">
+            AND cosd.crm_opportunity_id = #{crmOpportunityId}
+        </if>
+        ORDER BY cosd.id DESC
+    </select>
+
+    <select id="getOne" resultType="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityStageDocumentResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        AND cosd.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="document.id">
+        INSERT INTO crm_opportunity_documents
+        (
+            crm_opportunity_id ,
+            customer_id,
+            image_name,
+            image_url,
+            start_date,
+            end_date,
+            address,
+            is_active,
+            created,
+            created_by
+        )
+        VALUES
+        (
+            #{document.crmOpportunityId},
+            #{document.customerId},
+            #{document.imageName},
+            #{document.imageUrl},
+            #{document.startDate},
+            #{document.endDate},
+            #{document.address},
+            1,
+            NOW(),
+            #{document.createdBy}
+        )
+    </insert>
+
+    <update id="delete">
+        UPDATE crm_opportunity_documents SET is_active = 2, modified = NOW(), modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+</mapper>

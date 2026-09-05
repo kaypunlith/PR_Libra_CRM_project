@@ -1,7 +1,10 @@
 package com.ut.nlSystemAPi.model.response.Quotation;
 
+import com.ut.nlSystemAPi.model.response.Service.ServiceShiftResponse;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class QuotationDetailResponse {
@@ -74,5 +77,8 @@ public class QuotationDetailResponse {
 
     @ApiModelProperty(position = 5)
     private String spec;
+
+    @ApiModelProperty(position = 6)
+    private List<ServiceShiftResponse> serviceShiftResponse;
 
 }

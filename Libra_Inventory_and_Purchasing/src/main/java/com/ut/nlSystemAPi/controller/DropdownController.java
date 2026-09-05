@@ -44,6 +44,16 @@ public class DropdownController {
         return dropdownService.getListUser(filter, httpServletRequest);
     }
 
+    @PostMapping("/list-section")
+    @ApiOperation(value = "List user by filter", notes = "List user by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSection(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        // Check Header Token
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSection(filter, httpServletRequest);
+    }
+
     @PostMapping("/list-company")
     @ApiOperation(value = "List company by filter", notes = "List company by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listCompany(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -304,15 +314,7 @@ public class DropdownController {
         return dropdownService.getListProduct(filter, httpServletRequest);
     }
 
-    @PostMapping("/list-section")
-    @ApiOperation(value = "List section by filter", authorizations = {@Authorization(value = "Bearer")})
-    public ResponseMessage<BaseResult> listSection(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        // Check Header Token
-        if (UserAuthSession.getUserAuth() == null) {
-            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
-        }
-        return dropdownService.getListSection(filter, httpServletRequest);
-    }
+
 
     @PostMapping("/list-service")
     @ApiOperation(value = "List service by filter", authorizations = {@Authorization(value = "Bearer")})

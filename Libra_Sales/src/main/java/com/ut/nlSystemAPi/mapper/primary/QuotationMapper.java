@@ -21,6 +21,8 @@ public interface QuotationMapper {
 
   List<QuotationResponse> getOne(@Param("id") Long id, @Param("userId") Long userId);
 
+  List<QuotationResponse> getOneIncludeArchived(@Param("id") Long id, @Param("userId") Long userId);
+
   Boolean insert(@Param("quotation") Quotation quotation);
 
   Boolean insertTermCondition(@Param("termCondition") QuotationTermCondition termCondition);

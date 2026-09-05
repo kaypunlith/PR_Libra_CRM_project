@@ -3,7 +3,6 @@ package com.ut.nlSystemAPi.serviceImpl;
 import com.ut.nlSystemAPi.helper.GenerateCode;
 import com.ut.nlSystemAPi.helper.Inventory;
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.*;
 import com.ut.nlSystemAPi.model.GeneralLedger;
@@ -59,9 +58,6 @@ public class CreditMemoServiceImpl implements CreditMemoService {
 
     @Autowired
     private CreditMemoMapper creditMemoMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private OrganizationMapper organizationMapper;
@@ -490,8 +486,6 @@ public class CreditMemoServiceImpl implements CreditMemoService {
                     }
                 }
 
-                syncFreedomBillReturn(creditMemo, request, request.getDetails(), false, userId);
-
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/credit-memo/add", null, null, "Credit Memo", "Credit Memo (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -867,8 +861,6 @@ public class CreditMemoServiceImpl implements CreditMemoService {
                     }
                 }
 
-                syncFreedomBillReturn(creditMemo, request, request.getDetails(), true, userId);
-
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/credit-memo/update", null, null, "Credit Memo", "Credit Memo (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -897,7 +889,6 @@ public class CreditMemoServiceImpl implements CreditMemoService {
             Boolean result = helperMapper.archive("credit_memos", "status", 0, id, userId);
 
             if (result) {
-                syncFreedomBillReturnOnDelete(id, userId);
 
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
@@ -911,26 +902,6 @@ public class CreditMemoServiceImpl implements CreditMemoService {
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/credit-memo/delete/{id}", line, error.toString(), "Credit Memo", "Credit Memo (Void)", "Void", 2, "Error", startDuration, endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
-        }
-    }
-
-    private void syncFreedomBillReturnOnDelete(Long creditMemoId, Long userId) {
-        try {
-            if (creditMemoId == null) {
-                return;
-            }
-
-            String prCode = helperMapper.getCurrentCode("credit_memos", "cm_code", creditMemoId);
-            if (prCode == null || prCode.trim().isEmpty()) {
-                return;
-            }
-
-            Long billReturnId = freedomMapper.getBillReturnIdByPrCode(prCode);
-            if (billReturnId != null) {
-                freedomMapper.archiveBillReturnById(billReturnId, userId);
-            }
-        } catch (Exception exception) {
-            System.out.println("Skip Freedom bill return archive on delete: " + exception.getMessage());
         }
     }
 
@@ -1201,212 +1172,6 @@ public class CreditMemoServiceImpl implements CreditMemoService {
             activityLogService.insert("/credit-memo/void-receipt/{id}", line, error.toString(), "Credit Memo", "Credit Memo (Void)", "Void", 2, "Error", startDuration, endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
-    }
-
-    private void syncFreedomBillReturn(CreditMemo creditMemo, CreditMemoRequest request, List<CreditMemoRequestDetail> details, boolean isUpdate, Long userId) {
-        try {
-            if (request.getCustomerId() == null) {
-                return;
-            }
-            Integer isFreedom = organizationMapper.getIsFreedom(request.getCustomerId());
-            if (isFreedom == null || isFreedom != 1) {
-                return;
-            }
-
-            String prCode = creditMemo.getCmCode();
-            if (isUpdate) {
-                Long oldBrId = freedomMapper.getBillReturnIdByPrCode(prCode);
-                if (oldBrId != null) {
-                    freedomMapper.archiveBillReturnById(oldBrId, userId);
-                }
-            }
-
-            Long purchaseOrderId = null;
-            if (creditMemo.getInvoiceCode() != null && !creditMemo.getInvoiceCode().trim().isEmpty()) {
-                Long freedomPurchaseBillId = freedomMapper.getPurchaseBillIdByInvoiceCode(creditMemo.getInvoiceCode());
-                if (freedomPurchaseBillId != null) {
-                    purchaseOrderId = freedomPurchaseBillId;
-                }
-            }
-
-            Map<String, Object> br = new HashMap<>();
-            br.put("companyId", request.getCompanyId());
-            br.put("purchaseOrderId", purchaseOrderId);
-            // Our company acts as vendor on Freedom side
-            br.put("vendorId", request.getCompanyId());
-            br.put("locationGroupId", request.getCustomerId());
-            br.put("locationId", null);
-            br.put("currencyCenterId", creditMemo.getCurrencyCenterId());
-            br.put("note", creditMemo.getNote());
-            br.put("prCode", prCode);
-            br.put("apId", creditMemo.getChartAccountId());
-            br.put("orderDate", creditMemo.getOrderDate());
-            br.put("totalAmount", creditMemo.getTotalAmount());
-            br.put("vatSettingId", creditMemo.getVatSettingId());
-            br.put("vatPercent", creditMemo.getVatPercent());
-            br.put("totalAmountPo", creditMemo.getTotalAmount());
-            br.put("vatChartAccountId", creditMemo.getVatChartAccountId());
-            br.put("totalVat", creditMemo.getTotalVat());
-            br.put("vatCalculate", creditMemo.getVatCalculate());
-            br.put("balance", creditMemo.getBalance());
-            br.put("createdBy", userId);
-
-            freedomMapper.insertBillReturn(br);
-            Long billReturnId = br.get("id") instanceof Number ? ((Number) br.get("id")).longValue() : null;
-            if (billReturnId == null) {
-                billReturnId = freedomMapper.getBillReturnIdByPrCode(prCode);
-            }
-            if (billReturnId == null) {
-                billReturnId = creditMemo.getId();
-            }
-
-            Long glId = insertFreedomGeneralLedger(prCode, creditMemo.getOrderDate(), null, billReturnId, request.getCompanyId(), userId);
-            Long classId = helperMapper.getClassId(request.getCompanyId(), request.getLocationGroupId());
-            Double totalAmountBr = creditMemo.getTotalAmount() + (creditMemo.getTotalVat() != null ? creditMemo.getTotalVat() : 0D) - (creditMemo.getDiscount() != null ? creditMemo.getDiscount() : 0D);
-
-            // AP reduction (debit)
-            insertFreedomGLDetail(glId, request.getChartAccountId(), request.getCompanyId(), request.getLocationId(), "Bill Return",
-                    totalAmountBr, 0D, "Freedom BR " + prCode, request.getCompanyId(), null, classId, null, null, null, null, userId);
-
-            // VAT (credit)
-            if (creditMemo.getTotalVat() != null && creditMemo.getTotalVat() > 0) {
-                Long vatChart = helperMapper.getVatChartAccountId(request.getVatSettingId());
-                insertFreedomGLDetail(glId, vatChart, request.getCompanyId(), request.getLocationId(), "VAT",
-                        0D, creditMemo.getTotalVat(), "Freedom BR VAT " + prCode, request.getCompanyId(), null, classId, null, null, null, null, userId);
-            }
-
-            if (details != null) {
-                for (CreditMemoRequestDetail detail : details) {
-                    if (detail.getType() == null) {
-                        continue;
-                    }
-                    int type = detail.getType().intValue();
-                    if (type == 1) {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("purchaseReturnId", billReturnId);
-                        map.put("productId", detail.getItemId());
-                        map.put("note", detail.getNote());
-                        Long qtyVal = detail.getQty() != null ? detail.getQty() : 0L;
-                        Long qtyFree = detail.getQtyFree() != null ? detail.getQtyFree() : 0L;
-                        map.put("qty", qtyVal + qtyFree);
-                        map.put("uomId", detail.getUomId());
-                        map.put("conversion", detail.getConversion() != null ? detail.getConversion() : 1L);
-                        map.put("unitPrice", detail.getUnitPrice());
-                        map.put("totalPrice", detail.getTotalPrice());
-                        map.put("expiredDate", detail.getExpiredDate());
-                        freedomMapper.insertBillReturnDetail(map);
-
-                        double qty = (detail.getQty() != null ? detail.getQty() : 0L) + (detail.getQtyFree() != null ? detail.getQtyFree() : 0L);
-                        double conv = detail.getConversion() != null && detail.getConversion() != 0 ? detail.getConversion() : 1D;
-                        double smallQty = qty * conv * -1;
-                        double baseQty = qty * -1;
-
-                        Long ivId = insertFreedomInventoryValuation(null, billReturnId, detail.getItemId(), null, null, creditMemo.getOrderDate(), request.getCompanyId(), smallQty, baseQty, detail.getUnitPrice(), prCode, true);
-
-                        Long invCoa = helperMapper.getProductInventoryChartAccountId(detail.getItemId());
-                        insertFreedomGLDetail(glId, invCoa, request.getCompanyId(), request.getLocationId(), "Inventory",
-                                0D, detail.getTotalPrice(), "Freedom BR " + prCode + " " + detail.getItemId(), request.getCompanyId(), null, classId, detail.getItemId(), null, ivId, 0, userId);
-
-                        if (detail.getDiscountAmount() != null && detail.getDiscountAmount() > 0) {
-                            Long discountCoa = helperMapper.getDiscountChartAccountId(11L);
-                            insertFreedomGLDetail(glId, discountCoa, request.getCompanyId(), request.getLocationId(), "Discount",
-                                    detail.getDiscountAmount(), 0D, "Freedom BR Discount " + prCode + " " + detail.getItemId(), request.getCompanyId(), null, classId, detail.getItemId(), null, null, null, userId);
-                        }
-                    } else if (type == 2) {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("purchaseReturnId", billReturnId);
-                        map.put("serviceId", detail.getItemId());
-                        map.put("note", detail.getNote());
-                        map.put("qty", detail.getQty() != null ? detail.getQty() : 0L);
-                        map.put("totalPrice", detail.getTotalPrice());
-                        map.put("unitPrice", detail.getUnitPrice());
-                        freedomMapper.insertBillReturnService(map);
-
-                        Long invCoa = helperMapper.getServiceChartAccountId(detail.getItemId());
-                        insertFreedomGLDetail(glId, invCoa, request.getCompanyId(), request.getLocationId(), "Service",
-                                0D, detail.getTotalPrice(), "Freedom BR " + prCode + " " + detail.getItemId(), request.getCompanyId(), null, classId, null, detail.getItemId(), null, null, userId);
-                        if (detail.getDiscountAmount() != null && detail.getDiscountAmount() > 0) {
-                            Long discountCoa = helperMapper.getDiscountChartAccountId(11L);
-                            insertFreedomGLDetail(glId, discountCoa, request.getCompanyId(), request.getLocationId(), "Discount",
-                                    detail.getDiscountAmount(), 0D, "Freedom BR Discount " + prCode + " " + detail.getItemId(), request.getCompanyId(), null, classId, null, detail.getItemId(), null, null, userId);
-                        }
-                    } else if (type == 3) {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("purchaseReturnId", billReturnId);
-                        map.put("description", detail.getItemName());
-                        map.put("qty", detail.getQty() != null ? detail.getQty() : 0L);
-                        map.put("uomId", detail.getUomId());
-                        map.put("unitPrice", detail.getUnitPrice());
-                        map.put("totalPrice", detail.getTotalPrice());
-                        map.put("note", detail.getNote());
-                        freedomMapper.insertBillReturnMisc(map);
-
-                        Long miscCoa = helperMapper.getMiscChartAccountId();
-                        insertFreedomGLDetail(glId, miscCoa, request.getCompanyId(), request.getLocationId(), "Misc",
-                                0D, detail.getTotalPrice(), "Freedom BR " + prCode + " " + detail.getItemName(), request.getCompanyId(), null, classId, null, null, null, null, userId);
-                        if (detail.getDiscountAmount() != null && detail.getDiscountAmount() > 0) {
-                            Long discountCoa = helperMapper.getDiscountChartAccountId(11L);
-                            insertFreedomGLDetail(glId, discountCoa, request.getCompanyId(), request.getLocationId(), "Discount",
-                                    detail.getDiscountAmount(), 0D, "Freedom BR Discount " + prCode + " " + detail.getItemName(), request.getCompanyId(), null, classId, null, null, null, null, userId);
-                        }
-                    }
-                }
-            }
-        } catch (Exception exception) {
-            System.out.println("Skip Freedom bill return sync: " + exception.getMessage());
-        }
-    }
-
-    private Long insertFreedomGeneralLedger(String reference, String date, Long purchaseOrderId, Long purchaseReturnId, Long companyId, Long userId) {
-        Map<String, Object> gl = new HashMap<>();
-        gl.put("reference", reference);
-        gl.put("date", date);
-        gl.put("purchaseOrderId", purchaseOrderId);
-        gl.put("purchaseReturnId", purchaseReturnId);
-        gl.put("createdBy", userId);
-        freedomMapper.insertGeneralLedger(gl);
-        Object idObj = gl.get("id");
-        return idObj instanceof Number ? ((Number) idObj).longValue() : null;
-    }
-
-    private void insertFreedomGLDetail(Long glId, Long chartAccountId, Long companyId, Long locationId, String type, Double debit, Double credit, String memo, Long vendorId, Long customerId, Long classId, Long productId, Long serviceId, Long inventoryValuationId, Integer inventoryValuationIsDebit, Long userId) {
-        Map<String, Object> gld = new HashMap<>();
-        gld.put("generalLedgerId", glId);
-        gld.put("chartAccountId", chartAccountId);
-        gld.put("companyId", companyId);
-        gld.put("locationId", locationId);
-        gld.put("type", type);
-        gld.put("debit", debit != null ? debit : 0D);
-        gld.put("credit", credit != null ? credit : 0D);
-        gld.put("memo", memo);
-        gld.put("vendorId", vendorId);
-        gld.put("customerId", customerId);
-        gld.put("classId", classId);
-        gld.put("productId", productId);
-        gld.put("serviceId", serviceId);
-        gld.put("inventoryValuationId", inventoryValuationId);
-        gld.put("inventoryValuationIsDebit", inventoryValuationIsDebit);
-        gld.put("createdBy", userId);
-        freedomMapper.insertGeneralLedgerDetail(gld);
-    }
-
-    private Long insertFreedomInventoryValuation(Long purchaseOrderId, Long purchaseReturnId, Long productId, Long purchaseDetailId, Long purchaseReturnDetailId, String date, Long companyId, Double smallQty, Double qty, Double cost, String reference, boolean isReturn) {
-        Map<String, Object> iv = new HashMap<>();
-        iv.put("purchaseOrderId", purchaseOrderId);
-        iv.put("purchaseReturnId", purchaseReturnId);
-        iv.put("purchaseOrderDetailId", purchaseDetailId);
-        iv.put("purchaseReturnDetailId", purchaseReturnDetailId);
-        iv.put("date", date);
-        iv.put("type", isReturn ? "Bill Return" : "Purchase Bill");
-        iv.put("companyId", companyId);
-        iv.put("productId", productId);
-        iv.put("smallQty", smallQty);
-        iv.put("qty", qty);
-        iv.put("reference", reference);
-        iv.put("cost", cost);
-        freedomMapper.insertInventoryValuation(iv);
-        Object idObj = iv.get("id");
-        return idObj instanceof Number ? ((Number) idObj).longValue() : null;
     }
 
 }

@@ -27,7 +27,24 @@ public class DropdownResponse {
     private String name;
 
     @ApiModelProperty(position = 3)
+    private String nameKh;
+
+
+
+    @ApiModelProperty(position = 3)
     private String code;
+
+    @ApiModelProperty(position = 4)
+    private Long contactId;
+
+    @ApiModelProperty(position = 5)
+    private String contactName;
+
+    @ApiModelProperty(position = 4)
+    private Long sourceId;
+
+    @ApiModelProperty(position = 5)
+    private String sourceName;
 
     @ApiModelProperty(position = 4)
     private Double percent;

@@ -36,6 +36,8 @@ public interface UserMapper {
 
   Boolean delete(@Param("id") Long id);
 
+  Boolean deleteEmployee(@Param("employeeId") Long employeeId, @Param("userId") Long userId);
+
   Boolean insertSystemRoleUser(@Param("userId") Long userId, @Param("groupId") String groupId);
 
   Boolean deleteSystemRoleUser(@Param("userId") Long userId);

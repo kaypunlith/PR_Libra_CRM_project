@@ -5,7 +5,6 @@ import com.ut.nlSystemAPi.helper.Inventory;
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
 import com.ut.nlSystemAPi.helper.Telegram.CheckNull;
 import com.ut.nlSystemAPi.helper.TelegramUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.*;
 import com.ut.nlSystemAPi.model.GeneralLedger;
@@ -79,9 +78,6 @@ public class SaleInvoiceServiceImpl implements SaleInvoiceService {
 
     @Autowired
     private TelegramUtils telegramUtils;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private OrganizationMapper organizationMapper;
@@ -581,9 +577,19 @@ public class SaleInvoiceServiceImpl implements SaleInvoiceService {
                                     stockOrder.setLocationGroupId(request.getWarehouseId());
                                     stockOrder.setLocationId(stockOrderResponse.getLocationId());
                                     stockOrder.setLotsNumber(stockOrderResponse.getLotsNumber());
-                                    stockOrder.setExpiredDate(stockOrderResponse.getExpiredDate());
+                                   String expiredDate = stockOrderResponse.getExpiredDate();
+
+                                   if (expiredDate == null
+                                           || expiredDate.isBlank()
+                                           || "0000-00-00".equals(expiredDate)) {
+                                      stockOrder.setExpiredDate(null);
+                                   } else {
+                                      stockOrder.setExpiredDate(expiredDate);
+                                   }
+
                                     stockOrder.setDate(saleInvoice.getInvoiceDate());
                                     stockOrder.setQty(smallQty);
+                                   System.out.println("stock order "+stockOrder);
                                     saleInvoiceMapper.insertStockOrder(stockOrder);
 
                                     // Update Global Total Order
@@ -911,9 +917,9 @@ public class SaleInvoiceServiceImpl implements SaleInvoiceService {
                     }
                 }
 
-                if (request.getIsUpdate() == null || request.getIsUpdate() != 1) {
-                    checkMembership(request.getOrganizationId(), saleInvoice.getId(), totalAmount);
-                }
+//                if (request.getIsUpdate() == null || request.getIsUpdate() != 1) {
+//                    checkMembership(request.getOrganizationId(), saleInvoice.getId(), totalAmount);
+//                }
 
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();

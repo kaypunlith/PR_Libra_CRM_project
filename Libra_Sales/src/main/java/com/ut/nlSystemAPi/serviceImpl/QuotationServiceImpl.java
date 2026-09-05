@@ -7,12 +7,14 @@ import com.ut.nlSystemAPi.helper.TelegramUtils;
 import com.ut.nlSystemAPi.mapper.primary.HelperMapper;
 import com.ut.nlSystemAPi.mapper.primary.PermissionMapper;
 import com.ut.nlSystemAPi.mapper.primary.QuotationMapper;
+import com.ut.nlSystemAPi.mapper.primary.ServiceMapper;
 import com.ut.nlSystemAPi.model.base.*;
 import com.ut.nlSystemAPi.model.MessageService;
 import com.ut.nlSystemAPi.model.entity.Quotation.*;
 import com.ut.nlSystemAPi.model.filter.QuotationFilter;
 import com.ut.nlSystemAPi.model.request.Quotation.*;
 import com.ut.nlSystemAPi.model.response.Quotation.*;
+import com.ut.nlSystemAPi.model.response.Service.ServiceShiftResponse;
 import com.ut.nlSystemAPi.service.ActivityLogService;
 import com.ut.nlSystemAPi.service.QuotationService;
 import com.ut.nlSystemAPi.service.UserService;
@@ -37,10 +39,16 @@ public class QuotationServiceImpl implements QuotationService {
     private QuotationMapper quotationMapper;
 
     @Autowired
+    private com.ut.nlSystemAPi.mapper.primary.QuotationLogMapper quotationLogMapper;
+
+    @Autowired
     private PermissionMapper permissionMapper;
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private ServiceMapper serviceMapper;
 
     @Autowired
     private MessageService messageService;
@@ -163,6 +171,13 @@ public class QuotationServiceImpl implements QuotationService {
                     }
                     response.setTermConditions(quotationMapper.getTermCondition(response.getId()));
                     response.setDetails(quotationMapper.getListDetail(response.getId()));
+                    if(response.getDetails().size()>0){
+                        for(int i=0;i<response.getDetails().size();i++){
+                            List<ServiceShiftResponse> serviceShiftResponses = serviceMapper.getServiceShift(response.getDetails().get(i).getItemId());
+                            response.getDetails().get(i).setServiceShiftResponse(serviceShiftResponses);
+                        }
+                    }
+
                 }
             }
             /*System Activity*/
@@ -250,10 +265,12 @@ public class QuotationServiceImpl implements QuotationService {
             if (result) {
                 // Get the reference code
                 if (quotation.getIsNoneVat() == 1) {
-                    String code = generateCode.generateAutoCode("quotations", "quotation_code", 7, "N", false, "status >= 0");
+                    String code =generateCode.generateNextCustomerCode("LPSQ","quotation_code","quotations",false);
                     helperMapper.updateCode("quotations", "quotation_code", code, quotation.getId());
                 } else {
-                    String code = generateCode.generateAutoCode("quotations", "quotation_code", 7, request.getModuleCode(), false, "status >= 0");
+//                    String moduleCode = request.getModuleCode() == null || request.getModuleCode().trim().isEmpty() ? "LPSQ" : request.getModuleCode().trim();
+                    String code =generateCode.generateNextCustomerCode("LPSQ","quotation_code","quotations",false);
+
                     helperMapper.updateCode("quotations", "quotation_code", code, quotation.getId());
                 }
 
@@ -355,6 +372,29 @@ public class QuotationServiceImpl implements QuotationService {
                             null
                     );
                     helperMapper.updateMessageId("quotations", messageId, quotation.getId());
+
+                    QuotationLog qLog = new QuotationLog();
+                    qLog.setQuotationId(quotation.getId());
+                    qLog.setAction("ADD");
+                    qLog.setTotalAmount(quotation.getTotalAmount());
+                    qLog.setCreatedBy(userId);
+
+                    List<String> serviceIdsList = new java.util.ArrayList<>();
+                    if (request.getDetails() != null) {
+                        for (QuotationDetailRequest detail : request.getDetails()) {
+                            if (detail.getType() != null && detail.getType() == 2) {
+                                if (detail.getItemId() != null) {
+                                    serviceIdsList.add(String.valueOf(detail.getItemId()));
+                                }
+                            }
+                        }
+                    }
+                    String serviceId = serviceIdsList.isEmpty() ? null : String.join(",", serviceIdsList);
+                    qLog.setServiceId(serviceId);
+
+                    boolean re = quotationLogMapper.insertLog(qLog);
+                    System.out.println("insert log "+re);
+
                 }
 
                 /*System Activity*/
@@ -554,6 +594,46 @@ public class QuotationServiceImpl implements QuotationService {
                     );
                     helperMapper.updateMessageId("quotations", messageId, quotation.getId());
                 }
+                QuotationLog qLog = new QuotationLog();
+                qLog.setQuotationId(quotation.getId());
+                qLog.setAction("UPDATE");
+                qLog.setTotalAmount(quotation.getTotalAmount());
+                qLog.setCreatedBy(userId);
+
+                List<com.ut.nlSystemAPi.model.response.Quotation.QuotationDetailResponse> oldDetails = quotationMapper.getListDetail(request.getId());
+                java.util.Map<String, Long> oldServiceQtyMap = new java.util.HashMap<>();
+                if (oldDetails != null) {
+                    for (com.ut.nlSystemAPi.model.response.Quotation.QuotationDetailResponse od : oldDetails) {
+                        if (od.getType() != null && od.getType() == 2 && od.getItemId() != null) {
+                            oldServiceQtyMap.put(String.valueOf(od.getItemId()), od.getQty() != null ? od.getQty() : 0L);
+                        }
+                    }
+                }
+
+                List<String> serviceIdsListUpdate = new java.util.ArrayList<>();
+                if (request.getDetails() != null) {
+                    for (QuotationDetailRequest detail : request.getDetails()) {
+                        if (detail.getType() != null && detail.getType() == 2) {
+                            if (detail.getItemId() != null) {
+                                String sId = String.valueOf(detail.getItemId());
+                                if (!oldServiceQtyMap.containsKey(sId)) {
+                                    serviceIdsListUpdate.add(sId);
+                                } else {
+                                    Long oldQty = oldServiceQtyMap.get(sId);
+                                    Long newQty = detail.getQty() != null ? detail.getQty() : 0L;
+                                    if (!oldQty.equals(newQty)) {
+                                        serviceIdsListUpdate.add(sId);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                String serviceIdUpdate = serviceIdsListUpdate.isEmpty() ? null : String.join(",", serviceIdsListUpdate);
+                qLog.setServiceId(serviceIdUpdate);
+
+                boolean re = quotationLogMapper.insertLog(qLog);
+
 
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/quotation/update", null, null, "Quotation", "Quotation (Edit)", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -646,8 +726,8 @@ public class QuotationServiceImpl implements QuotationService {
             // Check Permission
             Long userId = userService.getUserAuth().getId();
             List<QuotationResponse> data = quotationMapper.getOne(request.getId(), userId);
-            System.out.println(data.get(0).getType());
             if (!data.isEmpty()) {
+                System.out.println(data.get(0).getType());
                 if (data.get(0).getType() == 1) {
                     if (request.getStatus() == 2) {
                         if (permissionMapper.checkPermission(userId, "Quotataion (Approve)") == 0) {

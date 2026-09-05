@@ -6,6 +6,7 @@
         customer_contacts.id AS id,
         customers.id AS organizationId,
         customers.name AS organizationName,
+        customer_contacts.code AS code,
         customer_contacts.photo AS photo,
         customer_contacts.sex AS gender,
         customer_contacts.contact_name AS contactName,
@@ -39,49 +40,6 @@
 
     <sql id="BASE_WHERE">
         WHERE customer_contacts.is_active = 1
-        <if test="employeeId != null">
-            AND customers.id IN (
-            SELECT customer_id
-            FROM customer_cgroups
-            WHERE cgroup_id IN (
-            SELECT cgroup_id
-            FROM cgroup_egroups
-            WHERE egroup_id IN (
-            SELECT egroup_id
-            FROM employee_egroups
-            WHERE employee_id = #{employeeId}
-            )
-            )
-            )
-        </if>
-        <if test="employeeId == null">
-            AND customers.id IN (
-            SELECT customer_id
-            FROM cgroups
-            INNER JOIN customer_cgroups ON cgroups.id = customer_cgroups.cgroup_id
-            WHERE cgroups.is_active = 1
-            AND (
-            cgroups.user_apply = 0
-            OR (
-            cgroups.user_apply = 1
-            AND cgroups.id IN (
-            SELECT cgroup_id
-            FROM user_cgroups
-            WHERE user_id = #{userId}
-            )
-            )
-            )
-            )
-            AND customers.id IN (
-            SELECT customer_id
-            FROM customer_companies
-            WHERE company_id IN (
-            SELECT company_id
-            FROM user_companies
-            WHERE user_id = #{userId}
-            )
-            )
-        </if>
         <if test="filter.organizationId != null">
             AND customers.id = #{filter.organizationId}
         </if>
@@ -135,6 +93,7 @@
 
     <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.CustomerContact.CustomerContact" useGeneratedKeys="true" keyProperty="customerContact.id">
         INSERT INTO customer_contacts (
+            `code`,
             `photo`,
             `customer_id`,
             `contact_name`,
@@ -149,8 +108,10 @@
             `location_id`,
             `character_id`,
             `created`,
-            `created_by`
+            `created_by`,
+             `is_active`
         ) VALUES (
+                     #{customerContact.code},
                      #{customerContact.photo},
                      #{customerContact.organizationId},
                      #{customerContact.contactName},
@@ -165,7 +126,8 @@
                      #{customerContact.locationId},
                      #{customerContact.characterId},
                      NOW(),
-                     #{customerContact.createdBy}
+                     #{customerContact.createdBy},
+                     1
                  )
     </insert>
 
@@ -205,11 +167,13 @@
         INSERT INTO customer_contact_descriptions (
             `customer_contact_id`,
             `customer_description_type_id`,
-            `description`
+            `description`,
+            `is_active`
         ) VALUES (
                      #{customerContactId},
                      #{typeId},
-                     #{description}
+                     #{description},
+                     1
                  )
     </insert>
 
@@ -231,11 +195,13 @@
         INSERT INTO customer_contact_pregress (
             `customer_contact_id`,
             `customer_progress_detail_id`,
-            `percent`
+            `percent`,
+            `is_active`
         ) VALUES (
                      #{customerContactId},
                      #{id},
-                     #{percent}
+                     #{percent},
+                     1
                  )
     </insert>
 
@@ -259,10 +225,12 @@
     <insert id="insertContactList">
         INSERT INTO customer_contact_lists (
             `customer_contact_id`,
-            `customer_list_detail_id`
+            `customer_list_detail_id`,
+            `is_active`
         ) VALUES (
                      #{customerContactId},
-                     #{id}
+                     #{id},
+                     1
                  )
     </insert>
 
@@ -289,14 +257,16 @@
             `customer_contact_id`,
             `score`,
              created,
-             created_by
+             created_by,
+             is_active
         ) VALUES (
                      (SELECT company_id FROM customer_companies WHERE customer_id IN (SELECT customer_id FROM customer_contacts WHERE id = #{customerContactId}) LIMIT 1),
                      (SELECT customer_id FROM customer_contacts WHERE id = #{customerContactId}),
                      #{customerContactId},
                      #{score},
                      NOW(),
-                     #{userId}
+                     #{userId},
+                     1
                  )
     </insert>
 

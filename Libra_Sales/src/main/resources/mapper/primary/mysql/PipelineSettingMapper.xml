@@ -6,9 +6,9 @@
         cps.id AS id,
         cps.description AS description,
         (SELECT GROUP_CONCAT(egroups.name SEPARATOR ', ') FROM egroups WHERE egroups.id IN (SELECT egroup_id FROM crm_pipeline_setting_egroups WHERE crm_pipeline_setting_id = cps.id)) AS employeeGroupName,
-        GROUP_CONCAT(cos.name SEPARATOR ', ') AS stageName,
-        GROUP_CONCAT(CONCAT(FORMAT(cpss.percent, 0), '%') SEPARATOR ', ') AS percentage,
-        GROUP_CONCAT(cpss.ordering SEPARATOR ', ') AS ordering,
+         GROUP_CONCAT(cos.name ORDER BY cpss.ordering DESC SEPARATOR ', ') AS stageName,
+        GROUP_CONCAT(CONCAT(FORMAT(cpss.percent, 0), '%') ORDER BY cpss.ordering DESC SEPARATOR ', ') AS percentage,
+        GROUP_CONCAT(cpss.ordering ORDER BY cpss.ordering DESC SEPARATOR ', ') AS ordering,
         cps.created AS created,
         CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
         cps.modified AS modified,
@@ -29,7 +29,7 @@
             SELECT crm_pipeline_setting_id FROM crm_pipeline_setting_egroups
             WHERE egroup_id IN (
                 SELECT egroup_id FROM employee_egroups
-                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+                WHERE employee_id = #{userId}
             )
         )
         <if test="filter.searchText != null">
@@ -45,9 +45,14 @@
         GROUP BY cps.id
         ORDER BY
         <choose>
-            <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>cps.id DESC</otherwise>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                cps.id DESC
+            </otherwise>
         </choose>
+
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
         </if>
@@ -93,8 +98,8 @@
     </insert>
 
     <insert id="insertStageActivity">
-        INSERT INTO crm_opportunity_stag_activities(crm_opportunity_stag_id, crm_opportunity_activity_id)
-        VALUES (#{stageId}, #{activityId})
+        INSERT INTO crm_opportunity_stag_activities(crm_pipeline_setting_id, crm_opportunity_stag_id, crm_opportunity_activity_id)
+        VALUES (#{pipelineId}, #{stageId}, #{activityId})
     </insert>
 
     <insert id="insertActivityEmployeeGroup">
@@ -111,7 +116,9 @@
     </delete>
 
     <delete id="deleteStageActivity">
-        DELETE FROM crm_opportunity_stag_activities WHERE crm_opportunity_stag_id = #{stageId}
+        DELETE FROM crm_opportunity_stag_activities
+        WHERE crm_pipeline_setting_id = #{pipelineId}
+        AND crm_opportunity_stag_id = #{stageId}
     </delete>
 
     <select id="getStages" resultMap="PipelineSettingStageResponse">
@@ -121,16 +128,20 @@
             cpss.percent AS percent,
             cpss.ordering AS ordering,
             cpss.is_skippable AS skippable
-        FROM crm_pipeline_setting_stags AS cpss
+            FROM crm_pipeline_setting_stags AS cpss
         INNER JOIN crm_opportunity_stags AS cos ON cos.id = cpss.crm_opportunity_stag_id
         WHERE cpss.crm_pipeline_setting_id = #{pipelineId}
         ORDER BY cpss.ordering ASC
     </select>
 
     <select id="getStageActivityIds" resultType="java.lang.Long">
-        SELECT crm_opportunity_activity_id
-        FROM crm_opportunity_stag_activities
-        WHERE crm_opportunity_stag_id = #{stageId}
+        SELECT coas.crm_opportunity_activity_id
+        FROM crm_opportunity_stag_activities AS coas
+        INNER JOIN crm_opportunity_activities AS coa ON coa.id = coas.crm_opportunity_activity_id
+        WHERE coas.crm_pipeline_setting_id = #{pipelineId}
+        AND coas.crm_opportunity_stag_id = #{stageId}
+        AND coa.is_active = 1
+        GROUP BY coas.crm_opportunity_activity_id
     </select>
 
 </mapper>

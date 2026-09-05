@@ -23,6 +23,9 @@ public class LeadRequest {
     @ApiModelProperty(position = 5)
     private String nameKh;
 
+    @ApiModelProperty(position = 4)
+    private Long sourceId;
+
     @ApiModelProperty(position = 6)
     private String lats;
 

@@ -15,7 +15,7 @@
     </sql>
 
     <sql id="BASE_FROM">
-        FROM crm_opportunity_activities AS coa
+            FROM crm_opportunity_activities AS coa
         LEFT JOIN users AS creator ON creator.id = coa.created_by
         LEFT JOIN users AS modifier ON modifier.id = coa.modified_by
     </sql>
@@ -34,7 +34,7 @@
         ORDER BY
         <choose>
             <when test="filter.orderBy != null">${filter.orderBy}</when>
-            <otherwise>coa.name ASC</otherwise>
+            <otherwise>coa.id DESC</otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
@@ -54,12 +54,21 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="activity.id">
-        INSERT INTO crm_opportunity_activities(name, is_active)
-        VALUES (#{activity.name}, #{activity.isActive})
+        INSERT INTO crm_opportunity_activities (
+            name,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{activity.name},
+            NOW(),
+            #{activity.createdBy},
+            #{activity.isActive}
+        )
     </insert>
 
     <update id="update">
-        UPDATE crm_opportunity_activities SET name = #{activity.name}
+        UPDATE crm_opportunity_activities SET name = #{activity.name}, modified = NOW(), modified_by = #{activity.modifiedBy}
         WHERE id = #{activity.id} AND is_active = 1
     </update>
 
@@ -74,7 +83,9 @@
         <if test="id != null">AND id != #{id}</if>
     </select>
 
-    <insert id="insertEmployeeGroup">INSERT INTO crm_opportunity_activity_egroups(crm_opportunity_activity_id, egroup_id) VALUES (#{activityId}, #{employeeGroupId})</insert>
+    <insert id="insertEmployeeGroup">
+        INSERT INTO crm_opportunity_activity_egroups(crm_opportunity_activity_id, egroup_id) VALUES (#{activityId}, #{employeeGroupId})
+    </insert>
     <insert id="insertStage">INSERT INTO crm_opportunity_stag_activities(crm_opportunity_activity_id, crm_opportunity_stag_id) VALUES (#{activityId}, #{stageId})</insert>
     <insert id="insertTask">INSERT INTO crm_opportunity_tasks(crm_opportunity_activity_id, name, created, created_by, is_active) VALUES (#{activityId}, #{name}, NOW(), #{userId}, 1)</insert>
     <delete id="deleteEmployeeGroup">DELETE FROM crm_opportunity_activity_egroups WHERE crm_opportunity_activity_id = #{activityId}</delete>

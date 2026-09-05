@@ -21,6 +21,10 @@ public class Employee extends BaseModel implements Serializable {
     @ApiModelProperty(position = 2)
     private Long userHrId;
 
+    @ApiModelProperty(position = 2)
+    private List<Long> employeeGroupId;
+
+
     @ApiModelProperty(position = 3)
     private String photo;
 

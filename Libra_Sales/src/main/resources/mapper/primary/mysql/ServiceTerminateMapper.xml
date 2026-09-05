@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.ServiceTerminateMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        services_terminate_reduces.id AS id,
+        customers.id AS customerId,
+        customers.name AS customerName,
+     services.id AS serviceId,
+        services_terminate_reduces.type AS type,
+         CASE
+            WHEN services_terminate_reduces.type = 1 THEN 'Reduce'
+            WHEN services_terminate_reduces.type = 2 THEN 'Terminate'
+        ELSE ''
+        END AS typeName,
+        services_terminate_reduces.date AS date,
+        services_terminate_reduce_details.status AS status,
+        services_terminate_reduces.reasons AS reason,
+        services_terminate_reduces.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        services_terminate_reduces.modified AS modified,
+        IF(EXISTS(
+            SELECT 1 FROM customer_history_print_tracking chpt
+            WHERE chpt.reference_id = services_terminate_reduces.id AND chpt.type IN(3,4)
+        ), 'Ready', 'Not yet') AS printStatus,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+        </sql>
+
+    <sql id="BASE_FROM">
+        FROM services_terminate_reduces
+        LEFT JOIN services_terminate_reduce_details
+            ON services_terminate_reduce_details.services_terminate_id = services_terminate_reduces.id
+        INNER JOIN customers
+            ON customers.id = services_terminate_reduces.customer_id
+        INNER JOIN services
+            ON services.id = services_terminate_reduce_details.service_id
+        LEFT JOIN users AS creator ON services_terminate_reduces.created_by = creator.id
+        LEFT JOIN users AS modifier ON services_terminate_reduces.modified_by = modifier.id
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE services_terminate_reduces.is_active = 1
+        AND services_terminate_reduce_details.is_active = 1
+
+        <if test="filter.type != null">
+            AND services_terminate_reduces.type = #{filter.type}
+        </if>
+
+        <if test="filter.dateFrom != null">
+            AND services_terminate_reduces.created >= #{filter.dateFrom}
+        </if>
+
+        <if test="filter.dateTo != null">
+            AND services_terminate_reduces.created &lt;= #{filter.dateTo}
+        </if>
+
+        <if test="filter.searchText != null and filter.searchText != ''">
+            AND (
+            customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            OR services.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+    <select id="getList" parameterType="com.ut.nlSystemAPi.model.filter.ServiceTerminateFilter" resultMap="ServiceTerminateResponse">
+
+        SELECT
+        <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+
+        GROUP BY services_terminate_reduces.id
+
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null and filter.orderBy != ''">
+                ${filter.orderBy}
+            </when>
+            <otherwise>
+                services_terminate_reduces.id DESC
+            </otherwise>
+        </choose>
+
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+
+    </select>
+
+    <select id="getListCustomerQuotation" parameterType="com.ut.nlSystemAPi.model.filter.ServiceFilter" resultMap="ServiceTerminateDetailResponse">
+        SELECT
+            qs.id AS id,
+            qs.qty AS sku,
+            sections.id AS sectionId,
+            sections.name AS sectionName,
+            services.id AS serviceId,
+            services.name AS serviceName,
+            services.unit_price AS unitPrice,
+            services.description AS description
+        FROM quotations
+                 LEFT JOIN quotation_services qs
+
+                           ON qs.quotation_id = quotations.id
+
+                 LEFT JOIN services
+                           ON services.id = qs.service_id
+                 LEFT JOIN sections
+                           ON sections.id = services.section_id
+
+        WHERE quotations.customer_id = #{customerId}
+          AND services.is_active = 1
+          AND sections.is_active = 1
+          AND qs.id IN (
+            SELECT MAX(qs2.id)
+            FROM quotation_services qs2
+            GROUP BY qs2.service_id
+        )
+        GROUP BY qs.id
+        ORDER BY qs.id DESC;
+
+    </select>
+
+
+
+    <select id="getQuotationIdByCustomer" resultType="java.lang.Long">
+        SELECT
+            id FROM quotations
+        WHERE customer_id = #{customerId}
+        ORDER BY id DESC LIMIT 1
+
+    </select>
+
+    <select id="getReductionsByCustomer" resultType="com.ut.nlSystemAPi.model.response.serviceTerminateResponse.ServiceTerminateDetailResponse">
+        SELECT
+            strd.service_id AS serviceId,
+            SUM(strd.sku) AS sku
+        FROM services_terminate_reduces str
+        JOIN services_terminate_reduce_details strd ON str.id = strd.services_terminate_id
+        WHERE str.customer_id = #{customerId}
+          AND str.is_active = 1 AND strd.is_active = 1 AND strd.status = 1
+        GROUP BY strd.service_id
+    </select>
+
+    <select id="countList" parameterType="com.ut.nlSystemAPi.model.filter.ServiceFilter" resultType="java.lang.Long">
+        SELECT COUNT(services.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" parameterType="java.lang.Long" resultMap="ServiceTerminateResponse">
+        SELECT
+            <include refid="BASE_COLUMN_LIST"/>
+            <include refid="BASE_FROM"/>
+        WHERE services.is_active = 1
+        AND services_terminate_reduces.id = #{id}
+        GROUP BY services_terminate_reduces.id
+
+    </select>
+
+
+    <select id="getServiceTerminate" parameterType="java.lang.Long" resultMap="ServiceTerminateDetailResponse">
+        SELECT
+            services_terminate_reduce_details.id AS id,
+            services_terminate_reduce_details.sku AS sku,
+            services.id AS serviceId,
+            services.name AS serviceName,
+            services.unit_price AS unitPrice,
+            services.description AS description,
+            sections.id AS sectionId,
+            sections.name AS sectionName,
+            services_terminate_reduce_details.status AS status
+             FROM services_terminate_reduce_details
+             LEFT JOIN services ON services.id = services_terminate_reduce_details.service_id
+             LEFT JOIN sections ON sections.id = services.section_id
+        WHERE services_terminate_reduce_details.is_active = 1 AND services_terminate_reduce_details.status = 1 AND services_terminate_reduce_details.service_id IN (#{serviceId})
+        AND services_terminate_reduce_details.services_terminate_id = #{serviceTerminateId}
+    </select>
+
+
+    <select id="getServiceIdByServiceTerminate" resultType="java.lang.Long">
+        SELECT service_id FROM  services_terminate_reduce_details
+        WHERE services_terminate_id = #{id} AND is_active = 1;
+
+    </select>
+
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM services
+        WHERE is_active = 1 AND name = #{name}
+        <if test="id != null"> AND id != #{id} </if>
+    </select>
+
+    <insert id="insert" parameterType="com.ut.nlSystemAPi.model.entity.ServiceTerminate.ServiceTerminate" useGeneratedKeys="true" keyProperty="service.id">
+        INSERT INTO services_terminate_reduces (
+            `company_id`,
+            customer_id,
+            type,
+            date,
+            reasons,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{service.companyId},
+            #{service.customerId},
+            #{service.type},
+            #{service.date},
+            #{service.reason},
+            NOW(),
+            #{service.createdBy},
+            #{service.isActive}
+        )
+    </insert>
+
+
+    <insert id="insertServiceTerminateDetail">
+        INSERT INTO services_terminate_reduce_details (
+            `services_terminate_id`,
+            service_id,
+            sku,
+            status,
+            created,
+            is_active
+        ) VALUES (
+                     #{serviceShiftDetail.id},
+                     #{serviceShiftDetail.serviceId},
+                      #{serviceShiftDetail.sku},
+                      #{serviceShiftDetail.status},
+                      NOW(),
+                       1
+                 )
+    </insert>
+
+    <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.ServiceTerminate.ServiceTerminate">
+        UPDATE services_terminate_reduces
+        SET
+            company_id = #{service.companyId},
+            customer_id = #{service.customerId},
+            type = #{service.type},
+            date = #{service.date},
+            reasons = #{service.reason},
+            modified = NOW(),
+            modified_by = #{service.modifiedBy},
+            is_active = #{service.isActive}
+        WHERE id = #{service.id};
+    </update>
+
+    <update id="delete" parameterType="java.lang.Long">
+        UPDATE services_terminate_reduces SET
+            is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id} AND is_active = 1
+    </update>
+
+
+    <update id="deleteServiceTerminate" parameterType="java.lang.Long">
+        UPDATE services_terminate_reduce_details SET
+                            is_active = 2
+        WHERE services_terminate_id = #{serviceId} AND is_active = 1
+    </update>
+
+</mapper>

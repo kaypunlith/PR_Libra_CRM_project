@@ -26,8 +26,6 @@ public interface OrganizationService {
 
     ResponseMessage<BaseResult> delete(Long id, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
-    ResponseMessage<BaseResult> convertToFreedom(Long id, HttpServletRequest httpServletRequest) throws UnknownHostException;
-
     ResponseMessage<BaseResult> addActivityCard(OrganizationActivityCardRequest request, BindingResult bindingResult, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListActivityCard(OrganizationActivityCardFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;

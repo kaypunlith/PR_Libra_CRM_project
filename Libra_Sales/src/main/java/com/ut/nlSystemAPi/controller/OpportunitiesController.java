@@ -5,6 +5,7 @@ import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
 import com.ut.nlSystemAPi.model.base.BaseResult;
 import com.ut.nlSystemAPi.model.base.ResponseMessage;
 import com.ut.nlSystemAPi.model.filter.OpportunitiesFilter;
+import com.ut.nlSystemAPi.model.request.Opportunities.OpportunityAddMoreRequest;
 import com.ut.nlSystemAPi.model.request.Opportunities.OpportunityRequest;
 import com.ut.nlSystemAPi.model.request.Opportunities.OpportunityUpdateRequest;
 import com.ut.nlSystemAPi.service.OpportunitiesService;
@@ -63,6 +64,24 @@ public class OpportunitiesController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return opportunitiesService.update(request, bindingResult, httpServletRequest);
+    }
+
+    @PostMapping(value = "/add-more/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ApiOperation(value = "Save opportunity stage activity, task, description, and stage action", notes = "action: SAVE, NEXT, BACK, SKIP", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> addMore(@PathVariable("id") Long id, @RequestBody OpportunityAddMoreRequest request, BindingResult bindingResult, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return opportunitiesService.addMore(id, request, bindingResult, httpServletRequest);
+    }
+
+    @PostMapping("/list-log/{id}")
+    @ApiOperation(value = "List opportunity add more log by opportunity id", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listLog(@PathVariable("id") Long id, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return opportunitiesService.getListLog(id, httpServletRequest);
     }
 
     @PostMapping("/delete/{id}")

@@ -38,6 +38,9 @@ public class User extends BaseModel implements Serializable {
   private String sex;
 
   @ApiModelProperty(position = 5)
+  private Long employeeId;
+
+  @ApiModelProperty(position = 5)
   private String dob;
 
   @ApiModelProperty(position = 5)

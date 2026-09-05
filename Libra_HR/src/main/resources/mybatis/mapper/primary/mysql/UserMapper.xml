@@ -103,7 +103,8 @@
     created_by,
     modified,
     modified_by,
-    is_active
+    is_active,
+    employee_id
     ) VALUES (
     <if test="user.username != null">#{user.username},</if>
     <if test="user.password != null">#{user.password},</if>
@@ -125,12 +126,9 @@
     #{user.createdBy},
     NOW(),
     #{user.createdBy},
-    1
+    1,
+    #{user.employeeId}
     );
-
-    UPDATE employees SET
-      user_id = LAST_INSERT_ID()
-    WHERE id = #{user.applyEmployees};
   </insert>
 
   <insert id="insertUserGroup">
@@ -153,6 +151,10 @@
     <if test="user.fullName != null">full_name = #{user.fullName},</if>
     <if test="user.filename != null">filename = #{user.filename},</if>
     <if test="user.photo != null">photo = #{user.photo},</if>
+    <if test="user.sex != null">sex = #{user.sex},</if>
+    <if test="user.dob != null">dob = #{user.dob},</if>
+    <if test="user.address != null">address = #{user.address},</if>
+    <if test="user.telephone != null">telephone = #{user.telephone},</if>
     <if test="user.phoneVerifyToken != null">phone_verify_token = #{user.phoneVerifyToken},</if>
     <if test="user.phoneVerifyTokenExpiredDate != null">phone_verify_token_expired_date = #{user.phoneVerifyTokenExpiredDate},</if>
     <if test="user.phoneVerifyCode != null">phone_verify_code = #{user.phoneVerifyCode},</if>
@@ -163,7 +165,7 @@
     <if test="user.phoneResetPasswordCodeExpiredDate != null">phone_reset_password_code_expired_date = #{user.phoneResetPasswordCodeExpiredDate},</if>
     <if test="user.phoneNewPasswordToken != null">phone_new_password_token = #{user.phoneNewPasswordToken},</if>
     <if test="user.phoneNewPasswordTokenExpiredDate != null">phone_new_password_token_expired_date = #{user.phoneNewPasswordTokenExpiredDate},</if>
-    <if test="user.isActive != null">is_active = #{user.isActive},</if>
+   is_active = 1,
     modified = NOW(),
     modified_by = #{user.modifiedBy}
     WHERE id = #{user.id}
@@ -174,6 +176,10 @@
     <if test="user.fullName != null">full_name = #{user.fullName},</if>
     <if test="user.email != null">email = #{user.email},</if>
     <if test="user.photo != null">photo = #{user.photo},</if>
+    <if test="user.sex != null">sex = #{user.sex},</if>
+    <if test="user.dob != null">dob = #{user.dob},</if>
+    <if test="user.address != null">address = #{user.address},</if>
+    <if test="user.telephone != null">telephone = #{user.telephone},</if>
     <if test="user.isActive != null">is_active = #{user.isActive},</if>
     modified = NOW(),
     modified_by = #{user.modifiedBy}

@@ -3,11 +3,11 @@
 <mapper namespace="com.ut.nlSystemAPi.mapper.primary.DropdownMapper">
 
 <select id="getGroupDropdown" parameterType="com.ut.nlSystemAPi.model.filter.DropdownFilter" resultMap="DropdownResponse">
-    SELECT
-    id AS id,
-    name AS name
-    FROM egroups
-    WHERE is_active = 1
+      SELECT
+      id AS id,
+      name AS name
+      FROM egroups
+      WHERE is_active = 1
     <if test="filter.searchText != null">
       AND name LIKE CONCAT("%", #{filter.searchText}, "%")
     </if>

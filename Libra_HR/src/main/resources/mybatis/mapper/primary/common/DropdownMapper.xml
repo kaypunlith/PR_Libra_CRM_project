@@ -3,10 +3,12 @@
 <mapper namespace="com.ut.nlSystemAPi.mapper.primary.DropdownMapper">
 
   <resultMap id="DropdownResponse" type="com.ut.nlSystemAPi.model.response.DropdownResponse">
-    <result column="id" property="id"/>
-    <result column="name" property="name"/>
-    <result column="code" property="code"/>
-    <result column="photo" property="photo"/>
+    <id property="id" column="id"/>
+    <result property="name" column="name"/>
+    <result property="contactId" column="contactId"/>
+    <result property="contactName" column="contactName"/>
+    <result property="code" column="code"/>
+    <result property="photo" column="photo"/>
   </resultMap>
 
 </mapper>

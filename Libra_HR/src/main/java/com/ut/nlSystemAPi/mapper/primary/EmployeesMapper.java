@@ -7,13 +7,7 @@ import com.ut.nlSystemAPi.model.EmployeeMistake;
 import com.ut.nlSystemAPi.model.base.BaseFile;
 import com.ut.nlSystemAPi.model.request.ApplyEmployeeTypesRequest;
 import com.ut.nlSystemAPi.model.request.EmployeeTerminateSessionRequest;
-import com.ut.nlSystemAPi.model.response.EmployeeConnectedDeviceResponse;
-import com.ut.nlSystemAPi.model.response.EmployeeDepartmentHistory;
-import com.ut.nlSystemAPi.model.response.EmployeeSecondWorkshiftResponse;
-import com.ut.nlSystemAPi.model.response.EmployeeDocumentResponse;
-import com.ut.nlSystemAPi.model.response.EmployeePositionHistory;
-import com.ut.nlSystemAPi.model.response.EmployeeWorkshiftResponse;
-import com.ut.nlSystemAPi.model.response.EmployeesResponse;
+import com.ut.nlSystemAPi.model.response.*;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
@@ -56,6 +50,8 @@ public interface EmployeesMapper {
 
     BaseFile getProfilePhoto(@Param("id") Long id);
 
+    List<EmployeeGroupResponse> getEmployeeGroup(@Param("employeeId") Long employeeId);
+
     Boolean deleteEmpDocuments(@Param("empId") Long empId);
 
     Boolean insertEmpDocument(@Param("empId") Long empId, @Param("fileName") String fileName, @Param("fileUrl") String fileUrl);
@@ -72,7 +68,8 @@ public interface EmployeesMapper {
 
     Boolean updateQrCode(@Param("urlQRCode") String urlQRCode, @Param("employeeId") Long employeeId);
 
-    Boolean insertEmployeeEgroup(@Param("departmentId") Long departmentId, @Param("employeeId") Long employeeId);
+    Boolean insertEmployeeEgroup(@Param("groupId") Long groupId, @Param("employeeId") Long employeeId);
+
 
     Boolean deleteEmployeeEgroup(@Param("employeeId") Long employeeId);
 

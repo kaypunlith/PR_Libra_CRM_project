@@ -1,13 +1,14 @@
 package com.ut.nlSystemAPi.model.response.User;
 
+import java.io.Serializable;
+import java.util.List;
+
 import com.ut.nlSystemAPi.model.ModuleType;
 import com.ut.nlSystemAPi.model.Users.UserGroupList;
 import com.ut.nlSystemAPi.model.response.Dropdown.WarehouseDropDownResponse;
+
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
-
-import java.io.Serializable;
-import java.util.List;
 
 @Data
 public class UserResponse implements Serializable {
@@ -98,6 +99,15 @@ public class UserResponse implements Serializable {
 
   @ApiModelProperty(position = 16)
   private Double rateToSell;
+
+  @ApiModelProperty(position = 16)
+  private String email;
+
+  @ApiModelProperty(position = 16)
+  private String tel;
+
+  @ApiModelProperty(position = 16)
+  private String positionName;
 
   @ApiModelProperty(position = 19)
   private List<ModuleType> moduleTypeList;

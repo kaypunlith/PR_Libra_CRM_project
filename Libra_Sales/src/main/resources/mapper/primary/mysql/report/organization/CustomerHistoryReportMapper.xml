@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.OrganizationReportMapper">
+    <select id="getListCustomerHistory" resultType="com.ut.nlSystemAPi.model.response.Organization.CustomerHistoryReportResponse">
+        SELECT * FROM (
+            <!-- Close Sales -->
+        SELECT
+        c.id AS customerId,
+        c.name AS customerName,
+        'Close Sales' AS status,
+        (SELECT SUM(qty) FROM quotation_services WHERE quotation_id = q.id) AS qty,
+        IF(EXISTS(
+        SELECT 1 FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = q.id AND chpt.type = 1
+        ), 'Memo done', 'Not yet') AS memoStatus,
+        q.created AS date,
+        GROUP_CONCAT(DISTINCT s.name SEPARATOR ',') AS serviceNames,
+        q.id AS quotationId,
+        NULL AS terminateId,
+        IFNULL((SELECT chpt.print_count FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = q.id AND chpt.type = 1 LIMIT 1), 0) AS printCount
+        FROM quotations q
+        INNER JOIN customers c ON c.id = q.customer_id
+        LEFT JOIN quotation_services qs ON qs.quotation_id = q.id
+        LEFT JOIN quotation_logs ql ON ql.quotation_id = q.id
+        LEFT JOIN services s ON FIND_IN_SET(s.id, ql.service_id) &gt; 0
+        WHERE (q.edited IS NULL OR q.edited = 0)
+        <if test="filter.customerId != null">
+            AND q.customer_id = #{filter.customerId}
+        </if>
+    <if test="filter.fromDate != null and filter.toDate != null">
+            AND q.created BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+    <if test="filter.type != null and filter.type != null">
+            AND s.section_id = #{filter.type}
+        </if>
+        GROUP BY q.id
+
+        UNION ALL
+
+            <!-- Reduce -->
+        SELECT
+        c.id AS customerId,
+        c.name AS customerName,
+        'Reduce' AS status,
+        SUM(strd.sku) AS qty,
+        IF(EXISTS(
+        SELECT 1 FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = str.id AND chpt.type = 3
+        ), 'Memo done', 'Not yet') AS memoStatus,
+        str.created AS date,
+        GROUP_CONCAT(s.name SEPARATOR ',') AS serviceNames,
+        NULL AS quotationId,
+        str.id AS terminateId,
+        IFNULL((SELECT chpt.print_count FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = str.id AND chpt.type = 3 LIMIT 1), 0) AS printCount
+        FROM services_terminate_reduces str
+        INNER JOIN customers c ON c.id = str.customer_id
+        LEFT JOIN services_terminate_reduce_details strd ON strd.services_terminate_id = str.id
+        LEFT JOIN services s ON s.id = strd.service_id
+        WHERE str.is_active = 1 AND  strd.is_active = 1 AND str.type = 1 AND strd.status = 1
+        <if test="filter.customerId != null">
+            AND str.customer_id = #{filter.customerId}
+        </if>
+    <if test="filter.fromDate != null and filter.toDate != null">
+            AND str.created BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+    <if test="filter.type != null and filter.type != null">
+            AND s.section_id = #{filter.type}
+        </if>
+        GROUP BY str.id
+
+        UNION ALL
+
+            <!-- Terminate -->
+        SELECT
+        c.id AS customerId,
+        c.name AS customerName,
+        'Terminate' AS status,
+        SUM(strd.sku) AS qty,
+        IF(EXISTS(
+        SELECT 1 FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = str.id AND chpt.type = 4
+        ), 'Memo done', 'Not yet') AS memoStatus,
+        str.created AS date,
+        GROUP_CONCAT(s.name SEPARATOR ',') AS serviceNames,
+        NULL AS quotationId,
+        str.id AS terminateId,
+        IFNULL((SELECT chpt.print_count FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = str.id AND chpt.type = 4 LIMIT 1), 0) AS printCount
+        FROM services_terminate_reduces str
+        INNER JOIN customers c ON c.id = str.customer_id
+        LEFT JOIN services_terminate_reduce_details strd ON strd.services_terminate_id = str.id
+        LEFT JOIN services s ON s.id = strd.service_id
+        WHERE str.is_active = 1 AND str.type = 2 AND strd.is_active = 1 AND strd.status = 1
+        <if test="filter.customerId != null">
+            AND str.customer_id = #{filter.customerId}
+        </if>
+    <if test="filter.fromDate != null and filter.toDate != null">
+            AND str.created BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+    <if test="filter.type != null and filter.type != null">
+            AND s.section_id = #{filter.type}
+        </if>
+        GROUP BY str.id
+
+        UNION ALL
+
+            <!-- Increase -->
+        SELECT
+        c.id AS customerId,
+        c.name AS customerName,
+        'Increase' AS status,
+        (IFNULL((SELECT SUM(qty) FROM quotation_services WHERE quotation_id = q.id AND service_id = s.id), 0) - IFNULL((
+            SELECT SUM(qs2.qty)
+            FROM quotations q2
+            INNER JOIN quotation_services qs2 ON qs2.quotation_id = q2.id
+            WHERE q2.customer_id = q.customer_id AND qs2.service_id = s.id AND (q2.edited IS NULL OR q2.edited = 0)
+        ), 0)) AS qty,
+        IF(EXISTS(
+        SELECT 1 FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = q.id AND chpt.type = 2
+        ), 'Ready click', 'Not yet') AS memoStatus,
+        q.edited AS date,
+        GROUP_CONCAT(DISTINCT s.name SEPARATOR ',') AS serviceNames,
+        q.id AS quotationId,
+        NULL AS terminateId,
+        IFNULL((SELECT chpt.print_count FROM customer_history_print_tracking chpt
+        WHERE chpt.reference_id = q.id AND chpt.type = 2 LIMIT 1), 0) AS printCount
+        FROM quotations q
+--         INNER JOIN (SELECT customer_id, MAX(id) AS max_id FROM quotations WHERE edited IS NOT NULL GROUP BY customer_id) latest_inc ON latest_inc.max_id = q.id
+        INNER JOIN customers c ON c.id = q.customer_id
+        LEFT JOIN quotation_services qs ON qs.quotation_id = q.id
+        LEFT JOIN quotation_logs ql ON ql.quotation_id = q.id
+        LEFT JOIN services s ON FIND_IN_SET(s.id, ql.service_id) &gt; 0
+        WHERE q.edited IS NOT NULL
+        <if test="filter.customerId != null">
+            AND q.customer_id = #{filter.customerId}
+        </if>
+    <if test="filter.fromDate != null and filter.toDate != null">
+            AND q.edited BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+    <if test="filter.type != null and filter.type != null">
+            AND s.section_id = #{filter.type}
+        </if>
+        GROUP BY q.id
+
+        ) as t
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+</select>
+<select id="countListCustomerHistory" resultType="java.lang.Long">
+        SELECT SUM(cnt) FROM (
+        SELECT COUNT(DISTINCT q.id) AS cnt
+        FROM quotations q
+        INNER JOIN customers c ON c.id = q.customer_id
+        WHERE (q.edited IS NULL OR q.edited = 0)
+        <if test="filter.customerId != null">
+            AND q.customer_id = #{filter.customerId}
+        </if>
+<if test="filter.fromDate != null and filter.toDate != null">
+            AND q.created BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+
+        UNION ALL
+
+        SELECT COUNT(str.id) AS cnt
+        FROM services_terminate_reduces str
+        INNER JOIN customers c ON c.id = str.customer_id
+        WHERE str.is_active = 1 AND str.type = 1
+        <if test="filter.customerId != null">
+            AND str.customer_id = #{filter.customerId}
+        </if>
+<if test="filter.fromDate != null and filter.toDate != null">
+            AND str.created BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+
+        UNION ALL
+
+        SELECT COUNT(str.id) AS cnt
+        FROM services_terminate_reduces str
+        INNER JOIN customers c ON c.id = str.customer_id
+        WHERE str.is_active = 1 AND str.type = 2
+        <if test="filter.customerId != null">
+            AND str.customer_id = #{filter.customerId}
+        </if>
+<if test="filter.fromDate != null and filter.toDate != null">
+            AND str.created BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+
+        UNION ALL
+
+        <!-- Count for Increase -->
+        SELECT COUNT(DISTINCT q.id) AS cnt
+        FROM quotations q
+        INNER JOIN (
+        SELECT customer_id, MAX(id) AS max_id
+        FROM quotations
+        WHERE edited IS NOT NULL
+        GROUP BY customer_id
+        ) latest_inc ON latest_inc.max_id = q.id
+        INNER JOIN customers c ON c.id = q.customer_id
+        WHERE q.edited IS NOT NULL
+        <if test="filter.customerId != null">
+            AND q.customer_id = #{filter.customerId}
+        </if>
+<if test="filter.fromDate != null and filter.toDate != null">
+            AND q.edited BETWEEN #{filter.fromDate} AND #{filter.toDate}
+        </if>
+        ) t
+    </select>
+</mapper>

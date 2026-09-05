@@ -3,6 +3,8 @@ package com.ut.nlSystemAPi.model.request.Service;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ServiceRequest {
 
@@ -17,6 +19,10 @@ public class ServiceRequest {
 
     @ApiModelProperty(position = 5)
     private Long sectionId;
+
+    @ApiModelProperty(position = 5)
+    private List<Long> serviceShiftId;
+
 
     @ApiModelProperty(position = 6)
     private Long uomId;

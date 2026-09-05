@@ -88,9 +88,13 @@
     (SELECT exchange_rates.rate_to_sell
     FROM exchange_rates
     WHERE exchange_rates.is_active = 1 AND exchange_rates.currency_center_id = 2
-    ORDER BY id DESC LIMIT 1) AS rateToSell
+    ORDER BY id DESC LIMIT 1) AS rateToSell,
+    employees.email as email,
+    employees.telephone AS tel,
+    (SELECT name FROM positions WHERE id =employees.position_id ) AS positionName
     FROM users
-    WHERE is_active = 1 AND id = #{userId}
+    LEFT JOIN employees ON employees.user_id = users.id AND employees.is_active = 1
+    WHERE users.is_active = 1 AND users.id = #{userId}
   </select>
 
   <select id="getOneByGroup" parameterType="java.lang.Long" resultMap="User">

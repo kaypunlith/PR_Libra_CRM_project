@@ -68,7 +68,7 @@ public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
       .failureHandler(oAuth2AuthenticationFailureHandler);
 
     // Role and permission
-    http.authorizeRequests().antMatchers("/api-docs/**", "/dropdown/list-freedom-customer", "/dropdown/list-freedom-warehouse").permitAll();
+    http.authorizeRequests().antMatchers("/api-docs/**").permitAll();
 
     // Exception handling
     http.exceptionHandling().authenticationEntryPoint(new CustomAuthenticationEntryPoint());

@@ -1,0 +1,665 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportTicketMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        cs.id AS id,
+        cs.code AS code,
+        cs.case_title AS caseTitle,
+        cs.summary AS summary,
+        csd.crm_support_pipeline_setting_id AS pipelineId,
+        csps.description AS pipelineName,
+        csd.crm_support_stag_id AS stageId,
+        css.name AS stageName,
+        csd.probability AS probability,
+        csps.type_id AS typeId,
+        CASE csps.type_id WHEN 1 THEN 'Internal' WHEN 2 THEN 'External' END AS typeName,
+        cs.customer_id AS organizationId,
+        customers.name AS organizationName,
+        cs.priority_id AS priorityId,
+        hr_todo_list_priorities.name AS priorityName,
+        cs.assigned_to AS assignedTo,
+        CONCAT(assigned.first_name, ' ', assigned.last_name) AS assignedToName,
+        cs.customer_contact_id AS contactId,
+        customer_contacts.contact_name AS contactName,
+                                                                            (
+            SELECT id
+            FROM egroups
+            WHERE egroups.id IN (
+                SELECT egroup_id
+                FROM crm_support_egroups
+                WHERE crm_support_id = cs.id
+            )
+        ) AS employeeGroupId,
+        (
+            SELECT GROUP_CONCAT(egroups.name SEPARATOR ', ')
+            FROM egroups
+            WHERE egroups.id IN (
+                SELECT egroup_id
+                FROM crm_support_egroups
+                WHERE crm_support_id = cs.id
+            )
+        ) AS employeeGroupName,
+        cs.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        cs.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_supports AS cs
+        LEFT JOIN crm_support_details AS csd ON csd.crm_support_id = cs.id AND csd.is_active = 1 AND csd.is_convert = 0
+        LEFT JOIN crm_support_pipeline_settings AS csps ON csps.id = csd.crm_support_pipeline_setting_id
+        LEFT JOIN crm_support_stags AS css ON css.id = csd.crm_support_stag_id
+        LEFT JOIN customers ON customers.id = cs.customer_id
+        LEFT JOIN customer_contacts ON customer_contacts.id = cs.customer_contact_id
+        LEFT JOIN hr_todo_list_priorities ON hr_todo_list_priorities.id = cs.priority_id
+        LEFT JOIN users AS assigned ON assigned.id = cs.assigned_to
+        LEFT JOIN users AS creator ON creator.id = cs.created_by
+        LEFT JOIN users AS modifier ON modifier.id = cs.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE cs.is_active = #{filter.status}
+        AND csd.crm_support_pipeline_setting_id IN (
+            SELECT crm_support_pipeline_setting_id
+            FROM crm_support_pipeline_setting_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id
+                FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        <if test="filter.pipelineId != null">
+            AND csd.crm_support_pipeline_setting_id = #{filter.pipelineId}
+        </if>
+        <if test="filter.stageId != null">
+            AND csd.crm_support_stag_id = #{filter.stageId}
+        </if>
+        <if test="filter.assignedTo != null">
+            AND cs.assigned_to = #{filter.assignedTo}
+        </if>
+        <if test="filter.createdBy != null">
+            AND cs.created_by = #{filter.createdBy}
+        </if>
+        <if test="filter.organizationId != null">
+            AND cs.customer_id = #{filter.organizationId}
+        </if>
+        <if test="filter.dateFrom != null">
+            AND DATE(cs.created) &gt;= #{filter.dateFrom}
+        </if>
+        <if test="filter.dateTo != null">
+            AND DATE(cs.created) &lt;= #{filter.dateTo}
+        </if>
+        <if test="filter.searchText != null">
+            AND (
+                cs.case_title LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR cs.code LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR customers.name LIKE CONCAT('%', #{filter.searchText}, '%')
+                OR css.name LIKE CONCAT('%', #{filter.searchText}, '%')
+            )
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="SupportTicketResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        GROUP BY cs.id
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>csd.crm_support_pipeline_setting_id ASC, csd.crm_support_stag_id ASC, cs.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT cs.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="SupportTicketResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE cs.is_active IN (1, 2)
+        AND cs.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="support.id">
+        INSERT INTO crm_supports (
+            case_title, summary,
+            priority_id,
+            customer_id,
+            customer_contact_id,
+            assigned_to,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{support.caseTitle},
+            #{support.summary},
+            #{support.priorityId},
+            #{support.customerId},
+            #{support.customerContactId},
+            #{support.assignedTo},
+             NOW(),
+             #{support.createdBy},
+             #{support.isActive}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE crm_supports
+        SET case_title = #{support.caseTitle},
+            summary = #{support.summary},
+            priority_id = #{support.priorityId},
+            customer_id = #{support.customerId},
+            customer_contact_id = #{support.customerContactId},
+            assigned_to = #{support.assignedTo},
+            modified = NOW(),
+            modified_by = #{support.modifiedBy}
+        WHERE id = #{support.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_supports
+        SET is_active = 2,
+            modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+    <update id="updateCode">
+        UPDATE crm_supports
+        SET code = #{code}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertDetail" useGeneratedKeys="true" keyProperty="detail.id">
+        INSERT INTO crm_support_details (
+            crm_support_id, crm_support_pipeline_setting_id, crm_support_stag_id,
+            probability, created, created_by, is_active, is_convert
+        ) VALUES (
+            #{detail.supportId}, #{detail.pipelineId}, #{detail.stageId},
+            #{detail.probability}, NOW(), #{detail.createdBy}, #{detail.isActive}, 0
+        )
+    </insert>
+
+    <update id="closeDetail">
+        UPDATE crm_support_details
+        SET is_active = 2
+        WHERE crm_support_id = #{supportId}
+        AND crm_support_pipeline_setting_id = #{pipelineId}
+        <if test="stageId != null">
+            AND crm_support_stag_id = #{stageId}
+        </if>
+        AND is_active = 1
+    </update>
+
+    <select id="getStagePercent" resultType="java.lang.Double">
+        SELECT percent
+        FROM crm_support_pipeline_setting_stags
+        WHERE crm_support_stag_id = #{stageId}
+        ORDER BY ordering ASC
+        LIMIT 1
+    </select>
+
+    <insert id="insertEmployeeGroup">
+        INSERT INTO crm_support_egroups(crm_support_id, egroup_id)
+        VALUES (#{supportId}, #{employeeGroupId})
+    </insert>
+
+    <delete id="deleteEmployeeGroup">
+        DELETE FROM crm_support_egroups
+        WHERE crm_support_id = #{supportId}
+    </delete>
+
+    <select id="getAddMoreDetail" resultMap="SupportTicketAddMoreDetailResponse">
+        SELECT
+            csd.id AS id,
+            csd.crm_support_pipeline_setting_id AS pipelineId,
+            csd.crm_support_stag_id AS stageId,
+            css.name AS stageName,
+            csd.probability AS probability,
+            cspss.ordering AS ordering,
+            cspss.is_skippable AS skippable,
+            csd.description AS description
+        FROM crm_support_details AS csd
+        INNER JOIN crm_support_pipeline_setting_stags AS cspss ON cspss.crm_support_pipeline_setting_id = csd.crm_support_pipeline_setting_id
+            AND cspss.crm_support_stag_id = csd.crm_support_stag_id
+        LEFT JOIN crm_support_stags AS css ON css.id = csd.crm_support_stag_id
+        WHERE csd.crm_support_id = #{supportId}
+        AND csd.is_active = 1
+        AND csd.is_convert = 0
+        ORDER BY csd.id DESC
+        LIMIT 1
+    </select>
+
+    <select id="getStageByOrdering" resultMap="SupportTicketAddMoreStageResponse">
+        SELECT
+            cspss.crm_support_stag_id AS stageId,
+            css.name AS stageName,
+            cspss.percent AS percent,
+            cspss.ordering AS ordering
+        FROM crm_support_pipeline_setting_stags AS cspss
+        LEFT JOIN crm_support_stags AS css ON css.id = cspss.crm_support_stag_id
+        WHERE cspss.crm_support_pipeline_setting_id = #{pipelineId}
+        AND cspss.ordering = #{ordering}
+        LIMIT 1
+    </select>
+
+    <select id="getNextStage" resultMap="SupportTicketAddMoreStageResponse">
+        SELECT
+            nextStage.crm_support_stag_id AS stageId,
+            css.name AS stageName,
+            nextStage.percent AS percent,
+            nextStage.ordering AS ordering
+        FROM crm_support_pipeline_setting_stags AS currentStage
+        INNER JOIN crm_support_pipeline_setting_stags AS nextStage ON nextStage.crm_support_pipeline_setting_id = currentStage.crm_support_pipeline_setting_id
+            AND nextStage.ordering = currentStage.ordering + 1
+        LEFT JOIN crm_support_stags AS css ON css.id = nextStage.crm_support_stag_id
+        WHERE currentStage.crm_support_pipeline_setting_id = #{pipelineId}
+        AND currentStage.crm_support_stag_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <select id="getPreviousStage" resultMap="SupportTicketAddMoreStageResponse">
+        SELECT
+            previousStage.crm_support_stag_id AS stageId,
+            css.name AS stageName,
+            previousStage.percent AS percent,
+            previousStage.ordering AS ordering
+        FROM crm_support_pipeline_setting_stags AS currentStage
+        INNER JOIN crm_support_pipeline_setting_stags AS previousStage ON previousStage.crm_support_pipeline_setting_id = currentStage.crm_support_pipeline_setting_id
+            AND previousStage.ordering = currentStage.ordering - 1
+        LEFT JOIN crm_support_stags AS css ON css.id = previousStage.crm_support_stag_id
+        WHERE currentStage.crm_support_pipeline_setting_id = #{pipelineId}
+        AND currentStage.crm_support_stag_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <select id="getStageInPipeline" resultMap="SupportTicketAddMoreStageResponse">
+        SELECT
+            cspss.crm_support_stag_id AS stageId,
+            css.name AS stageName,
+            cspss.percent AS percent,
+            cspss.ordering AS ordering
+        FROM crm_support_pipeline_setting_stags AS cspss
+        LEFT JOIN crm_support_stags AS css ON css.id = cspss.crm_support_stag_id
+        WHERE cspss.crm_support_pipeline_setting_id = #{pipelineId}
+        AND cspss.crm_support_stag_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <select id="getSkipStages" resultMap="SupportTicketAddMoreStageResponse">
+        SELECT
+            cspss.crm_support_stag_id AS stageId,
+            css.name AS stageName,
+            cspss.percent AS percent,
+            cspss.ordering AS ordering
+        FROM crm_support_pipeline_setting_stags AS cspss
+        INNER JOIN crm_support_stags AS css ON css.id = cspss.crm_support_stag_id
+        WHERE css.is_active = 1
+        AND cspss.crm_support_pipeline_setting_id = #{pipelineId}
+        AND cspss.ordering &gt; #{ordering}
+        AND cspss.crm_support_pipeline_setting_id IN (
+            SELECT crm_support_pipeline_setting_id
+            FROM crm_support_pipeline_setting_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id
+                FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        ORDER BY cspss.ordering ASC
+    </select>
+
+    <select id="getAddMoreActivities" resultMap="SupportTicketAddMoreItemResponse">
+        SELECT
+            csa.id AS id,
+            csa.name AS name,
+            CASE WHEN activeActivity.crm_support_activity_id IS NULL THEN 0 ELSE 1 END AS selected
+        FROM crm_support_activities AS csa
+        LEFT JOIN (
+            SELECT DISTINCT crm_support_activity_id
+            FROM crm_support_activity_details
+            WHERE crm_support_id = #{supportId}
+            AND is_active = 1
+        ) AS activeActivity ON activeActivity.crm_support_activity_id = csa.id
+        WHERE csa.is_active = 1
+        AND csa.id IN (
+            SELECT crm_support_activity_id
+            FROM crm_support_stag_activities
+            WHERE crm_support_pipeline_setting_id = #{pipelineId}
+            AND crm_support_stag_id = #{stageId}
+        )
+        AND csa.id IN (
+            SELECT crm_support_activity_id
+            FROM crm_support_activity_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id
+                FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        ORDER BY csa.id ASC
+    </select>
+
+    <select id="getAddMoreTasks" resultMap="SupportTicketAddMoreItemResponse">
+        SELECT
+            cst.id AS id,
+            cst.name AS name,
+            cst.crm_support_activity_id AS activityId,
+            csa.name AS activityName,
+            CASE WHEN activeTask.crm_support_task_id IS NULL THEN 0 ELSE 1 END AS selected
+        FROM crm_support_tasks AS cst
+        INNER JOIN crm_support_activities AS csa ON csa.id = cst.crm_support_activity_id
+        LEFT JOIN (
+            SELECT DISTINCT crm_support_task_id
+            FROM crm_support_task_details
+            WHERE crm_support_id = #{supportId}
+            AND is_active = 1
+        ) AS activeTask ON activeTask.crm_support_task_id = cst.id
+        WHERE cst.is_active = 1
+        AND csa.id IN (
+            SELECT crm_support_activity_id
+            FROM crm_support_stag_activities
+            WHERE crm_support_pipeline_setting_id = #{pipelineId}
+            AND crm_support_stag_id = #{stageId}
+        )
+        ORDER BY csa.id ASC, cst.crm_support_activity_id ASC
+    </select>
+
+    <select id="getChecklistActivities" resultType="com.ut.nlSystemAPi.model.response.Checklist.ChecklistItemResponse">
+        SELECT
+            csa.id AS id,
+            csa.name AS name,
+            CASE WHEN activeActivity.crm_support_activity_id IS NULL THEN 0 ELSE 1 END AS selected
+        FROM crm_support_activities AS csa
+        LEFT JOIN (
+            SELECT DISTINCT crm_support_activity_id
+            FROM crm_support_activity_details
+            WHERE crm_support_id = #{supportId}
+            AND is_active = 1
+        ) AS activeActivity ON activeActivity.crm_support_activity_id = csa.id
+        WHERE csa.is_active = 1
+        AND csa.id IN (
+            SELECT crm_support_activity_id
+            FROM crm_support_stag_activities
+            WHERE crm_support_pipeline_setting_id = #{pipelineId}
+            AND crm_support_stag_id = #{stageId}
+        )
+        AND csa.id IN (
+            SELECT crm_support_activity_id
+            FROM crm_support_activity_egroups
+            WHERE egroup_id IN (
+                SELECT egroup_id
+                FROM employee_egroups
+                WHERE employee_id IN (SELECT id FROM employees WHERE user_id = #{userId})
+            )
+        )
+        ORDER BY csa.id ASC
+    </select>
+
+    <select id="getChecklistTasks" resultType="com.ut.nlSystemAPi.model.response.Checklist.ChecklistItemResponse">
+        SELECT
+            cst.id AS id,
+            cst.name AS name,
+            cst.crm_support_activity_id AS activityId,
+            csa.name AS activityName,
+            CASE WHEN activeTask.crm_support_task_id IS NULL THEN 0 ELSE 1 END AS selected
+        FROM crm_support_tasks AS cst
+        INNER JOIN crm_support_activities AS csa ON csa.id = cst.crm_support_activity_id
+        LEFT JOIN (
+            SELECT DISTINCT crm_support_task_id
+            FROM crm_support_task_details
+            WHERE crm_support_id = #{supportId}
+            AND is_active = 1
+        ) AS activeTask ON activeTask.crm_support_task_id = cst.id
+        WHERE cst.is_active = 1
+        AND csa.id IN (
+            SELECT crm_support_activity_id
+            FROM crm_support_stag_activities
+            WHERE crm_support_pipeline_setting_id = #{pipelineId}
+            AND crm_support_stag_id = #{stageId}
+        )
+        ORDER BY csa.id ASC, cst.crm_support_activity_id ASC, cst.id ASC
+    </select>
+
+    <select id="getSupportTicketChecklistData" resultType="java.lang.String">
+        SELECT checked_data
+        FROM support_ticket_checklists
+        WHERE module_id = #{supportId}
+        AND stage_id = #{stageId}
+        LIMIT 1
+    </select>
+
+    <update id="updateSupportTicketChecklist">
+        UPDATE support_ticket_checklists
+        SET checked_data = #{checkedData},
+            updated_by = #{userId},
+            updated_at = NOW()
+        WHERE module_id = #{supportId}
+        AND stage_id = #{stageId}
+    </update>
+
+    <insert id="insertSupportTicketChecklist">
+        INSERT INTO support_ticket_checklists (
+            module_id,
+            stage_id,
+            checked_data,
+            updated_by,
+            updated_at
+        ) VALUES (
+            #{supportId},
+            #{stageId},
+            #{checkedData},
+            #{userId},
+            NOW()
+        )
+    </insert>
+
+    <select id="getListLog" resultMap="SupportTicketLogResponse">
+        SELECT
+            logData.id AS id,
+            logData.type AS type,
+            logData.status AS status,
+            logData.statusName AS statusName,
+            CONCAT(IFNULL(logData.createdBy, ''), ': ', logData.statusName) AS title,
+            logData.description AS description,
+            logData.borderColor AS borderColor,
+            logData.created AS created,
+            logData.createdBy AS createdBy
+        FROM (
+            SELECT
+                csl.id AS id,
+                csl.type AS type,
+                csl.status AS status,
+                CASE csl.type
+                    WHEN 1 THEN CASE WHEN csl.status = 1 THEN 'Created New' ELSE 'Update' END
+                    WHEN 2 THEN 'Created Activity New'
+                    WHEN 3 THEN 'Created Task New'
+                    WHEN 4 THEN 'Back Stage'
+                    WHEN 5 THEN 'Skip Stage'
+                    WHEN 6 THEN 'Save Stage'
+                    ELSE ''
+                END AS statusName,
+                csl.description AS description,
+                CASE csl.type
+                    WHEN 1 THEN 'border-left: 3px solid #5c88f7;'
+                    WHEN 2 THEN 'border-left: 3px solid #1df541;'
+                    WHEN 3 THEN 'border-left: 3px solid #f2ee0f;'
+                    WHEN 4 THEN 'border-left: 3px solid #fc0324;'
+                    WHEN 5 THEN 'border-left: 3px solid #ffa203;'
+                    WHEN 6 THEN 'border-left: 3px solid #5c88f7;'
+                    ELSE ''
+                END AS borderColor,
+                DATE_FORMAT(csl.created, '%d/%m/%Y %H:%i:%s') AS created,
+                CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy
+            FROM crm_support_logs AS csl
+            LEFT JOIN users AS creator ON creator.id = csl.created_by
+            WHERE csl.crm_support_id = #{supportId}
+        ) AS logData
+        ORDER BY logData.id DESC
+    </select>
+
+    <select id="getActiveActivityIds" resultType="java.lang.Long">
+        SELECT crm_support_activity_id
+        FROM crm_support_activity_details
+        WHERE crm_support_id = #{supportId}
+        AND is_active = 1
+    </select>
+
+    <select id="getActiveTaskIds" resultType="java.lang.Long">
+        SELECT crm_support_task_id
+        FROM crm_support_task_details
+        WHERE crm_support_id = #{supportId}
+        AND is_active = 1
+    </select>
+
+    <update id="archiveActivityDetails">
+        UPDATE crm_support_activity_details
+        SET is_active = 2
+        WHERE crm_support_id = #{supportId}
+        AND is_active = 1
+    </update>
+
+    <update id="archiveTaskDetails">
+        UPDATE crm_support_task_details
+        SET is_active = 2
+        WHERE crm_support_id = #{supportId}
+        AND is_active = 1
+    </update>
+
+    <insert id="insertActivityDetail">
+        INSERT INTO crm_support_activity_details (
+            crm_support_id,
+            crm_support_stag_id,
+            crm_support_activity_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{supportId},
+            #{stageId},
+            #{activityId},
+            NOW(),
+            #{userId},
+            1
+        )
+    </insert>
+
+    <insert id="insertTaskDetail">
+        INSERT INTO crm_support_task_details (
+            crm_support_id,
+            crm_support_stag_id,
+            crm_support_task_id,
+            created,
+            created_by,
+            is_active
+        ) VALUES (
+            #{supportId},
+            #{stageId},
+            #{taskId},
+            NOW(),
+            #{userId},
+            1
+        )
+    </insert>
+
+    <select id="getActivityName" resultType="java.lang.String">
+        SELECT name
+        FROM crm_support_activities
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="getTaskName" resultType="java.lang.String">
+        SELECT name
+        FROM crm_support_tasks
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <update id="updateDetailDescription">
+        UPDATE crm_support_details
+        SET description = #{description}
+        WHERE id = #{detailId}
+    </update>
+
+    <update id="convertSupportDetails">
+        UPDATE crm_support_details
+        SET description = #{description},
+            is_convert = 1,
+            converted = NOW(),
+            converted_by = #{userId}
+        WHERE crm_support_id = #{supportId}
+    </update>
+
+    <update id="skipSupportDetails">
+        UPDATE crm_support_details
+        SET is_convert = 1,
+            converted = NOW(),
+            converted_by = #{userId},
+            is_skip = 1,
+            skipped = NOW(),
+            skipped_by = #{userId}
+        WHERE crm_support_id = #{supportId}
+    </update>
+
+    <update id="deactivateDetail">
+        UPDATE crm_support_details
+        SET is_active = 0
+        WHERE id = #{detailId}
+    </update>
+
+    <select id="getPreviousConvertedDetailId" resultType="java.lang.Long">
+        SELECT id
+        FROM crm_support_details
+        WHERE crm_support_id = #{supportId}
+        AND crm_support_stag_id = #{stageId}
+        AND is_active = 1
+        AND is_convert = 1
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <update id="reopenDetail">
+        UPDATE crm_support_details
+        SET is_convert = 0
+        WHERE id = #{detailId}
+    </update>
+
+    <insert id="insertLog">
+        INSERT INTO crm_support_logs (
+            crm_support_id,
+            type,
+            status,
+            description,
+            created,
+            created_by
+        ) VALUES (
+            #{supportId},
+            #{type},
+            #{status},
+            #{description},
+            NOW(),
+            #{userId}
+        )
+    </insert>
+
+    <update id="touchSupport">
+        UPDATE crm_supports
+        SET modified = NOW(),
+            modified_by = #{userId}
+        WHERE id = #{supportId}
+        AND is_active = 1
+    </update>
+
+</mapper>

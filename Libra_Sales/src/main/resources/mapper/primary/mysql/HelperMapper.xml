@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.ut.nlSystemAPi.mapper.primary.HelperMapper">
 
@@ -140,7 +140,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.locationId},
     #{stock.warehouseId},
     #{stock.totalQty},
@@ -235,7 +235,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.locationId},
     #{stock.totalQty},
     #{stock.totalOrder}
@@ -277,7 +277,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.locationId},
     NOW(),
     #{stock.totalCycle},
@@ -356,7 +356,7 @@
     #{stock.unitCost},
     NOW(),
     #{stock.lotsNumber},
-    #{stock.expiredDate},
+    COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01'),
     NOW(),
     #{stock.createdBy},
     NOW(),
@@ -379,7 +379,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.totalQty},
     #{stock.totalOrder},
     #{stock.totalPb},
@@ -486,7 +486,7 @@
     #{stock.unitCost},
     NOW(),
     #{stock.lotsNumber},
-    #{stock.expiredDate},
+    COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01'),
     NOW(),
     #{stock.createdBy},
     NOW(),
@@ -529,7 +529,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.locationId},
     #{stock.warehouseId},
     #{stock.totalQty},
@@ -604,7 +604,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.locationId},
     #{stock.totalQty},
     #{stock.totalOrder}
@@ -640,7 +640,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.locationId},
     NOW(),
     #{stock.totalCycle},
@@ -680,7 +680,7 @@
     ) VALUES (
     #{stock.productId},
     #{stock.lotsNumber},
-    DATE(#{stock.expiredDate}),
+    DATE(COALESCE(NULLIF(NULLIF(#{stock.expiredDate}, ''), '0000-00-00'), '1000-01-01')),
     #{stock.totalQty},
     #{stock.totalOrder},
     #{stock.totalPb},

@@ -20,6 +20,12 @@ public class OrganizationResponse {
     @ApiModelProperty(position = 4)
     private String organizationName;
 
+    @ApiModelProperty(position = 5)
+    private Long sourceId;
+
+    @ApiModelProperty(position = 5)
+    private String sourceName;
+
     @ApiModelProperty(position = 4)
     private String organizationNameKh;
 
@@ -55,6 +61,15 @@ public class OrganizationResponse {
 
     @ApiModelProperty(position = 11)
     private String photo;
+
+    @ApiModelProperty(position = 11)
+    private String startDate;
+
+    @ApiModelProperty(position = 11)
+    private String endDate;
+
+    @ApiModelProperty(position = 11)
+    private Integer countdownDate;
 
     @ApiModelProperty(position = 12)
     private Long businessTypeId;

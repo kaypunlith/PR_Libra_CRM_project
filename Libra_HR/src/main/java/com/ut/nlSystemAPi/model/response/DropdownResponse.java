@@ -12,6 +12,12 @@ public class DropdownResponse {
   @ApiModelProperty(position = 2)
   private String name;
 
+  @ApiModelProperty(position = 1)
+  private Long contactId;
+
+  @ApiModelProperty(position = 2)
+  private String contactName;
+
   @ApiModelProperty(position = 3)
   private String code;
 

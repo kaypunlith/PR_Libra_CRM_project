@@ -17,6 +17,9 @@ public class CustomerContact extends BaseModel {
     private Integer type;
 
     @ApiModelProperty(position = 2)
+    private String code;
+
+    @ApiModelProperty(position = 2)
     private String contactName;
 
     @ApiModelProperty(position = 3)

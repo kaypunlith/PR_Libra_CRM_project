@@ -12,7 +12,7 @@ import java.util.List;
 @Repository
 public interface CustomerContactMapper {
 
-    List<CustomerContactResponse> getList(@Param("filter") CustomerContactFilter filter, @Param("employeeId") Long employeeId, @Param("userId") Long userId);
+    List<CustomerContactResponse> getList(@Param("filter") CustomerContactFilter filter, @Param("userId") Long userId);
 
     Long countList(@Param("filter") CustomerContactFilter filter, @Param("employeeId") Long employeeId, @Param("userId") Long userId);
 

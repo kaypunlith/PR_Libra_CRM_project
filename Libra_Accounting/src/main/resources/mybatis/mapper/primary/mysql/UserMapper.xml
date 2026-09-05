@@ -183,6 +183,14 @@
     WHERE id = #{id}
   </delete>
 
+  <update id="deleteEmployee">
+    UPDATE employees SET
+      is_active = 2,
+      modified = NOW(),
+      modified_by = #{userId}
+    WHERE id = #{employeeId}
+  </update>
+
   <insert id="insertSystemRoleUser">
     INSERT INTO user_groups (user_id, group_id) VALUES (#{userId}, #{groupId});
   </insert>
@@ -203,7 +211,7 @@
   </insert>
 
   <select id="getEmployeeId" parameterType="java.lang.Long" resultType="java.lang.Long">
-    SELECT employeeId FROM users WHERE is_active = 1 AND id = #{userId} LIMIT 01
+    SELECT employee_id FROM users WHERE is_active = 1 AND id = #{userId} LIMIT 01
   </select>
 
   <select id="getUserBilling" parameterType="java.lang.Long" resultMap="UserBilling">

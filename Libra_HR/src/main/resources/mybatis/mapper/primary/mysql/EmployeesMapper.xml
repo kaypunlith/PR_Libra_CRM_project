@@ -63,7 +63,6 @@
       employees.amount_deposit AS amountDeposit,
       employees.deadline_date AS deadlineDate,
       employees.chat_id AS chatId,
-      (SELECT username FROM users WHERE id = employees.user_hr_id) AS sysCode,
       employees.created AS created,
       CONCAT(user1.first_name, ' ', user1.last_name) AS createdBy,
       employees.modified AS modified,
@@ -95,6 +94,9 @@
     WHERE employees.is_active = 1
     <if test="filter.departmentId != null">
       AND employees.department_id = #{filter.departmentId}
+    </if>
+    <if test="filter.groupId != null">
+      AND EXISTS (SELECT 1 FROM employee_egroups WHERE employee_egroups.employee_id = employees.id AND employee_egroups.egroup_id = #{filter.groupId})
     </if>
     <if test="filter.statusId != null">
       AND employees.employee_status_id = #{filter.statusId}
@@ -163,7 +165,6 @@
   <insert id="insert" parameterType="com.ut.nlSystemAPi.model.Employee" useGeneratedKeys="true" keyProperty="employee.id">
     INSERT INTO employees (
       <if test="employee.userId != null">user_id,</if>
-      <if test="employee.userHrId != null">user_hr_id,</if>
       employee_sys_code,
       photo,
       photo_name,
@@ -229,7 +230,6 @@
       is_active
     ) VALUES (
                <if test="employee.userId != null">#{employee.userId},</if>
-               <if test="employee.userHrId != null">#{employee.userHrId},</if>
               #{employee.employeeSysCode},
               #{employee.photo},
               #{employee.photoName},
@@ -395,7 +395,6 @@
   <update id="update" parameterType="com.ut.nlSystemAPi.model.Employee">
       UPDATE employees SET
       <if test="employee.userId != null">user_id = #{employee.userId},</if>
-      <if test="employee.userHrId != null">user_hr_id = #{employee.userHrId},</if>
       <if test="employee.photo != null">photo = #{employee.photo},</if>
       <if test="employee.photoName != null">photo_name = #{employee.photoName},</if>
       <if test="employee.idCard != null">id_card = #{employee.idCard},</if>
@@ -458,7 +457,7 @@
       <if test="employee.chatId != null">chat_id = #{employee.chatId},</if>
       <if test="employee.created != null">created = #{employee.created},</if>
       <if test="employee.createdBy != null">created_by = #{employee.createdBy},</if>
-      <if test="employee.isActive &gt; 0">is_active = #{employee.isActive},</if>
+      is_active = 1,
       modified = NOW(),
       modified_by = #{employee.modifiedBy}
       WHERE id = #{employee.id}
@@ -520,6 +519,17 @@
         FROM employees
         WHERE id = #{id}
     </select>
+
+
+
+   <select id="getEmployeeGroup" resultType="com.ut.nlSystemAPi.model.response.EmployeeGroupResponse">
+      SELECT
+         egroups.id AS id,
+         egroups.name AS name
+      FROM employee_egroups
+     LEFT JOIN egroups ON egroups.id = employee_egroups.egroup_id
+      WHERE employee_id = #{employeeId} AND is_active = 1;
+   </select>
 
   <delete id="delete" parameterType="java.lang.Long">
     UPDATE employees SET
@@ -913,18 +923,19 @@
   </select>
 
   <select id="getUserIdByEmployeeId" parameterType="java.lang.Long" resultType="java.lang.Long">
-    SELECT user_id FROM employees WHERE id = #{employeeId} AND is_active = 1 LIMIT 1
+    SELECT id FROM users WHERE employee_id = #{employeeId} AND is_active = 1 LIMIT 1
   </select>
 
     <insert id="insertEmployeeEgroup" parameterType="java.lang.Long">
-        INSERT INTO employee_egroups (
-            employee_id,
-            egroup_id
-        ) VALUES (
-                     #{employeeId},
-                     (SELECT group_id FROM departments WHERE id = #{departmentId})
-                 );
+       INSERT INTO employee_egroups (
+          employee_id,
+          egroup_id
+       ) VALUES (
+                   #{employeeId},
+                   #{groupId}
+                );
     </insert>
+
 
     <delete id="deleteEmployeeEgroup" parameterType="java.lang.Long">
         DELETE FROM employee_egroups WHERE employee_id = #{employeeId};

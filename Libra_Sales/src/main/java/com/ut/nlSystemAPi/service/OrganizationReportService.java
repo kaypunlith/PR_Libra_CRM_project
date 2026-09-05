@@ -12,6 +12,8 @@ public interface OrganizationReportService {
 
     ResponseMessage<BaseResult> getListAccountReceivableAging(AccountReceivableAgingReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> getListCustomerHistory(CustomerHistoryReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
     ResponseMessage<BaseResult> getListCustomerBalance(CustomerBalanceReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListCustomerBalanceByInvoice(CustomerBalanceByInvoiceReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
@@ -28,4 +30,7 @@ public interface OrganizationReportService {
 
     ResponseMessage<BaseResult> getListActivityCardTracking(ActivityCardTrackingReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> updateMemoStatus(com.ut.nlSystemAPi.model.request.Organization.CustomerHistoryPrintRequest request, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> printCustomerHistoryQuotation(Long quotationIds, HttpServletRequest httpServletRequest) throws UnknownHostException;
 }

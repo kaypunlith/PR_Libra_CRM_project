@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ut.nlSystemAPi.mapper.primary.SupportActivityMapper">
+
+    <sql id="BASE_COLUMN_LIST">
+        csa.id AS id,
+        (
+            SELECT GROUP_CONCAT(egroups.name SEPARATOR ', ')
+            FROM egroups
+            WHERE egroups.id IN (
+                SELECT egroup_id
+                FROM crm_support_activity_egroups
+                WHERE crm_support_activity_id = csa.id
+            )
+        ) AS employeeGroupName,
+        (
+            SELECT GROUP_CONCAT(name SEPARATOR ', ')
+            FROM crm_support_stags
+            WHERE crm_support_stags.id IN (
+                SELECT crm_support_stag_id
+                FROM crm_support_stag_activities
+                WHERE crm_support_activity_id = csa.id
+            )
+        ) AS stageName,
+        csa.name AS activityName,
+        (
+            SELECT GROUP_CONCAT(name SEPARATOR ', ')
+            FROM crm_support_tasks
+            WHERE crm_support_activity_id = csa.id
+            AND is_active = 1
+        ) AS taskName,
+        csa.created AS created,
+        CONCAT(creator.first_name, ' ', creator.last_name) AS createdBy,
+        csa.modified AS modified,
+        CONCAT(modifier.first_name, ' ', modifier.last_name) AS modifiedBy
+    </sql>
+
+    <sql id="BASE_FROM">
+        FROM crm_support_activities AS csa
+        LEFT JOIN users AS creator ON creator.id = csa.created_by
+        LEFT JOIN users AS modifier ON modifier.id = csa.modified_by
+    </sql>
+
+    <sql id="BASE_WHERE">
+        WHERE csa.is_active = 1
+        <if test="filter.searchText != null">
+            AND csa.name LIKE CONCAT('%', #{filter.searchText}, '%')
+        </if>
+    </sql>
+
+    <select id="getList" resultMap="SupportActivityResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+        ORDER BY
+        <choose>
+            <when test="filter.orderBy != null">${filter.orderBy}</when>
+            <otherwise>csa.id DESC</otherwise>
+        </choose>
+        <if test="filter.page != null and filter.rowsPerPage != null">
+            LIMIT #{filter.page}, #{filter.rowsPerPage}
+        </if>
+    </select>
+
+    <select id="countList" resultType="java.lang.Long">
+        SELECT COUNT(csa.id)
+        <include refid="BASE_FROM"/>
+        <include refid="BASE_WHERE"/>
+    </select>
+
+    <select id="getOne" resultMap="SupportActivityResponse">
+        SELECT <include refid="BASE_COLUMN_LIST"/>
+        <include refid="BASE_FROM"/>
+        WHERE csa.is_active = 1 AND csa.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="activity.id">
+        INSERT INTO crm_support_activities(name,created,created_by, is_active)
+        VALUES (#{activity.name}, NOW(), #{activity.createdBy}, #{activity.isActive})
+    </insert>
+
+    <update id="update">
+        UPDATE crm_support_activities
+        SET name = #{activity.name}, modified = NOW(), modified_by = #{activity.modifiedBy}
+        WHERE id = #{activity.id}
+        AND is_active = 1
+    </update>
+
+    <update id="delete">
+        UPDATE crm_support_activities
+        SET is_active = 2
+        WHERE id = #{id}
+        AND is_active = 1
+    </update>
+
+    <select id="checkDuplicate" resultType="java.lang.Long">
+        SELECT COUNT(id)
+        FROM crm_support_activities
+        WHERE is_active = 1
+        AND name = #{name}
+        <if test="id != null">AND id != #{id}</if>
+    </select>
+
+    <insert id="insertEmployeeGroup">
+        INSERT INTO crm_support_activity_egroups(crm_support_activity_id, egroup_id)
+        VALUES (#{activityId}, #{employeeGroupId})
+    </insert>
+
+    <insert id="insertStage">
+        INSERT INTO crm_support_stag_activities(crm_support_activity_id, crm_support_stag_id)
+        VALUES (#{activityId}, #{stageId})
+    </insert>
+
+    <insert id="insertTask">
+        INSERT INTO crm_support_tasks(crm_support_activity_id, name,created,created_by, is_active)
+        VALUES (#{activityId}, #{name},NOW(),#{userId},1)
+    </insert>
+
+    <delete id="deleteEmployeeGroup">
+        DELETE FROM crm_support_activity_egroups
+        WHERE crm_support_activity_id = #{activityId}
+    </delete>
+
+    <delete id="deleteStage">
+        DELETE FROM crm_support_stag_activities
+        WHERE crm_support_activity_id = #{activityId}
+    </delete>
+
+    <update id="deleteTask">
+        UPDATE crm_support_tasks
+        SET is_active = 2
+        WHERE crm_support_activity_id = #{activityId}
+    </update>
+
+    <select id="getEmployeeGroupIds" resultType="java.lang.Long">
+        SELECT egroup_id
+        FROM crm_support_activity_egroups
+        WHERE crm_support_activity_id = #{activityId}
+    </select>
+
+    <select id="getStageIds" resultType="java.lang.Long">
+        SELECT crm_support_stag_id
+        FROM crm_support_stag_activities
+        WHERE crm_support_activity_id = #{activityId}
+    </select>
+
+    <select id="getTasks" resultType="java.lang.String">
+        SELECT name
+        FROM crm_support_tasks
+        WHERE crm_support_activity_id = #{activityId}
+        AND is_active = 1
+    </select>
+
+</mapper>

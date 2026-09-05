@@ -25,6 +25,10 @@ public class Opportunity extends BaseModel {
     @ApiModelProperty(position = 6)
     private Long customerId;
 
+    @ApiModelProperty(position = 6)
+    private Long leadId;
+
+
     @ApiModelProperty(position = 7)
     private Long employeeId;
 

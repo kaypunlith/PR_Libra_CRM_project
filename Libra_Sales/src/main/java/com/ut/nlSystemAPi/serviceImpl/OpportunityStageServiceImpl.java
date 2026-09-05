@@ -100,6 +100,9 @@ public class OpportunityStageServiceImpl implements OpportunityStageService {
             stage.setName(request.getName());
             stage.setApplyWith(request.getApplyWith());
             stage.setCreatedBy(userId);
+            stage.setConvertLead(request.getConvertLead());
+            stage.setIsUpload(request.getIsUpload());
+            stage.setIsPrint(request.getIsPrint());
             stage.setIsActive(1);
             Boolean result = opportunityStageMapper.insert(stage);
             if (result) {
@@ -131,6 +134,9 @@ public class OpportunityStageServiceImpl implements OpportunityStageService {
             stage.setName(request.getName());
             stage.setApplyWith(request.getApplyWith());
             stage.setModifiedBy(userId);
+            stage.setConvertLead(request.getConvertLead());
+            stage.setIsUpload(request.getIsUpload());
+            stage.setIsPrint(request.getIsPrint());
             Boolean result = opportunityStageMapper.update(stage);
             if (result) {
                 LocalTime endDuration = LocalTime.now();

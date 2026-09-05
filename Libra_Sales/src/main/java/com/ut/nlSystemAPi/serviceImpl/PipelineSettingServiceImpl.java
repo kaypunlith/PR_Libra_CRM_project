@@ -57,6 +57,10 @@ public class PipelineSettingServiceImpl implements PipelineSettingService {
             pagination.setRowsPerPage(filter.getRowsPerPage());
             pagination.setTotal(pipelineSettingMapper.countList(filter, userId));
             filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+            System.out.println(" userid sale 1 "+userId);
+
+
+
             List<PipelineSettingResponse> responses = pipelineSettingMapper.getList(filter, userId);
             LocalTime endDuration = LocalTime.now();
             activityLogService.insert("/pipeline-setting/list", null, null, "Pipeline Setting", "Pipeline Setting (View)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -80,7 +84,7 @@ public class PipelineSettingServiceImpl implements PipelineSettingService {
             for (PipelineSettingResponse response : responses) {
                 List<PipelineSettingStageResponse> stages = pipelineSettingMapper.getStages(response.getId());
                 for (PipelineSettingStageResponse stage : stages) {
-                    stage.setActivityIds(pipelineSettingMapper.getStageActivityIds(stage.getStageId()));
+                    stage.setActivityIds(pipelineSettingMapper.getStageActivityIds(response.getId(), stage.getStageId()));
                 }
                 response.setStages(stages);
             }
@@ -108,6 +112,8 @@ public class PipelineSettingServiceImpl implements PipelineSettingService {
             pipeline.setIsActive(1);
             Boolean result = pipelineSettingMapper.insert(pipeline);
             if (result) {
+                System.out.println("pipline Id "+pipeline.getId());
+                System.out.println("request "+request);
                 saveDetails(pipeline.getId(), request, false);
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/pipeline-setting/add", null, null, "Pipeline Setting", "Pipeline Setting (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -182,11 +188,11 @@ public class PipelineSettingServiceImpl implements PipelineSettingService {
             for (PipelineSettingStageRequest stage : request.getStages()) {
                 pipelineSettingMapper.insertStage(pipelineId, stage.getStageId(), stage.getPercent(), stage.getOrdering(), stage.getSkippable());
                 if (replaceStageActivities) {
-                    pipelineSettingMapper.deleteStageActivity(stage.getStageId());
+                    pipelineSettingMapper.deleteStageActivity(pipelineId, stage.getStageId());
                 }
                 if (stage.getActivityIds() != null) {
                     for (Long activityId : stage.getActivityIds()) {
-                        pipelineSettingMapper.insertStageActivity(stage.getStageId(), activityId);
+                        pipelineSettingMapper.insertStageActivity(pipelineId, stage.getStageId(), activityId);
                         if (request.getEmployeeGroupIds() != null) {
                             for (Long employeeGroupId : request.getEmployeeGroupIds()) {
                                 pipelineSettingMapper.insertActivityEmployeeGroup(activityId, employeeGroupId);

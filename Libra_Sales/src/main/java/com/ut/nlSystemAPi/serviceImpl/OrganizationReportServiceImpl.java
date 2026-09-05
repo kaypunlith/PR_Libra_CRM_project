@@ -8,9 +8,17 @@ import com.ut.nlSystemAPi.model.base.BaseResult;
 import com.ut.nlSystemAPi.model.base.Pagination;
 import com.ut.nlSystemAPi.model.base.ResponseMessage;
 import com.ut.nlSystemAPi.model.MessageService;
+import com.ut.nlSystemAPi.model.entity.Organization.CustomerHistoryPrintTracking;
+import com.ut.nlSystemAPi.model.entity.Quotation.QuotationLog;
 import com.ut.nlSystemAPi.model.filter.Report.Organization.*;
+import com.ut.nlSystemAPi.model.request.Organization.CustomerHistoryPrintRequest;
+import com.ut.nlSystemAPi.model.response.Quotation.QuotationDetailResponse;
+import com.ut.nlSystemAPi.model.response.Quotation.QuotationResponse;
 import com.ut.nlSystemAPi.model.response.Report.Organization.*;
+import com.ut.nlSystemAPi.model.response.Organization.CustomerHistoryReportResponse;
+import com.ut.nlSystemAPi.model.response.Organization.CustomerHistoryMemoResponse;
 import com.ut.nlSystemAPi.model.response.Report.ReportGrandTotalResponse;
+import com.ut.nlSystemAPi.model.response.Service.ServiceShiftResponse;
 import com.ut.nlSystemAPi.service.ActivityLogService;
 import com.ut.nlSystemAPi.service.OrganizationReportService;
 import com.ut.nlSystemAPi.service.UserService;
@@ -42,7 +50,19 @@ public class OrganizationReportServiceImpl implements OrganizationReportService 
     private ActivityLogService activityLogService;
 
     @Autowired
+    private com.ut.nlSystemAPi.mapper.primary.QuotationMapper quotationMapper;
+
+    @Autowired
     private SaleOrderMapper saleOrderMapper;
+    
+    @Autowired
+    private com.ut.nlSystemAPi.mapper.primary.QuotationLogMapper quotationLogMapper;
+    
+    @Autowired
+    private com.ut.nlSystemAPi.mapper.primary.CustomerHistoryPrintTrackingMapper customerHistoryPrintTrackingMapper;
+
+    @Autowired
+    private com.ut.nlSystemAPi.mapper.primary.ServiceMapper serviceMapper;
 
     @Override
     public ResponseMessage<BaseResult> getListAccountReceivableAging(AccountReceivableAgingReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -590,5 +610,178 @@ public class OrganizationReportServiceImpl implements OrganizationReportService 
                     endDuration, httpServletRequest);
             return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
         }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> getListCustomerHistory(CustomerHistoryReportFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 1010L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            if (permissionMapper.checkPermission(userId, "Report (Customer Summary)") == 0) {
+                return ResponseMessageUtils.makeResponseByPermission(true, messageService.message("No Permission access.", false));
+            }
+            
+            Pagination pagination = new Pagination();
+            pagination.setPage(filter.getPage());
+            pagination.setRowsPerPage(filter.getRowsPerPage());
+            pagination.setTotal(organizationReportMapper.countListCustomerHistory(filter));
+            filter.setPage((filter.getPage() - 1) * filter.getRowsPerPage());
+
+            List<CustomerHistoryReportResponse> flatResponses = organizationReportMapper.getListCustomerHistory(filter);
+            
+            // Grouping logic for Customer History
+            Map<Long, CustomerHistoryReportResponse> groupedMap = new LinkedHashMap<>();
+            for (CustomerHistoryReportResponse flat : flatResponses) {
+                Long customerId = flat.getCustomerId();
+                if (!groupedMap.containsKey(customerId)) {
+                    CustomerHistoryReportResponse newResponse = new CustomerHistoryReportResponse();
+                    newResponse.setCustomerId(flat.getCustomerId());
+                    newResponse.setCustomerName(flat.getCustomerName());
+                    newResponse.setCustomerCode(flat.getCustomerCode());
+                    newResponse.setMemos(new ArrayList<>());
+                    groupedMap.put(customerId, newResponse);
+                }
+                
+                CustomerHistoryMemoResponse memo = new CustomerHistoryMemoResponse();
+                memo.setStatus(flat.getStatus());
+                memo.setQty(flat.getQty());
+                memo.setMemoStatus(flat.getMemoStatus());
+                memo.setDate(flat.getDate());
+                memo.setServices(flat.getServices());
+                memo.setQuotationId(flat.getQuotationId());
+                memo.setTerminateId(flat.getTerminateId());
+                memo.setPrintCount(flat.getPrintCount());
+                
+                CustomerHistoryReportResponse group = groupedMap.get(customerId);
+                group.getMemos().add(memo);
+                
+                int qtyDelta = flat.getQty() != null ? flat.getQty() : 0;
+                if ("Reduce".equalsIgnoreCase(flat.getStatus()) || "Terminate".equalsIgnoreCase(flat.getStatus())) {
+                    group.setLatestQty(group.getLatestQty() - qtyDelta);
+                } else {
+                    group.setLatestQty(group.getLatestQty() + qtyDelta);
+                }
+            }
+            List<CustomerHistoryReportResponse> responses = new ArrayList<>(groupedMap.values());
+            
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization-report/customer-history", null, null, "Report (Customer Summary)",
+                    "Report (Customer Summary)", "View", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true,
+                    messageService.message("Success", responses, true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization-report/customer-history", line, error.toString(),
+                    "Report (Customer Summary)", "Report (Customer Summary)", "View", 2, "Error", startDuration,
+                    endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> updateMemoStatus(CustomerHistoryPrintRequest request, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 1011L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            
+          CustomerHistoryPrintTracking tracking = customerHistoryPrintTrackingMapper.findByTypeAndReferenceId(request.getType(), request.getReferenceId());
+            if (tracking == null) {
+                tracking = new CustomerHistoryPrintTracking();
+                tracking.setType(request.getType());
+                tracking.setReferenceId(request.getReferenceId());
+
+                customerHistoryPrintTrackingMapper.insert(tracking);
+            } else {
+                customerHistoryPrintTrackingMapper.updateStatus(request.getType(), request.getReferenceId());
+            }
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization-report/update-memo-status", null, null, "Report (Customer Summary)",
+                    "Update Memo Status", "Update", 1, "Success", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", true));
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization-report/update-memo-status", line, error.toString(),
+                    "Report (Customer Summary)", "Update Memo Status", "Update", 2, "Error", startDuration,
+                    endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(false, messageService.message("Error", null, false));
+        }
+    }
+
+    @Override
+    public ResponseMessage<BaseResult> printCustomerHistoryQuotation(Long quotationIds, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        LocalTime startDuration = LocalTime.now();
+        Long line = 1001L;
+        try {
+            Long userId = userService.getUserAuth().getId();
+            if (permissionMapper.checkPermission(userId, "Report (Customer History)") == 0) {
+                return ResponseMessageUtils.makeResponseByPermission(true, messageService.message("No Permission access.", false));
+            }
+
+            List<QuotationResponse> resultList = new  java.util.ArrayList<>();
+            if (quotationIds != null) {
+
+                    List<QuotationResponse> data = quotationMapper.getOneIncludeArchived(quotationIds, userId);
+                    if (data != null && !data.isEmpty()) {
+                        QuotationResponse response = data.get(0);
+                        response.setTermConditions(quotationMapper.getTermCondition(response.getId()));
+
+                        List<QuotationDetailResponse> allDetails = quotationMapper.getListDetail(response.getId());
+                        List<QuotationLog> logs = quotationLogMapper.getLogsByQuotationId(response.getId());
+                        java.util.Set<String> loggedServiceIds = new java.util.HashSet<>();
+                        if (logs != null && !logs.isEmpty()) {
+                            // Find the most recent UPDATE log, or ADD log
+                            QuotationLog relevantLog = null;
+                            for (QuotationLog l : logs) {
+                                if ("UPDATE".equals(l.getAction())) {
+                                    relevantLog = l;
+                                    break;
+                                }
+                            }
+                            if (relevantLog == null) relevantLog = logs.get(0);
+
+                            if (relevantLog.getServiceId() != null && !relevantLog.getServiceId().isEmpty()) {
+                                String[] sIds = relevantLog.getServiceId().split(",");
+                                for (String sId : sIds) {
+                                    loggedServiceIds.add(sId.trim());
+                                }
+                            }
+                        }
+
+                        List<QuotationDetailResponse> filteredDetails = new java.util.ArrayList<>();
+                        if (allDetails != null) {
+                            for (QuotationDetailResponse detail : allDetails) {
+                                if (detail.getType() != null && detail.getType() == 2) {
+                                    // It's a service, check if it's in the loggedServiceIds
+                                    if (detail.getItemId() != null && loggedServiceIds.contains(String.valueOf(detail.getItemId()))) {
+                                        List<ServiceShiftResponse> serviceShiftResponses = serviceMapper.getServiceShift(detail.getItemId());
+                                        detail.setServiceShiftResponse(serviceShiftResponses);
+                                        filteredDetails.add(detail);
+                                    }
+                                } else {
+                                    // Not a service (e.g. product), keep it
+                                    filteredDetails.add(detail);
+                                }
+                            }
+                        }
+                        response.setDetails(filteredDetails);
+
+                        resultList.add(response);
+                    }
+            }
+
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization-report/customer-history-print", null, null, "Report (Customer History)", "Report (Customer History)", "Print", 1, "Success", startDuration, endDuration, httpServletRequest);
+
+            return ResponseMessageUtils.makeResponse(true, messageService.message("Success", resultList, true));
+
+        } catch (Exception error) {
+            LocalTime endDuration = LocalTime.now();
+            activityLogService.insert("/organization-report/customer-history-print", line, error.toString(), "Report (Customer History)", "Report (Customer History)", "Print", 2, "Error", startDuration, endDuration, httpServletRequest);
+            return ResponseMessageUtils.makeResponse(false, messageService.message("Error: " + error.getMessage(), null, false));
+        }
+
     }
 }

@@ -77,6 +77,17 @@
         WHERE services.is_active = 1 AND services.id = #{id}
     </select>
 
+
+    <select id="getServiceShift" parameterType="java.lang.Long" resultMap="ServiceShiftResponse">
+        SELECT
+            service_shifts.id AS id,
+            service_shifts.name AS name
+             FROM service_shift_details
+            LEFT JOIN service_shifts ON service_shifts.id = service_shift_details.shift_id
+        WHERE service_shift_details.is_active = 1 AND service_shift_details.service_id = #{id}
+    </select>
+
+
     <select id="checkDuplicate" resultType="java.lang.Long">
         SELECT COUNT(id)
         FROM services
@@ -112,6 +123,19 @@
         )
     </insert>
 
+
+    <insert id="insertServiceShift">
+        INSERT INTO service_shift_details (
+            `service_id`,
+            shift_id,
+            is_active
+        ) VALUES (
+                     #{serviceId},
+                     #{serviceShiftId},
+                     1
+                 )
+    </insert>
+
     <update id="update" parameterType="com.ut.nlSystemAPi.model.entity.Service.Service">
         UPDATE services SET
             <if test="service.name != null">`name` = #{service.name},</if>
@@ -133,6 +157,13 @@
             modified = NOW(),
             modified_by = #{userId}
         WHERE id = #{id} AND is_active = 1
+    </update>
+
+
+    <update id="deleteServiceShift" parameterType="java.lang.Long">
+        UPDATE service_shift_details SET
+                            is_active = 2
+        WHERE service_id = #{serviceId} AND is_active = 1
     </update>
 
 </mapper>

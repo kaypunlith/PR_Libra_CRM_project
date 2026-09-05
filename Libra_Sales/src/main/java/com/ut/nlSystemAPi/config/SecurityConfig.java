@@ -52,7 +52,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
   @Override
   public void configure(WebSecurity web) {
-    web.ignoring().antMatchers("/dropdown/list-freedom-customer", "/dropdown/list-freedom-warehouse");
   }
 
   @Override

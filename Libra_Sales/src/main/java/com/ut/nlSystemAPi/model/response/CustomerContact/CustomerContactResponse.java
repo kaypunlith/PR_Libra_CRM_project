@@ -45,6 +45,9 @@ public class CustomerContactResponse {
     private Long age;
 
     @ApiModelProperty(position = 11)
+    private String code;
+
+    @ApiModelProperty(position = 11)
     private Long familyId;
 
     @ApiModelProperty(position = 12)

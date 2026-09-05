@@ -8,15 +8,20 @@
         customer_code AS organizationCode,
         customers.name AS organizationName,
         customers.shop_name AS shopName,
-        customers.is_freedom AS isFreedom,
         customers.is_sync AS isSync,
         main_number AS telephone,
+        so.id AS sourceId,
+        customers.mobile_number AS mobile,
+        so.name AS sourceName,
         customers.price_type_id AS priceTypeId,
         price_types.name AS priceTypeName,
         payment_terms.name AS paymentTermName,
         (SELECT GROUP_CONCAT(contact_name SEPARATOR ', ') FROM customer_contacts WHERE customer_contacts.customer_id = customers.id) AS contactName,
         customers.latitude AS lats,
         customers.longitude AS longs,
+        cosd.start_date AS startDate,
+        cosd.end_date AS endDate,
+        IF(DATEDIFF(cosd.end_date, CURDATE()) &lt;= 7, DATEDIFF(cosd.end_date, CURDATE()), NULL) AS countdownDate,
         customers.created AS created
     </sql>
 
@@ -24,9 +29,17 @@
         FROM customers
         LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
         LEFT JOIN price_types ON price_types.id = customers.price_type_id
+        LEFT JOIN crm_opportunity_sources AS so ON so.id = customers.source_id AND so.is_active = 1
         INNER JOIN customer_cgroups ON customer_cgroups.customer_id = customers.id
         INNER JOIN cgroups ON cgroups.id = customer_cgroups.cgroup_id
         INNER JOIN users AS creator ON creator.id = customers.created_by
+        LEFT JOIN (
+            SELECT customer_id, MAX(id) AS max_id
+            FROM crm_opportunity_documents
+            WHERE is_active = 1
+            GROUP BY customer_id
+        ) latest_cosd ON latest_cosd.customer_id = customers.id
+        LEFT JOIN crm_opportunity_documents cosd ON cosd.id = latest_cosd.max_id
     </sql>
 
     <sql id="BASE_WHERE">
@@ -41,6 +54,9 @@
         </if>
         <if test="filter.viewByUser == 1">
             AND customers.created_by = #{userId}
+        </if>
+        <if test="filter.sourceId != null">
+            AND customers.source_id = #{filter.sourceId}
         </if>
         <if test="filter.createdBy != null and filter.viewByUser != 1">
             AND customers.created_by = #{filter.createdBy}
@@ -94,7 +110,7 @@
                 ${filter.orderBy}
             </when>
             <otherwise>
-                customers.customer_code ASC
+                customers.id DESC
             </otherwise>
         </choose>
         <if test="filter.page != null and filter.rowsPerPage != null">
@@ -193,9 +209,10 @@
         customers.customer_type_id AS businessTypeId,
         customer_types.name AS businessTypeName,
         customers.customer_activity_id AS businessActivityId,
+        so.id AS sourceId,
+        so.name AS sourceName,
         customer_activities.name AS businessActivityName,
         customers.type AS customerType,
-        customers.is_freedom AS isFreedom,
         freedom_types.id AS freedomTypeId,
         freedom_types.name AS freedomTypeName,
         customers.`name` AS organizationName,
@@ -246,6 +263,7 @@
         FROM customers
         LEFT JOIN freedom_types ON freedom_types.id = customers.freedom_type_id
         LEFT JOIN customer_types ON customer_types.id = customers.customer_type_id
+        LEFT JOIN crm_opportunity_sources AS so ON so.id = customers.source_id AND so.is_active = 1
         LEFT JOIN customer_activities ON customer_activities.id = customers.customer_activity_id
         LEFT JOIN payment_terms ON payment_terms.id = customers.payment_term_id
         LEFT JOIN price_types ON price_types.id = customers.price_type_id
@@ -274,8 +292,8 @@
             photo,
             customer_type_id,
             customer_activity_id,
+            source_id,
             type,
-            is_freedom,
             freedom_type_id,
             `name`,
             name_kh,
@@ -312,8 +330,8 @@
                      #{organization.photo},
                      #{organization.businessTypeId},
                      #{organization.businessActivityId},
+                     #{organization.sourceId},
                      #{organization.customerType},
-                     #{organization.isFreedom},
                      #{organization.freedomType},
                      #{organization.name},
                      #{organization.nameKh},
@@ -355,9 +373,9 @@
         <if test="organization.organizationCode != null">customer_code = #{organization.organizationCode},</if>
         <if test="organization.businessTypeId != null">customer_type_id = #{organization.businessTypeId},</if>
         <if test="organization.businessActivityId != null">customer_activity_id = #{organization.businessActivityId},</if>
+        <if test="organization.sourceId != null">source_id = #{organization.sourceId},</if>
         <if test="organization.customerType != null">type = #{organization.customerType},</if>
         <if test="organization.freedomType != null">freedom_type_id = #{organization.freedomType},</if>
-        <if test="organization.isFreedom != null">is_freedom = #{organization.isFreedom},</if>
         <if test="organization.name != null">`name` = #{organization.name},</if>
         <if test="organization.nameKh != null">name_kh = #{organization.nameKh},</if>
         <if test="organization.shopName != null">shop_name = #{organization.shopName},</if>

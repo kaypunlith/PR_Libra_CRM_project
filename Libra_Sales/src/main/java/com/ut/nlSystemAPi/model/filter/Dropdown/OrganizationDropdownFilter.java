@@ -18,4 +18,7 @@ public class OrganizationDropdownFilter extends Filter {
     @ApiModelProperty(position = 12)
     private Long employeeId;
 
+    @ApiModelProperty(position = 12)
+    private Long IsOpportunity;
+
 }

@@ -22,6 +22,7 @@
         <if test="filter.page != null and filter.rowsPerPage != null">LIMIT #{filter.page}, #{filter.rowsPerPage}</if>
     </select>
 
+
     <select id="getListCompany" parameterType="com.ut.nlSystemAPi.model.base.Filter" resultMap="CompanyDropdownResponse">
         SELECT
         companies.`id` AS id,
@@ -600,19 +601,11 @@
         orders.order_date AS orderDate,
         customers.name AS customerName,
         orders.is_wso AS isWso,
-        COALESCE(orders.sales_rep_id, customer_reps.rep_id) AS saleRepId,
-        employees.name AS saleRepName,
         (orders.total_amount - orders.discount + orders.total_vat) AS netAmount,
         currency_centers.symbol AS currencySymbol
         FROM orders
         INNER JOIN customers ON customers.id = orders.customer_id
         INNER JOIN currency_centers ON currency_centers.id = orders.currency_center_id
-        LEFT JOIN customer_reps ON customer_reps.id = (
-            SELECT MIN(customer_reps_lookup.id)
-            FROM customer_reps AS customer_reps_lookup
-            WHERE customer_reps_lookup.customer_id = orders.customer_id
-        )
-        LEFT JOIN employees ON employees.id = COALESCE(orders.sales_rep_id, customer_reps.rep_id)
         WHERE
         <choose>
             <when test="filter.deliverySchedule == 1">

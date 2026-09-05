@@ -61,7 +61,6 @@ public class LeadGroupServiceImpl implements LeadGroupService {
             for (LeadGroupResponse response : responses) {
                 response.setCompanies(leadGroupMapper.getCompany(response.getId()));
                 response.setEmployeeGroups(leadGroupMapper.getEmployeeGroup(response.getId()));
-                response.setLeads(leadGroupMapper.getLead(response.getId()));
             }
 
 

@@ -17,6 +17,8 @@
         <result property="sourceName" column="sourceName"/>
         <result property="organizationId" column="organizationId"/>
         <result property="organizationName" column="organizationName"/>
+        <result property="leadId" column="leadId"/>
+        <result property="leadName" column="leadName"/>
         <result property="responsibilityId" column="responsibilityId"/>
         <result property="responsibilityName" column="responsibilityName"/>
         <result property="divisionId" column="divisionId"/>
@@ -32,6 +34,43 @@
         <result property="createdBy" column="createdBy"/>
         <result property="modified" column="modified"/>
         <result property="modifiedBy" column="modifiedBy"/>
+    </resultMap>
+
+    <resultMap id="OpportunityAddMoreDetailResponse" type="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityAddMoreDetailResponse">
+        <id property="id" column="id"/>
+        <result property="pipelineId" column="pipelineId"/>
+        <result property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="probability" column="probability"/>
+        <result property="description" column="description"/>
+    </resultMap>
+
+    <resultMap id="OpportunityStageMoveResponse" type="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityStageMoveResponse">
+        <result property="stageId" column="stageId"/>
+        <result property="stageName" column="stageName"/>
+        <result property="percent" column="percent"/>
+    </resultMap>
+
+    <resultMap id="OpportunityReferenceResponse" type="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityReferenceResponse">
+        <id property="id" column="id"/>
+        <result property="code" column="code"/>
+        <result property="customerId" column="customerId"/>
+        <result property="customerContactId" column="customerContactId"/>
+        <result property="totalAmount" column="totalAmount"/>
+        <result property="discount" column="discount"/>
+        <result property="totalVat" column="totalVat"/>
+    </resultMap>
+
+    <resultMap id="OpportunityLogResponse" type="com.ut.nlSystemAPi.model.response.Opportunities.OpportunityLogResponse">
+        <id property="id" column="id"/>
+        <result property="type" column="type"/>
+        <result property="status" column="status"/>
+        <result property="statusName" column="statusName"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="borderColor" column="borderColor"/>
+        <result property="created" column="created"/>
+        <result property="createdBy" column="createdBy"/>
     </resultMap>
 
 </mapper>

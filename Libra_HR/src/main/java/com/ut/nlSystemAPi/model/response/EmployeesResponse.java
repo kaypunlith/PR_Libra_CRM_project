@@ -285,4 +285,7 @@ public class EmployeesResponse {
     @ApiModelProperty(position = 60)
     private List<EmployeeDepartmentHistory> employeeDepartmentHistoryList;
 
+    @ApiModelProperty(position = 60)
+    private List<EmployeeGroupResponse> employeeGroupId;
+
 }

@@ -18,7 +18,9 @@
         customers.name AS organizationName,
         customers.customer_code AS organizationCode,
         customers.address AS organizationAddress,
-        customers.main_number AS organizationTelephone,
+        customers.mobile_number AS organizationTelephone,
+        cosd.address AS documentAddress,
+        customers.email as organizationEmail,
         quotations.currency_center_id AS currencyId,
         currency_centers.name AS currencyName,
         currency_centers.symbol AS currencySymbol,
@@ -44,6 +46,10 @@
         quotations.share_except_user AS shareExceptUserIds,
         quotations.created AS created,
         COALESCE((SELECT name FROM employees WHERE user_id = quotations.created_by), CONCAT(users.first_name, ' ', users.last_name)) AS createdBy,
+        employees.name AS createBy,
+        (SELECT name FROM positions WHERE id = employees.position_id AND is_active = 1) AS position,
+        employees.telephone AS tel,
+        employees.email AS email,
         quotations.modified AS modified,
         CONCAT(editor.first_name, ' ', editor.last_name) AS modifiedBy,
         quotations.status AS status,
@@ -63,7 +69,15 @@
         LEFT JOIN price_types ON price_types.id = quotations.price_type_id
         LEFT JOIN vat_settings ON vat_settings.id = quotations.vat_setting_id
         LEFT JOIN users ON users.id = quotations.created_by
-        LEFT JOIN users AS editor ON users.id = quotations.modified_by
+        LEFT JOIN users AS editor ON editor.id = quotations.modified_by
+        LEFT JOIN employees ON employees.user_id = quotations.created_by
+        LEFT JOIN (
+            SELECT customer_id, MAX(id) AS max_id
+            FROM crm_opportunity_documents
+            WHERE is_active = 1
+            GROUP BY customer_id
+        ) latest_cosd ON latest_cosd.customer_id = quotations.customer_id
+        LEFT JOIN crm_opportunity_documents cosd ON cosd.id = latest_cosd.max_id
     </sql>
 
     <sql id="BASE_WHERE">
@@ -102,7 +116,7 @@
         <include refid="BASE_FROM"/>
         <include refid="BASE_WHERE"/>
         GROUP BY quotations.id
-        ORDER BY quotations.id ASC
+        ORDER BY quotations.id DESC
         <if test="filter.page != null and filter.rowsPerPage != null">
             LIMIT #{filter.page}, #{filter.rowsPerPage}
         </if>
@@ -121,6 +135,14 @@
        <include refid="BASE_COLUMN_LIST"/>
        <include refid="BASE_FROM"/>
         WHERE quotations.status >= 0 AND quotations.id = #{id} AND quotations.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
+        GROUP BY quotations.id
+    </select>
+
+    <select id="getOneIncludeArchived" parameterType="java.lang.Long" resultMap="QuotationResponse">
+       SELECT
+       <include refid="BASE_COLUMN_LIST"/>
+       <include refid="BASE_FROM"/>
+        WHERE quotations.status >= -1 AND quotations.id = #{id} AND quotations.company_id IN (SELECT company_id FROM user_companies WHERE user_id = #{userId})
         GROUP BY quotations.id
     </select>
 
@@ -201,9 +223,20 @@
     </insert>
 
     <select id="getTermCondition" parameterType="java.lang.Long" resultType="com.ut.nlSystemAPi.model.response.TermCondition.TermConditionResponse">
-        SELECT *
+        SELECT
+            typeId,
+            MAX(typeName) AS typeName,
+            COALESCE(
+                MAX(CASE WHEN sourcePriority = 1 THEN id END),
+                MAX(id)
+            ) AS id,
+            COALESCE(
+                MAX(CASE WHEN sourcePriority = 1 THEN name END),
+                MAX(name)
+            ) AS name
         FROM (
                  SELECT
+                     1 AS sourcePriority,
                      qtc.term_condition_type_id AS typeId,
                      tct.name AS typeName,
                      qtc.term_condition_id AS id,
@@ -216,6 +249,7 @@
                  UNION ALL
 
                  SELECT
+                     2 AS sourcePriority,
                      tca.term_condition_type_id AS typeId,
                      tct.name AS typeName,
                      IFNULL(tca.term_condition_default_id, 0) AS id,
@@ -445,7 +479,7 @@
         ORDER BY id ASC
     </select>
 
-    <update id="approve" parameterType="java.lang.Long">
+    <update id="approve">
         UPDATE quotations SET
         <choose>
             <when test="status == 2">
@@ -460,7 +494,7 @@
         WHERE id = #{id} AND status > 0;
     </update>
 
-    <update id="close" parameterType="java.lang.Long">
+    <update id="close">
         UPDATE quotations SET
         is_close = #{status}
         WHERE id = #{id} AND status > 0;

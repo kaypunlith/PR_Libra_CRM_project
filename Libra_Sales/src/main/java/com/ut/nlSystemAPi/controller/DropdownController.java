@@ -70,6 +70,15 @@ public class DropdownController {
         return dropdownService.getListOrganization(filter, httpServletRequest);
     }
 
+    @PostMapping("/list-lead")
+    @ApiOperation(value = "List organization by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listLead(@RequestBody OrganizationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListLead(filter, httpServletRequest);
+    }
+
     @PostMapping("/list-organization-contact")
     @ApiOperation(value = "List organization contact by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listOrganizationContact(@RequestBody CustomerContactDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -79,6 +88,69 @@ public class DropdownController {
         return dropdownService.getListOrganizationContact(filter, httpServletRequest);
     }
 
+    @PostMapping("/list-customer-contact")
+    @ApiOperation(value = "List customer contact by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listCustomerContact(@RequestBody CustomerContactDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListCustomerContact(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-employee-group")
+    @ApiOperation(value = "List employee group by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listEmployeeGroup(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListEmployeeGroup(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-type-of-network")
+    @ApiOperation(value = "List type of network by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listTypeOfNetwork(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListTypeOfNetwork(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-partner-management-position", "/list-partner-management-positions"})
+    @ApiOperation(value = "List partner management position by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listPartnerManagementPosition(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListPartnerManagementPosition(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-partner-management-industry", "/list-partner-management-industries"})
+    @ApiOperation(value = "List partner management industry by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listPartnerManagementIndustry(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListPartnerManagementIndustry(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-class-partner-management")
+    @ApiOperation(value = "List class partner management by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listClassPartnerManagement(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListClassPartnerManagement(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-support-ticket-pipeline")
+    @ApiOperation(value = "List class partner management by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSupportTicketPipline(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSupportTicketPipLine(filter, httpServletRequest);
+    }
+
     @PostMapping("/list-organization-group")
     @ApiOperation(value = "List organization group by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listOrganizationGroup(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -86,6 +158,15 @@ public class DropdownController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return dropdownService.getListOrganizationGroup(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-lead-group")
+    @ApiOperation(value = "List lead group by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listLeadGroup(@RequestBody LeadGroupDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListLeadGroup(filter, httpServletRequest);
     }
 
     @PostMapping("/list-zone")
@@ -142,6 +223,33 @@ public class DropdownController {
         return dropdownService.getListQuotation(filter, httpServletRequest);
     }
 
+    @PostMapping({"/list-opportunity-quotation"})
+    @ApiOperation(value = "List opportunity quotation dropdown by filter", notes = "Used by opportunity add more. Filters: searchText, companyId, organizationId", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> getListOpportunityQuotation(@RequestBody QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunityQuotation(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-opportunity-sale-order"})
+    @ApiOperation(value = "List opportunity sale order dropdown by filter", notes = "Used by opportunity add more. Filters: searchText, companyId, organizationId", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> getListOpportunitySaleOrder(@RequestBody QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunitySaleOrder(filter, httpServletRequest);
+    }
+
+    @PostMapping({"a", "/list-quotation-activity-card"})
+    @ApiOperation(value = "List activity card quotation by filter", notes = "organizationId: customer id", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> getListActivityCardQuotation(@RequestBody QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListActivityCardQuotation(filter, httpServletRequest);
+    }
+
     @PostMapping("/list-transfer-order")
     @ApiOperation(value = "List Transfer Order by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listTransferOrder(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -194,6 +302,69 @@ public class DropdownController {
             return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
         }
         return dropdownService.getListKeyNegotiationIssue(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-opportunity-stage")
+    @ApiOperation(value = "List opportunity stage by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listOpportunityStage(@RequestBody OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunityStage(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-opportunity-stage-probability")
+    @ApiOperation(value = "List opportunity stage probability by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listOpportunityStageProbability(@RequestBody OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunityStageProbability(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-opportunity-source")
+    @ApiOperation(value = "List opportunity source by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listOpportunitySource(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunitySource(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-source")
+    @ApiOperation(value = "List source by filter", notes = "List crm_opportunity_sources where type = 6", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSource(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSource(filter, httpServletRequest);
+    }
+
+    @PostMapping("/list-opportunity-activity")
+    @ApiOperation(value = "List opportunity activity by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listOpportunityActivity(@RequestBody OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListOpportunityActivity(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-support-ticket-activity", "/list-supportTicket-activity"})
+    @ApiOperation(value = "List support ticket activity by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSupportTicketActivity(@RequestBody SupportStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSupportTicketActivity(filter, httpServletRequest);
+    }
+
+    @PostMapping({"/list-support-ticket-base-on"})
+    @ApiOperation(value = "List support ticket base on by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listSupportTicketBaseOn(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListSupportTicketBaseOn(filter, httpServletRequest);
     }
 
     @PostMapping("/list-country")
@@ -395,6 +566,15 @@ public class DropdownController {
         return dropdownService.getListQuotationDivision(filter, httpServletRequest);
     }
 
+    @PostMapping("/list-division")
+    @ApiOperation(value = "List division by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listDivision(@RequestBody QuotationDivisionDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListDivision(filter, httpServletRequest);
+    }
+
     @PostMapping("/list-quotation-status")
     @ApiOperation(value = "List years by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listQuotationStatus(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -413,18 +593,6 @@ public class DropdownController {
         return dropdownService.getListQuotationStatusReason(filter, httpServletRequest);
     }
 
-    @PostMapping("/list-freedom-customer")
-    @ApiOperation(value = "List Freedom customer by filter")
-    public ResponseMessage<BaseResult> listFreedomCustomer(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        return dropdownService.getListFreedomCustomer(filter, httpServletRequest);
-    }
-
-    @PostMapping("/list-freedom-warehouse")
-    @ApiOperation(value = "List Freedom warehouse by filter")
-    public ResponseMessage<BaseResult> listFreedomWarehouse(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
-        return dropdownService.getListFreedomWarehouse(filter, httpServletRequest);
-    }
-
     @PostMapping("/list-years")
     @ApiOperation(value = "List years by filter", authorizations = {@Authorization(value = "Bearer")})
     public ResponseMessage<BaseResult> listYears(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
@@ -433,4 +601,13 @@ public class DropdownController {
         }
         return dropdownService.getListYears(filter, httpServletRequest);
     }
+    @PostMapping("/list-service-shift")
+    @ApiOperation(value = "List service shift by filter", authorizations = {@Authorization(value = "Bearer")})
+    public ResponseMessage<BaseResult> listServiceShift(@RequestBody Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException {
+        if (UserAuthSession.getUserAuth() == null) {
+            return ResponseMessageUtils.makeResponse(false, 401, "unauthorized", "No Permission to access");
+        }
+        return dropdownService.getListServiceShift(filter, httpServletRequest);
+    }
+
 }

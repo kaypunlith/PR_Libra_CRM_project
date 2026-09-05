@@ -1,7 +1,6 @@
 package com.ut.nlSystemAPi.serviceImpl;
 
 import com.ut.nlSystemAPi.helper.ResponseMessageUtils;
-import com.ut.nlSystemAPi.mapper.freedom.FreedomMapper;
 import com.ut.nlSystemAPi.mapper.primary.*;
 import com.ut.nlSystemAPi.model.base.BaseResult;
 import com.ut.nlSystemAPi.model.base.Filter;
@@ -31,9 +30,6 @@ public class BusinessTypeServiceImpl implements BusinessTypeService {
 
     @Autowired
     private BusinessTypeMapper businessTypeMapper;
-
-    @Autowired
-    private FreedomMapper freedomMapper;
 
     @Autowired
     private PermissionMapper permissionMapper;
@@ -125,7 +121,6 @@ public class BusinessTypeServiceImpl implements BusinessTypeService {
             Boolean result = businessTypeMapper.insert(businessType);
 
             if (result) {
-                freedomMapper.insertBusinessType(toFreedomBusinessTypeMap(businessType));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/business-type/add", null, null, "Customer Type", "Customer Type (Add)", "Add", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -159,7 +154,6 @@ public class BusinessTypeServiceImpl implements BusinessTypeService {
             Boolean result = businessTypeMapper.update(businessType);
 
             if (result) {
-                freedomMapper.updateBusinessType(toFreedomBusinessTypeMap(businessType));
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/business-type/update", null, null, "Customer Type", "Customer Type (Edit)", "Edit", 1, "Success", startDuration, endDuration, httpServletRequest);
@@ -187,7 +181,6 @@ public class BusinessTypeServiceImpl implements BusinessTypeService {
 
             Boolean result = businessTypeMapper.delete(id, userId);
             if (result) {
-                freedomMapper.deleteBusinessType(id, userId);
                 /*System Activity*/
                 LocalTime endDuration = LocalTime.now();
                 activityLogService.insert("/business-type/delete/{id}", null, null, "Customer Type", "Customer Type (Delete)", "Delete", 1, "Success", startDuration, endDuration, httpServletRequest);

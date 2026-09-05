@@ -21,9 +21,27 @@ public interface DropdownService {
 
     ResponseMessage<BaseResult> getListOrganization(OrganizationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> getListLead(OrganizationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
     ResponseMessage<BaseResult> getListOrganizationContact(CustomerContactDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> getListCustomerContact(CustomerContactDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListEmployeeGroup(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListTypeOfNetwork(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListPartnerManagementPosition(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListPartnerManagementIndustry(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListClassPartnerManagement(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListSupportTicketPipLine(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
     ResponseMessage<BaseResult> getListOrganizationGroup(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListLeadGroup(LeadGroupDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListZone(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
@@ -37,6 +55,12 @@ public interface DropdownService {
 
     ResponseMessage<BaseResult> getListQuotation(QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> getListOpportunityQuotation(QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListOpportunitySaleOrder(QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListActivityCardQuotation(QuotationDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
     ResponseMessage<BaseResult> getListTransferOrder(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListSalesInvoice(SalesInvoiceDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
@@ -49,9 +73,22 @@ public interface DropdownService {
 
     ResponseMessage<BaseResult> getListKeyNegotiationIssue(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> getListOpportunityStage(OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListOpportunityStageProbability(OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListOpportunitySource(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListSource(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListOpportunityActivity(OpportunityStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListSupportTicketActivity(SupportStageDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListSupportTicketBaseOn(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
     ResponseMessage<BaseResult> getListCountry(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
-    ResponseMessage<BaseResult> getListStreet(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListProvince(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
@@ -93,12 +130,22 @@ public interface DropdownService {
 
     ResponseMessage<BaseResult> getListQuotationDivision(QuotationDivisionDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
+    ResponseMessage<BaseResult> getListDivision(QuotationDivisionDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+
+
+    ResponseMessage<BaseResult> getListStreet(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+
+
+
+
     ResponseMessage<BaseResult> getListQuotationStatus(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListQuotationStatusReason(QuotationStatusReasonDropdownFilter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
-    ResponseMessage<BaseResult> getListFreedomCustomer(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
-    ResponseMessage<BaseResult> getListFreedomWarehouse(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 
     ResponseMessage<BaseResult> getListYears(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
+
+    ResponseMessage<BaseResult> getListServiceShift(Filter filter, HttpServletRequest httpServletRequest) throws UnknownHostException;
 }

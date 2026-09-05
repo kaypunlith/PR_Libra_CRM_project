@@ -6,7 +6,7 @@
 
   <groupId>com.ut</groupId>
   <artifactId>libraSystemHrAPi</artifactId>
-  <version>v1.0</version>
+  <version>v1.04</version>
   <packaging>war</packaging>
 
   <name>libraSystemHrAPi</name>

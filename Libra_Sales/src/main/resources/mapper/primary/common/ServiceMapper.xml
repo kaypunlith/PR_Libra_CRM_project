@@ -6,4 +6,8 @@
 
     </resultMap>
 
+    <resultMap id="ServiceShiftResponse" type="com.ut.nlSystemAPi.model.response.Service.ServiceShiftResponse">
+
+    </resultMap>
+
 </mapper>

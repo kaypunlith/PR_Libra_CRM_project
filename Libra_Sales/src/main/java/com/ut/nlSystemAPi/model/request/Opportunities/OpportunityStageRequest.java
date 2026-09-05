@@ -11,4 +11,13 @@ public class OpportunityStageRequest {
 
     @ApiModelProperty(position = 2)
     private Integer applyWith;
+
+    @ApiModelProperty(position = 2)
+    private Long convertLead;
+
+    @ApiModelProperty(position = 3)
+    private Integer isUpload;
+
+    @ApiModelProperty(position = 4)
+    private Integer isPrint;
 }

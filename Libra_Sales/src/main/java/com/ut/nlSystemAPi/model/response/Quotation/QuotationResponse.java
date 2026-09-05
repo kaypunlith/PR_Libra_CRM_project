@@ -1,5 +1,6 @@
 package com.ut.nlSystemAPi.model.response.Quotation;
 
+import com.ut.nlSystemAPi.model.response.Service.ServiceShiftResponse;
 import com.ut.nlSystemAPi.model.response.TermCondition.TermConditionResponse;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -65,6 +66,12 @@ public class QuotationResponse {
 
     @ApiModelProperty(position = 10)
     private String organizationAddress;
+
+    @ApiModelProperty(position = 10)
+    private String documentAddress;
+
+    @ApiModelProperty(position = 10)
+    private String organizationEmail;
 
     @ApiModelProperty(position = 11)
     private String organizationTelephone;
@@ -188,4 +195,22 @@ public class QuotationResponse {
 
     @ApiModelProperty(position = 43)
     private List<QuotationDetailResponse> details;
+
+
+    @ApiModelProperty(position = 43)
+    private List<ServiceShiftResponse> serviceShiftResponse;
+
+    @ApiModelProperty(position = 44)
+    private List<com.ut.nlSystemAPi.model.entity.Quotation.QuotationLog> quotationLogs;
+    @ApiModelProperty(position = 45)
+    private String createBy;
+
+    @ApiModelProperty(position = 46)
+    private String position;
+
+    @ApiModelProperty(position = 47)
+    private String tel;
+
+    @ApiModelProperty(position = 48)
+    private String email;
 }

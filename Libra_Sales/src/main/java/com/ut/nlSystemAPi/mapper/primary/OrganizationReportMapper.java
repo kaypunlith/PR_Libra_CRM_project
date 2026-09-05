@@ -2,6 +2,7 @@ package com.ut.nlSystemAPi.mapper.primary;
 
 import com.ut.nlSystemAPi.model.filter.Report.Organization.*;
 import com.ut.nlSystemAPi.model.response.Report.Organization.*;
+import com.ut.nlSystemAPi.model.response.Organization.CustomerHistoryReportResponse;
 import com.ut.nlSystemAPi.model.response.Report.ReportGrandTotalResponse;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -124,4 +125,8 @@ public interface OrganizationReportMapper {
 
     Long countListActivityCardTracking(@Param("filter") ActivityCardTrackingReportFilter filter);
 
+    // Customer History
+    List<CustomerHistoryReportResponse> getListCustomerHistory(@Param("filter") CustomerHistoryReportFilter filter);
+
+    Long countListCustomerHistory(@Param("filter") CustomerHistoryReportFilter filter);
 }

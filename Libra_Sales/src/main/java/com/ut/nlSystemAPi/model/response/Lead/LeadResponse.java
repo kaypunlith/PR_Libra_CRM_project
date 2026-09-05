@@ -17,6 +17,14 @@ public class LeadResponse {
     @ApiModelProperty(position = 3)
     private String leadCode;
 
+    @ApiModelProperty(position = 3)
+    private Long sourceId;
+
+
+    @ApiModelProperty(position = 3)
+    private String sourceName;
+
+
     @ApiModelProperty(position = 4)
     private String leadName;
 

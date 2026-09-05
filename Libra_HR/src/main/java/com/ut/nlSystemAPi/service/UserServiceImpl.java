@@ -9,6 +9,7 @@ import com.ut.nlSystemAPi.model.Users.User;
 import com.ut.nlSystemAPi.model.base.*;
 import com.ut.nlSystemAPi.model.response.ApplyUserFilter;
 import com.ut.nlSystemAPi.model.response.ApplyUserList;
+import com.ut.nlSystemAPi.mapper.primary.EmployeesMapper;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -33,6 +34,9 @@ public class UserServiceImpl implements UserService {
 
   @Autowired
   private UserMapper userMapper;
+
+  @Autowired
+  private EmployeesMapper employeesMapper;
 
   @Autowired
   Environment environment;
@@ -182,8 +186,18 @@ public class UserServiceImpl implements UserService {
       return ResponseMessageUtils.makeResponse(true, messageSource.getMessage("message.data.admin.en", null, Locale.getDefault()));
     }
 
+    Long currentUserId = getUserAuth().getId();
+    List<User> userList = userMapper.getOne(id);
+    Long employeeId = null;
+    if (userList != null && !userList.isEmpty()) {
+      employeeId = userList.get(0).getEmployeeId();
+    }
+
     Boolean result = userMapper.delete(id);
     if (result) {
+      if (employeeId != null) {
+        employeesMapper.delete(employeeId, currentUserId);
+      }
       String msgEntityname = messageSource.getMessage("user.entityname", null, Locale.getDefault());
       String msgSuccess = messageSource.getMessage("form.delete.success", null, Locale.getDefault());
       return ResponseMessageUtils.makeResponse(true, msgEntityname + " " + msgSuccess);

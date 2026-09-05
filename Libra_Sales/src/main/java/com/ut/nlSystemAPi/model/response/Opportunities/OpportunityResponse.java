@@ -48,6 +48,15 @@ public class OpportunityResponse {
     @ApiModelProperty(position = 14)
     private String organizationName;
 
+    @ApiModelProperty(position = 13)
+    private Long leadId;
+
+    @ApiModelProperty(position = 14)
+    private String leadName;
+
+    @ApiModelProperty(position = 14)
+    private String address;
+
     @ApiModelProperty(position = 15)
     private Long responsibilityId;
 
@@ -92,4 +101,13 @@ public class OpportunityResponse {
 
     @ApiModelProperty(position = 29)
     private String modifiedBy;
+
+    @ApiModelProperty(position = 30)
+    private Boolean isUploaded;
+
+    @ApiModelProperty(position = 31)
+    private String printStatus;
+
+    @ApiModelProperty(position = 32)
+    private Integer printCount;
 }
